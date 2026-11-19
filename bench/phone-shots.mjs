@@ -26,6 +26,6 @@ for (const [i, t] of ['Layout', 'Text', 'Reading'].entries()) {
 }
 await V(() => { window.__vol.ui.sheet = 'help'; }); await shot('08-help');
 await V(() => { window.__vol.ui.sheet = 'send'; }); await shot('10-send');
-await V(() => { window.__vol.ui.sheet = null; window.__vol.map?.open?.(); }); await p.waitForTimeout(1500); await shot('11-map');
-await p.touchscreen.tap(200, 330); await shot('12-map-tap');
+await V(() => { window.__vol.ui.sheet = null; window.__vol.contents.open(); }); await p.waitForTimeout(500); await shot('11-contents');
+await V(() => window.__vol.contents.setTab('highlights')); await shot('12-highlights');
 await b.close();

@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base';
 import { AxeBuilder } from '@axe-core/playwright';
 
 // No accessibility violations (axe-core: WCAG 2.1 A and AA, and best practice) on each
-// surface: the library, the reader, its settings, the map and its notebook, help.
+// surface: the library, the reader, its settings, the contents and highlights, help.
 test('every surface passes an accessibility audit', async ({ page: p, browserName }) => {
   test.skip(browserName !== 'chromium', 'one engine is enough for the audit');
   const found: string[] = [];
@@ -22,8 +22,8 @@ test('every surface passes an accessibility audit', async ({ page: p, browserNam
   await p.mouse.move(600, 10);
   await audit('reader');
   await p.keyboard.press('s'); await audit('settings'); await p.keyboard.press('Escape');
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible(); await audit('map');
-  await p.getByRole('button', { name: 'Notebook' }).click(); await audit('notebook');
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible(); await audit('contents');
+  await p.getByRole('tab', { name: 'Highlights' }).click(); await audit('highlights');
   await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await p.waitForTimeout(600);
   await p.keyboard.press('?'); await audit('help');
   expect(found).toEqual([]);

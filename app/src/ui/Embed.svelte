@@ -14,10 +14,10 @@
 
   let { core }: { core: Core } = $props();
   // svelte-ignore state_referenced_locally
-  const { reader, map } = reading(core);
+  const { reader, contents } = reading(core);
   let findBar: any = $state();
   let chip: any = $state();
-  const keyed: Keyed = { reader, map, get chip() { return chip; }, get findBar() { return findBar; } };
+  const keyed: Keyed = { reader, contents, get chip() { return chip; }, get findBar() { return findBar; } };
 
   /** A theme by its name, or one the page made (`volumen-theme/1`, checked as any theme
    *  file is); for this visit only. False if it is neither. */
@@ -68,5 +68,5 @@
 
 <Shell>
   {#if ui.view !== 'reader'}<p class="failed embed-wait" role="status">{error || 'Opening the book…'}</p>{/if}
-  <ReaderView {reader} {map} hidden={ui.view !== 'reader'} bind:chip bind:findBar />
+  <ReaderView {reader} {contents} hidden={ui.view !== 'reader'} bind:chip bind:findBar />
 </Shell>

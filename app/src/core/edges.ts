@@ -21,8 +21,8 @@ let again = 0;
 export function edges(color: string, ms: number) {
   const html = document.documentElement;
   // (set on the elements themselves, not as a custom property on the root: every element
-  // inherits those, and changing one restyled the whole page as the map opened, a frame
-  // lost each time)
+  // inherits those, and changing one restyled the whole page whenever the colour changed,
+  // a frame lost each time)
   for (const el of [html, document.body, ...strips]) {
     el.style.transitionDuration = `${ms}ms`;
     el.style.backgroundColor = color;

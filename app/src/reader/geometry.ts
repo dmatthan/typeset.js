@@ -70,11 +70,13 @@ export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t
   const focusW = N * colW + (N - 1) * G;
   const cx = Math.round(W / 2);
   const x0 = Math.round(cx - focusW / 2);
-  // the chapter name stays at the top, so its band is always reserved: the rest of the bar
-  // fades in and out over it without moving the text. With no bar at all (a page that
-  // shows its own), the text sits as far from the top as from the bottom
-  const foot = phone ? 26 : 44;
-  const topM = ins.t + (embedOpts.ui === 'none' ? foot : BAR + (phone ? 10 : 20)), botM = ins.b + foot;
+  // the running head stays at the top, so its band is always reserved: the rest of the bar
+  // fades in and out over it without moving the text; the foot holds where the reader is
+  // (Progress.svelte) and its line. With no interface at all (a page that shows its own),
+  // the text sits as far from the top as from the bottom
+  const bare = embedOpts.ui === 'none';
+  const foot = bare ? (phone ? 26 : 44) : phone ? 52 : 60;
+  const topM = ins.t + (bare ? foot : BAR + (phone ? 10 : 20)), botM = ins.b + foot;
   const rows = Math.max(8, Math.min(46, Math.floor((H - topM - botM) / lh)));
   const colH = rows * lh;
   const y0 = topM + Math.max(0, Math.floor((H - topM - botM - colH) / 2));

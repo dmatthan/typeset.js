@@ -57,7 +57,7 @@ export class ReaderInput {
       this.keyHeld = k;
       this.r.step(d, page ? undefined : 1);
       clearTimeout(this.keyHoldT);
-      this.keyHoldT = window.setTimeout(() => { if (this.keyHeld === k && !ui.sheet && !ui.mapOpen) this.r.motion.cruise(d); }, CRUISE_AFTER);
+      this.keyHoldT = window.setTimeout(() => { if (this.keyHeld === k && !ui.sheet && !ui.contents) this.r.motion.cruise(d); }, CRUISE_AFTER);
       return true;
     }
     // ; shows every note in view beside its line, and puts them away again
@@ -87,8 +87,9 @@ export class ReaderInput {
    *  wheels send fractions of a notch, and trackpads send smoothly varying amounts. */
   private onWheel(e: WheelEvent) {
     e.preventDefault();
-    if (!this.r.strip || ui.mapOpen || ui.sheet) return;
-    if (e.ctrlKey) { if (e.deltaY > 4) this.r.onMapOpen(); return; }   // pinch out on a trackpad
+    if (!this.r.strip || ui.contents || ui.sheet) return;
+    // (a trackpad's pinch: the page does not zoom, and nothing else answers it)
+    if (e.ctrlKey) return;
     const now = performance.now();
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
     const v = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * unit;
@@ -159,7 +160,7 @@ export class ReaderInput {
       clearTimeout(GS.holdT); clearTimeout(GS.armT);
     };
     stage.addEventListener('pointerdown', e => {
-      if (ui.mapOpen || !this.r.strip || e.button > 0) return;
+      if (ui.contents || !this.r.strip || e.button > 0) return;
       // a card over the page (a book's note, your notes) takes its own presses: never a
       // turn or a selection of the page beneath it
       if ((e.target as Element).closest?.('.bn, .sn')) return;
@@ -169,11 +170,11 @@ export class ReaderInput {
       if (ctl) e.preventDefault();
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+      // a second finger ends what the first began: two-finger gestures are the system's
       if (PTR.size === 2) {
         cancelPress();
-        const [a, b] = [...PTR.values()];
         if (GS?.dragging) this.r.motion.directEnd();
-        GS = { pinch: true, d0: Math.hypot(a.x - b.x, a.y - b.y) || 1 };
+        GS = null;
         return;
       }
       if (PTR.size > 2) return;
@@ -202,12 +203,6 @@ export class ReaderInput {
     stage.addEventListener('pointermove', e => {
       if (!PTR.has(e.pointerId) || !GS) return;
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (GS.pinch) {
-        if (PTR.size < 2) return;
-        const [a, b] = [...PTR.values()];
-        if (Math.hypot(a.x - b.x, a.y - b.y) / GS.d0 < 0.72) { GS = null; PTR.clear(); this.r.onMapOpen(); }
-        return;
-      }
       const dx = e.clientX - GS.x0, dy = e.clientY - GS.y0;
       if (GS.selecting) {
         const c = caretAt(e.clientX, e.clientY);
@@ -227,7 +222,6 @@ export class ReaderInput {
       if (!PTR.has(e.pointerId)) return;
       PTR.delete(e.pointerId);
       if (!GS) return;
-      if (GS.pinch) { if (!PTR.size) GS = null; return; }
       const g = GS; cancelPress(); GS = null;
       if (g.selecting) {
         this.r.stage.parentElement!.classList.remove('selecting');

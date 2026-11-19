@@ -17,7 +17,7 @@
 //   remember   the reader's place and highlights kept in this browser (off by default)
 //   ui         how much of the reader's own interface shows: full (the default), minimal
 //              (the chapter's name alone) or none
-//   off        what the reader does not offer, any of: map settings find highlights links
+//   off        what the reader does not offer, any of: contents settings find highlights links
 // Events: "volumen-ready" (detail.title, detail.chapters), "volumen-progress" (detail.at,
 // 0 to 1), "volumen-end", "volumen-error" (detail.message).
 // Methods, once ready: goTo({ chapter }) or goTo({ at }) (0 to 1); setTheme(name, or a

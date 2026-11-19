@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from './base';
 import { createHash } from 'node:crypto';
 
 // Motion survives a page that gets few frames (Low Power Mode, a hot phone, a busy

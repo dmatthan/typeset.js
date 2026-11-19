@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 
 // The interaction rules that are the point of the reader (reader/input.ts), against the app.
 const cur = (p: Page) => p.evaluate(() => (window as any).__vol.reader.cur as number);
-const runhead = (p: Page) => p.locator('.runhead').textContent();
+/** Where the reader is, as the status line under the text names it (its page left out). */
+const runhead = async (p: Page) => (await p.locator('.where').textContent())?.replace(/^Page \d+ of \d+, /, '') ?? '';
 const anchor = (p: Page) => p.evaluate(() => { const r = (window as any).__vol.reader; return JSON.stringify(r.strip.anchorAt(r.cur)); });
 const settled = (p: Page) => p.waitForFunction(() => !(window as any).__vol.reader.motion.moving);
 
@@ -18,18 +19,13 @@ async function openSample(p: Page) {
   await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
 }
 
-/** Moves to the first text column of chapter I through the map, as a reader would. */
+/** Moves to the first text column of chapter I through the contents, as a reader would. */
 async function toChapterOne(p: Page) {
   await p.keyboard.press('m');
-  await expect(p.locator('.map.ui-in')).toBeVisible();
-  for (let i = 0; i < 4; i++) {
-    if ((await p.locator('.mi-t').textContent())?.startsWith('Chapter I ·')) break;
-    await p.keyboard.press(']');
-    await p.waitForTimeout(150);
-  }
-  await expect(p.locator('.mi-t')).toHaveText(/^Chapter I ·/);
-  await p.keyboard.press('Enter');
-  await expect(p.locator('.map')).toBeHidden({ timeout: 5000 });
+  await expect(p.locator('.contents')).toBeVisible();
+  await p.locator('.contents .row', { hasText: /^Chapter I ·/ }).click();
+  await expect(p.locator('.contents')).toHaveCount(0);
+  await expect.poll(() => runhead(p)).toMatch(/^I · /);
   await settled(p);
 }
 
@@ -49,21 +45,36 @@ test('library, open: reading begins at once, and again where it was left', async
   expect(await runhead(p)).toMatch(/^I · /);
 });
 
-test('Enter travels from a chapter row clicked in the map', async ({ page: p }) => {
+test('a chapter chosen in the contents: they go away and the reader travels there; [ and ] step by chapter', async ({ page: p }) => {
   await openSample(p);
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  await p.locator('.ch-row').nth(4).click();
-  await p.keyboard.press('Enter');
-  await expect(p.locator('.map')).toBeHidden({ timeout: 6000 });
-  expect(await runhead(p)).toMatch(/^III · /);
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  await p.locator('.contents .row').nth(4).click();
+  await expect(p.locator('.contents')).toHaveCount(0);
+  await expect.poll(() => runhead(p)).toMatch(/^III · /);
+  await settled(p);
+  // the chapter the reader is in, marked when they open again
+  await p.keyboard.press('m');
+  await expect(p.locator('.contents .row[aria-current="true"]')).toContainText('III');
+  await p.keyboard.press('Escape');
+  // a page of the book, counted over the whole of it
+  await expect(p.locator('.where')).toHaveText(/^Page \d+ of \d+, III · /);
+  await p.keyboard.press(']');
+  await expect.poll(() => runhead(p)).toMatch(/^IV · /);
+  await settled(p);
+  await p.keyboard.press('[');
+  await expect.poll(() => runhead(p)).toMatch(/^III · /);
+  // Esc, or a press beside them, puts the contents away
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  await p.keyboard.press('Escape'); await expect(p.locator('.contents')).toHaveCount(0);
 });
 
-test('map travel is animated and lands on the chosen chapter', async ({ page: p }) => {
+test('a long way through the progress line: dragged, it names the page; let go, the reader goes there', async ({ page: p }) => {
   await openSample(p);
-  const t0 = Date.now();
-  await toChapterOne(p);
-  expect(Date.now() - t0).toBeGreaterThan(700);
-  expect(await runhead(p)).toMatch(/^I · /);
+  const line = p.getByRole('slider', { name: 'Place in the book' });
+  const N = await p.evaluate(() => (window as any).__vol.reader.strip.N);
+  await line.fill(String(Math.floor(N / 2)));
+  await expect.poll(() => cur(p)).toBeGreaterThan(N / 2 - 3);
+  await expect(p.locator('.where')).toHaveText(new RegExp(`^Page ${Math.floor(N / 2) + 1} of ${N}, `));
 });
 
 test('a trackpad moves the sheet directly; its momentum tail is taken over and lands on a column', async ({ page: p }) => {
@@ -381,15 +392,16 @@ test('hold then drag selects; 2 highlights; N adds a note; the notebook lists an
   expect(all.length).toBe(1);
   expect(all[0].len).toBeGreaterThan(500);
   expect(all[0].note).toBe('Gregory is all paradox.');
-  // the notebook
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  await p.getByRole('button', { name: 'Notebook' }).click();
-  await expect(p.locator('.mk-item.ann')).toHaveCount(1);
-  await p.keyboard.press('/'); await p.keyboard.type('no such words');
-  await expect(p.locator('.mk-item.ann')).toHaveCount(0);
-  await p.keyboard.press('Control+a'); await p.keyboard.type('paradox');
-  await expect(p.locator('.mk-item.ann')).toHaveCount(1);
-  await expect(p.locator('.nb-note')).toHaveText('Gregory is all paradox.');
+  // the highlights, beside the contents
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  await p.getByRole('tab', { name: 'Highlights' }).click();
+  await expect(p.locator('.contents .item.ann')).toHaveCount(1);
+  const filter = p.getByLabel('Filter the highlights');
+  await filter.fill('no such words');
+  await expect(p.locator('.contents .item.ann')).toHaveCount(0);
+  await filter.fill('paradox');
+  await expect(p.locator('.contents .item.ann')).toHaveCount(1);
+  await expect(p.locator('.contents .item .note')).toHaveText('Gregory is all paradox.');
 });
 
 test('only the spread shows; the bar hides and returns without moving the text', async ({ page: p }) => {
@@ -558,39 +570,6 @@ test('find in book: count, marks, Enter travels, the list, Esc clears', async ({
   await expect(p.locator('.find .count')).toHaveText(/of \d+/);
   await p.keyboard.press('Escape');
   await expect(p.locator('.find')).toHaveCount(0);
-  await expect(p.locator('.ln mark.h5, .ln mark.h6')).toHaveCount(0);
-});
-
-test('find from the map: matches light up, arrows choose, Enter travels, the search goes on', async ({ page: p }) => {
-  await openSample(p);
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  await p.keyboard.press('/');
-  const field = p.locator('.m-find input');
-  await expect(field).toBeFocused();
-  await field.fill('gregory');
-  await expect(p.locator('.m-count')).toHaveText(/^1\/\d{2,}$/);
-  await expect(p.locator('.g-hit').first()).toBeAttached();
-  await expect(p.locator('.mi-s')).toHaveText(/Match 1 of \d+/);
-  await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown');
-  await expect(p.locator('.m-count')).toHaveText(/^3\//);
-  await expect(p.locator('.mi-s')).toHaveText(/Match 3 of/);
-  const want = await p.evaluate(() => { const f = (window as any).__vol.reader.finder; return f.colOf(f.hits[f.cur]); });
-  // n and N step too, once out of the field
-  await p.keyboard.press('Escape');
-  await expect(field).not.toBeFocused();
-  await expect(p.locator('.map')).toBeVisible();
-  await p.keyboard.press('n'); await expect(p.locator('.m-count')).toHaveText(/^4\//);
-  await p.keyboard.press('N'); await expect(p.locator('.m-count')).toHaveText(/^3\//);
-  await p.keyboard.press('/'); await expect(field).toBeFocused();
-  await p.keyboard.press('Enter');
-  await expect(p.locator('.map')).toBeHidden({ timeout: 6000 });
-  await settled(p);
-  // the page holds the match; the reader's find bar carries on with the same search
-  const k = await cur(p), N = await p.evaluate(() => (window as any).__vol.reader.M.N);
-  expect(want).toBeGreaterThanOrEqual(k); expect(want).toBeLessThan(k + N);
-  await expect(p.locator('.ln mark.h6')).toHaveCount(1);
-  await expect(p.locator('.find .count')).toHaveText(/^3 of/);
-  await p.keyboard.press('Escape');
   await expect(p.locator('.ln mark.h5, .ln mark.h6')).toHaveCount(0);
 });
 
@@ -811,8 +790,8 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
     r.toggleMark(blocks[+lines[12].dataset.b!].key);
     r.refreshSection(sec);
   });
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  await p.getByRole('button', { name: 'Notebook' }).click();
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  await p.getByRole('tab', { name: 'Highlights' }).click();
   await p.getByRole('button', { name: 'Send my notes…' }).click();
   const sheet = p.getByRole('dialog', { name: 'Send my notes' });
   await expect(sheet).toContainText('1 highlight, 1 with a note, 1 marked paragraph, how far you have read');
@@ -843,13 +822,13 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
   await p.locator(`.col[data-k="${col}"] .nd.fd`).hover();
   await expect(p.locator('.sn.theirs')).toContainText('Anna');
   await expect(p.locator('.sn.theirs')).toContainText('This slowed me down');
-  // gathered in the notebook's Feedback side; hiding her takes her notes off the page
+  // gathered on the highlights' Readers’ side; hiding her takes her notes off the page
   await p.mouse.move(5, 5);
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  // the map says where the feedback is: her two notes, in one chapter
-  await expect(p.locator('.ch-fb')).toHaveText(['2']);
-  await p.getByRole('button', { name: 'Notebook' }).click();
-  await p.getByRole('button', { name: /^Feedback/ }).click();
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  // the contents say where the feedback is: her two notes, in one chapter
+  await expect(p.locator('.contents .fb')).toHaveText(['2']);
+  await p.getByRole('tab', { name: 'Highlights' }).click();
+  await p.getByRole('button', { name: /^Readers/ }).click();
   await expect(p.locator('.fbl .grp')).toHaveCount(2);
   await expect(p.locator('.fbl .grp').first()).toContainText('Anna');
   await p.locator('.fbl .chip').click();
@@ -876,7 +855,7 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
   await p.getByRole('button', { name: 'Open only' }).click();
   await expect(p.locator('.fbl .pas.settled')).toHaveCount(1);
   await p.locator('.fbl .grp').first().click();
-  await expect(p.locator('.map')).toBeHidden({ timeout: 6000 });
+  await expect(p.locator('.contents')).toHaveCount(0);
   await expect(p.locator('.ln .fb').first()).toBeVisible();
 });
 
@@ -987,7 +966,7 @@ test('notes exported as Markdown read cleanly and go back on the book exactly; a
     r.ann.add(bl[2].key, 0, 200, 1, '');
     r.ann.add(bl[4].key, 30, 90, 4, '# not a heading\n\n> nor a quote');
     r.toggleMark(r.book.sections[4].blocks[3].key);
-    const m = (window as any).__vol.map;
+    const m = (window as any).__vol.contents;
     const md = m.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
     const ann = r.ann.list.map((a: any) => ({ key: a.key, s: a.s, e: a.e, color: a.color, note: a.note })).sort((a: any, b: any) => a.key.localeCompare(b.key) || a.s - b.s);
     return { md, ann, marks: [...r.marks], id: r.book.id, me: (window as any).__vol.kv.get('me', null).id as string };
@@ -1030,8 +1009,8 @@ test('copying works where the page has no clipboard access (a phone over plain h
   await p.addInitScript(() => Object.defineProperty(window, 'isSecureContext', { value: false }));
   await openSample(p);
   await p.evaluate(() => { const r = (window as any).__vol.reader; const b = r.book.sections[3].blocks.find((x: any) => x.t.length > 200); r.ann.add(b.key, 0, 60, 1, 'Kept'); });
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  await p.getByRole('button', { name: 'Notebook' }).click();
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  await p.getByRole('tab', { name: 'Highlights' }).click();
   await p.getByRole('button', { name: 'Copy as Markdown' }).click();
   await expect(p.locator('.toast')).toHaveText('Copied');
   if (browserName === 'chromium') {
@@ -1207,7 +1186,7 @@ test('one’s own notes edited on another device: the newer edit is kept', async
   const md = await p.evaluate(() => {
     const r = (window as any).__vol.reader, b = r.book.sections[3].blocks.find((x: any) => x.t.length > 120);
     r.ann.add(b.key, 0, 40, 1, 'First thought.');
-    return (window as any).__vol.map.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
+    return (window as any).__vol.contents.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
   });
   // elsewhere, later: the note rewritten, its colour changed
   const later = md.replace('First thought.', 'Second thought, better.').replace(/"color":1/, '"color":3').replace(/"updated":\d+/, `"updated":${Date.now() + 60000}`);
@@ -1225,7 +1204,7 @@ test('notes Markdown damaged any which way gives a message, never an error', asy
     r.ann.add(b[0].key, 0, 40, 1, 'A note\n\n# with a heading-like line');
     r.ann.add(b[1].key, 10, 60, 2, '');
     r.toggleMark(b[2].key);
-    const md: string = (window as any).__vol.map.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
+    const md: string = (window as any).__vol.contents.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
     let seed = 7; const rnd = (n: number) => (seed = (seed * 1103515245 + 12345) >>> 0) % n;
     const results: string[] = [];
     for (let i = 0; i < 150; i++) {
@@ -1289,8 +1268,8 @@ test('notes as W3C Web Annotations: exported, read back exactly; another tool’
     r.ann.add(b[1].key, 10, 70, 4, '');
     return { ann: r.ann.list.map((a: any) => [a.key, a.s, a.e, a.color, a.note]), quote: b[2].t.slice(20, 80), prefix: b[2].t.slice(0, 20), suffix: b[2].t.slice(80, 112) };
   });
-  await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-  await p.getByRole('button', { name: 'Notebook' }).click();
+  await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+  await p.getByRole('tab', { name: 'Highlights' }).click();
   const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'As annotations…' }).click()]);
   const text = await (await dl.createReadStream()).toArray().then(c => Buffer.concat(c).toString());
   const json = JSON.parse(text);
@@ -1404,9 +1383,9 @@ test('readers\' feedback goes out to the writer\'s own files: Word comments, Cri
       return [note('Ann', b[0], 4, 30, 'The number matters here'), note('Tomas', b[1], 0, 20, 'A strong start')].map(f => JSON.stringify(f));
     });
     expect(await p.evaluate(t => (window as any).__vol.reader.receiveNotes(t), files)).toMatch(/^Notes from 2 readers: 2 placed/);
-    await p.keyboard.press('m'); await expect(p.locator('.map.ui-in')).toBeVisible();
-    await p.getByRole('button', { name: 'Notebook' }).click();
-    await p.getByRole('button', { name: /^Feedback/ }).click();
+    await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
+    await p.getByRole('tab', { name: 'Highlights' }).click();
+    await p.getByRole('button', { name: /^Readers/ }).click();
     await p.getByRole('button', { name: 'Export…' }).click();
     const sheet = p.getByRole('dialog', { name: 'Export feedback' });
     await expect(sheet).toContainText('2 readers, 2 notes');
@@ -1419,7 +1398,7 @@ test('readers\' feedback goes out to the writer\'s own files: Word comments, Cri
     };
     await take(new RegExp(`^Into manuscript\\.${kind}`), kind);
     if (kind === 'docx') { await take(/^A report/, 'report'); await take(/^A spreadsheet/, 'csv'); }
-    await p.evaluate(() => { const v = (window as any).__vol; v.ui.sheet = null; v.map.close(); v.reader.close(); });
+    await p.evaluate(() => { const v = (window as any).__vol; v.ui.sheet = null; v.contents.close(); v.reader.close(); });
     await expect(p.locator('.book[data-id]').first()).toBeVisible();
   }
   // Word: the readers' comments in the writer's file, on their words

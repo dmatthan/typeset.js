@@ -25,8 +25,8 @@ export const PROTOCOL = 1;
 export type Chrome = 'full' | 'minimal' | 'none';
 /** What the reader offers; an embedding page may turn any of these off. */
 export interface Features {
-  /** the map of the book (M) */
-  map: boolean;
+  /** the book's contents and the reader's highlights (M) */
+  contents: boolean;
   /** themes and type (S, Aa) */
   settings: boolean;
   /** find in the book (/) */
@@ -36,7 +36,7 @@ export interface Features {
   /** following the book's links out of it */
   links: boolean;
 }
-const FEATURES = ['map', 'settings', 'find', 'highlights', 'links'] as const satisfies readonly (keyof Features)[];
+const FEATURES = ['contents', 'settings', 'find', 'highlights', 'links'] as const satisfies readonly (keyof Features)[];
 
 /** What the page asked for (kit/volumen.js writes these into the address's fragment):
  *  the book (an absolute http(s) address), only some chapters, a theme, a way on at the

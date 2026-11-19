@@ -27,7 +27,7 @@
   <ul class="how">
     {#if touch}
       <li>Hold a word to select it, drag to take more, then choose a colour. Tap a highlight to add a note.</li>
-      <li>Your notes stay on this device until you send them: the map, then Notebook, then Send my notes.</li>
+      <li>Your notes stay on this device until you send them: the contents (M), then Highlights, then Send my notes.</li>
     {:else}
       <li>Hold on a word and drag to select; then 1–4 highlights it, N adds a note.</li>
       <li>Your notes stay on this device until you send them: M, then Notebook, then Send my notes.</li>

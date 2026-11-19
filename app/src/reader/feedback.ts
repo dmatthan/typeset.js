@@ -138,7 +138,7 @@ export class Feedback {
   get size() { return Object.keys(this.readers).length; }
 
   /** Readers' notes in each section (those shown, placed on this version), for the
-   *  map's chapter list: where the feedback is. */
+   *  contents' chapters: where the feedback is. */
   perSection(): Map<number, number> {
     const out = new Map<number, number>();
     for (const [r, rd] of Object.entries(this.readers)) {

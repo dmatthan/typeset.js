@@ -6,8 +6,9 @@
   import { onMount, untrack } from 'svelte';
   import { type Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
-  import type { MapCtl } from '../reader/map.svelte';
-  import MapView from './MapView.svelte';
+  import type { Contents as ContentsCtl } from '../reader/contents.svelte';
+  import Contents from './Contents.svelte';
+  import Progress from './Progress.svelte';
   import SettingsPanel from './SettingsPanel.svelte';
   import FindBar from './FindBar.svelte';
   import BookNote from './BookNote.svelte';
@@ -19,7 +20,7 @@
   import Chip from './Chip.svelte';
   import NoteSheet from './NoteSheet.svelte';
 
-  let { reader, map, hidden, chip = $bindable(), findBar = $bindable() }: { reader: Reader; map: MapCtl; hidden: boolean; chip?: Chip; findBar?: FindBar } = $props();
+  let { reader, contents, hidden, chip = $bindable(), findBar = $bindable() }: { reader: Reader; contents: ContentsCtl; hidden: boolean; chip?: Chip; findBar?: FindBar } = $props();
   let stage: HTMLElement, track: HTMLElement;
   // (none when the page around an embedded reader shows no bar)
   let bar: HTMLElement | undefined = $state();
@@ -81,11 +82,11 @@
         </button>
       {/if}
     </div>
-    <div class="runhead" aria-live="polite">{ui.runhead}</div>
+    <div class="runhead">{ui.title}</div>
     <div class="side right">
-      {#if features.map && embedOpts.ui === 'full'}
-      <button class="ibtn" onclick={() => map.open()} aria-label="Map of the book" title="Map of the book (M)">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="8" height="14" rx="1.5" /><rect x="13" y="5" width="8" height="14" rx="1.5" /><path d="M5.5 9h3M5.5 12h3M5.5 15h2M15.5 9h3M15.5 12h3M15.5 15h2" /></svg>
+      {#if features.contents && embedOpts.ui === 'full'}
+      <button class="ibtn" onclick={() => contents.toggle('contents')} aria-pressed={ui.contents} aria-label="Contents" title="Contents (M)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="0.9" /><circle cx="4.5" cy="12" r="0.9" /><circle cx="4.5" cy="18" r="0.9" /></svg>
       </button>
       {/if}
       {#if features.settings && embedOpts.ui === 'full'}
@@ -104,11 +105,12 @@
     {#if ui.bookNote && reader.book}<BookNote {reader} />{/if}
     {#if ui.sideNotes && reader.book}<SideNotes {reader} />{/if}
   </div>
+  {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} />{/if}
   {#if ui.lightbox && reader.book}<Lightbox {reader} />{/if}
   {#if !hidden && reader.finder.open}<FindBar {reader} bind:this={findBar} />{/if}
 </section>
 
-{#if features.map}<MapView {map} {reader} />{/if}
+{#if features.contents}<Contents {contents} {reader} />{/if}
 
 <!-- the reader's own sheets; the app adds those about sharing (App.svelte) -->
 {#if !hidden && features.settings && ui.sheet === 'settings'}<SettingsPanel {reader} />{/if}

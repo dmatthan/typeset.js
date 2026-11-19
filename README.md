@@ -86,7 +86,7 @@ a folder (here `/volumen/`), or built with `VOLUMEN_KIT=1 npx vite build` in `ap
 | `end-href`, `end-label` | a way on, on a card at the end |
 | `remember` | keep the reader's place and highlights in the browser (off by default) |
 | `ui` | the reader's own interface: `full` (the default), `minimal` (the chapter's name alone) or `none` |
-| `off` | what it does not offer, any of `map settings find highlights links` |
+| `off` | what it does not offer, any of `contents settings find highlights links` |
 
 It sends `volumen-ready` (`detail.title`, `detail.chapters`), `volumen-progress`
 (`detail.at`, 0 to 1), `volumen-end` and `volumen-error` (`detail.message`). Once ready it

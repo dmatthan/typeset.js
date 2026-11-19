@@ -1,7 +1,6 @@
 // Development self-test, run inside whichever webview hosts the app (the Tauri shell sets
 // VOLUMEN_SELFTEST). Measures rendering fidelity and frame timing, reports, then quits.
 import type { Reader } from './reader/reader.svelte';
-import type { MapCtl } from './reader/map.svelte';
 import { settings } from './reader/settings.svelte';
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -55,7 +54,7 @@ function frames() {
   };
 }
 
-export async function selftest(reader: Reader, map: MapCtl, log: (s: string) => Promise<void>) {
+export async function selftest(reader: Reader, log: (s: string) => Promise<void>) {
   const out: Record<string, unknown> = { ua: navigator.userAgent, dpr: devicePixelRatio };
   await wait(800);
   const t0 = performance.now();
@@ -80,20 +79,10 @@ export async function selftest(reader: Reader, map: MapCtl, log: (s: string) => 
   window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
   await wait(900);
   out.hold = stop();
-  // map open, travel to the start, back
+  // a long trip (from the contents or the progress line), animated across the distance
   stop = frames();
-  const jumpMs: number[] = [];
-  const origJump = reader.jump.bind(reader);
-  const parts: Record<string, number> = {};
-  const timeIt = (obj: any, name: string, label: string) => { const f = obj[name].bind(obj); obj[name] = (...a: any[]) => { const t = performance.now(); const r = f(...a); parts[label] = +((parts[label] || 0) + performance.now() - t).toFixed(2); return r; }; return () => (obj[name] = f); };
-  const undo = [timeIt(reader.surface, 'reset', 'surface.reset'), timeIt(reader as any, 'arrive', 'arrive'), timeIt((reader as any).motion, 'jump', 'motion.jump'), timeIt(map as any, 'draw', 'map.draw')];
-  reader.jump = (k: number) => { const t0 = performance.now(); origJump(k); jumpMs.push(Math.round(performance.now() - t0)); };
-  const t0open = performance.now();
-  map.open(); await wait(900); const openSpan = performance.now() - t0open; map.close(1); await wait(2600);
-  reader.jump = origJump;
-  undo.forEach(u => u());
-  out.mapDetail = { jumpMs, openSpan: Math.round(openSpan), parts };
-  out.mapTrip = stop();
+  reader.travelTo(1); await wait(2600);
+  out.trip = stop();
 
   // long holds in wider layouts, full screen
   {

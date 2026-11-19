@@ -8,6 +8,7 @@
     "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "playwright test --project=chromium --project=build --project=service --project=kit",
+    "test:slow": "CPU=4 playwright test --project=chromium --project=build --project=kit",
     "test:firefox": "playwright test --project=firefox",
     "test:webkit": "playwright test --project=webkit"
   },

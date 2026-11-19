@@ -24,7 +24,7 @@
 
   let { core }: { core: Core } = $props();
   // svelte-ignore state_referenced_locally
-  const { reader, map } = reading(core);
+  const { reader, contents } = reading(core);
   // a book sent by link: the reader's notes go back by themselves, if they changed
   reader.onNotes = (id, notes) => { if (joinedOf(id)) sendQuietly(id, notes()); };
   shell.beforeQuit = async () => {
@@ -35,7 +35,7 @@
   shell.watchClose();
   // tests drive the reader directly in development builds
   if (import.meta.env.DEV) {
-    (window as any).__vol = { reader, map, ui, kv, settings, themes, setOption, resetOptions, themeById, fitStats, resetFitStats, residual, setHints };
+    (window as any).__vol = { reader, contents, ui, kv, settings, themes, setOption, resetOptions, themeById, fitStats, resetFitStats, residual, setHints };
     if (isTauri) (async () => {
       const { invoke } = await import('@tauri-apps/api/core');
       if (!(await invoke<boolean>('selftest_mode'))) return;
@@ -50,7 +50,7 @@
       };
       // a self-test must always end: on failure it says why, and a watchdog quits a stall
       const dog = setTimeout(async () => { await log('{"error":"watchdog: the self-test ran over its time"}'); shell.quit(); }, arg === 'wheel' ? 90000 : arg === 'scale' ? 480000 : 180000);
-      try { await (probes[arg] ?? (() => t.selftest(reader, map, log)))(); }
+      try { await (probes[arg] ?? (() => t.selftest(reader, log)))(); }
       catch (e) { await log(JSON.stringify({ error: String((e as Error)?.message || e) })); }
       finally { clearTimeout(dog); await shell.quit(); }
     })();
@@ -58,7 +58,7 @@
   let library: Library | undefined = $state();
   let findBar: any = $state();
   let chip: any = $state();
-  const keyed: Keyed = { reader, map, get chip() { return chip; }, get findBar() { return findBar; } };
+  const keyed: Keyed = { reader, contents, get chip() { return chip; }, get findBar() { return findBar; } };
 
   // a book that came by link: has the writer sent a newer draft? (asked each time it
   // opens, one small request; never while it is read)
@@ -75,9 +75,9 @@
   });
 
   // The phone's back gesture (and the browser's back): closes what is on top, a sheet, a
-  // large image, the map, then the book. Each layer that opens adds a history entry; one
+  // large image, the contents, then the book. Each layer that opens adds a history entry; one
   // the app closes itself takes its entry back, so history holds only what is open.
-  const layers = () => (ui.view === 'reader' ? 1 : 0) + (ui.mapOpen ? 1 : 0) + (ui.sheet ? 1 : 0) + (ui.lightbox ? 1 : 0);
+  const layers = () => (ui.view === 'reader' ? 1 : 0) + (ui.contents ? 1 : 0) + (ui.sheet ? 1 : 0) + (ui.lightbox ? 1 : 0);
   let shown = 0, popped = 0, unwinding = 0;
   $effect(() => {
     const n = layers();
@@ -97,7 +97,7 @@
     popped++;
     if (ui.lightbox) ui.lightbox = null;
     else if (ui.sheet) ui.sheet = null;
-    else if (ui.mapOpen) map.close();
+    else if (ui.contents) contents.close();
     else if (ui.view === 'reader') reader.close();
   });
 
@@ -124,8 +124,8 @@
     if (readerKey(e, keyed)) { e.preventDefault(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey || ui.sheet || typing(e.target)) return;
     if (ui.view === 'library') { if (library?.key(e)) e.preventDefault(); return; }
-    // the book closes, back to the library (the map and the chip keep Q for themselves)
-    if ((e.key === 'q' || e.key === 'Q') && !ui.mapOpen && !ui.chip) { e.preventDefault(); reader.close(); }
+    // the book closes, back to the library (the contents and the chip keep Q for themselves)
+    if ((e.key === 'q' || e.key === 'Q') && !ui.contents && !ui.chip) { e.preventDefault(); reader.close(); }
   }
 </script>
 
@@ -133,7 +133,7 @@
 
 <Shell>
   <Library bind:this={library} {core} {reader} hidden={ui.view !== 'library'} />
-  <ReaderView {reader} {map} hidden={ui.view !== 'reader'} bind:chip bind:findBar />
+  <ReaderView {reader} {contents} hidden={ui.view !== 'reader'} bind:chip bind:findBar />
   {#if ui.view === 'reader' && reader.book}
     {#if ui.sheet === 'send'}<SendSheet {reader} />{/if}
     {#if ui.sheet === 'welcome'}<WelcomeSheet {reader} />{/if}

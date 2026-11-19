@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './base';
 
 // The production build, as volumen.page serves it: the app at /read, the site's page at /.
 

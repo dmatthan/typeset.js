@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect } from './base';
 
 /** The tests read a book whose text they know (The Man Who Was Thursday, the sample
  *  before Meditations): served in place of the sample in every page they open. */

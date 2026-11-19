@@ -1,5 +1,5 @@
-/** The app's shared state: what is on the screen (the view, the sheet, the map, the chip
- *  and cards over the page), and the toast. The reader, the library and the interface's
+/** The app's shared state: what is on the screen (the view, the sheet, the contents, the
+ *  chip and cards over the page), and the toast. The reader, the library and the interface's
  *  parts all read and set it. */
 import type { Sel } from './reader/selection';
 
@@ -9,9 +9,14 @@ export type Sheet = null | 'settings' | 'theme' | 'help' | 'remove' | 'note' | '
 export const ui = $state({
   view: 'library' as 'library' | 'reader',
   title: '',
+  /** Where the reader is: the chapter (the book's title in one without chapters), and the
+   *  page (the first column in view) of how many. */
   runhead: '',
+  page: 0,
+  pages: 0,
   sheet: null as Sheet,
-  mapOpen: false,
+  /** The contents and highlights are showing beside the text. */
+  contents: false,
   toast: '',
   toastOn: false,
   busy: '',

@@ -46,7 +46,7 @@ await p.waitForFunction(() => { const r = window.__vol?.reader; return r ? r.rea
 for (let i = 0; i < 60; i++) { await p.keyboard.press('ArrowRight'); await p.waitForTimeout(60); }
 await dump('reading, 60 columns on');
 await p.keyboard.press('m'); await p.waitForTimeout(1500);
-await dump('map');
+await dump('contents');
 await p.keyboard.press('Escape'); await p.waitForTimeout(2500);
-await dump('map closed');
+await dump('contents closed');
 await b.close();

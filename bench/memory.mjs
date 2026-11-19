@@ -54,8 +54,8 @@ await p.locator('.book[data-id]').first().click(); await ready();
 await at('open Thursday');
 for (let i = 0; i < 60; i++) { await p.keyboard.press('ArrowRight'); await p.waitForTimeout(60); }
 await at('60 columns on');
-await p.keyboard.press('m'); await p.waitForTimeout(1200);
-await at('map');
+await p.keyboard.press('m'); await p.waitForTimeout(600);
+await at('contents');
 await p.keyboard.press('Escape'); await p.waitForTimeout(600); await p.keyboard.press('q'); await p.locator('.shelf').waitFor();
 await at('closed');
 await p.setInputFiles('input[type=file]', big);

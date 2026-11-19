@@ -7,7 +7,6 @@ import { Strip, parseLayout, F, FIELDS, type Anchor } from './strip';
 import { columnHTML, leafHTML, chapName, esc } from './render';
 import { Surface } from './surface';
 import { Motion } from './motion';
-import { readTokens } from './tokens';
 import { calibrate } from './calibrate';
 import { settings, reduceMotion, SIZES } from './settings.svelte';
 import { themes, themeById, resolve, loadFamily, fontsReady, type Resolved } from './themes.svelte';
@@ -55,7 +54,6 @@ export class Reader {
   private paramGen = 0;
   private shownK = -1;
   private dwellT = 0; private saveT = 0; private seenT = 0;
-  onMapOpen: () => void = () => {};
   /** The reader's notes on a book may have changed (`notes` makes them, when wanted). */
   onNotes: (id: string, notes: () => ReturnType<Reader['myNotes']>) => void = () => {};
 
@@ -146,7 +144,7 @@ export class Reader {
   /** The colour around the page follows the surface in view (`core/edges.ts`); `ms` as the
    *  surface changes: the reader fades between themes over 1.4 s. */
   paintEdges(ms: number) {
-    const c = ui.lightbox ? '#0c0d11' : ui.mapOpen || ui.view !== 'reader' ? 'var(--ground)' : this.look.palette?.paper ?? 'var(--paper)';
+    const c = ui.lightbox ? '#0c0d11' : ui.view !== 'reader' ? 'var(--ground)' : this.look.palette?.paper ?? 'var(--paper)';
     edges(c, ms);
   }
 
@@ -190,7 +188,6 @@ export class Reader {
 
   themeChanged() {
     this.applyLook();
-    readTokens();
   }
 
   /** Highlights and find hits for a block, as the renderer draws them (hits first). */
@@ -450,7 +447,6 @@ export class Reader {
     const strip = this.strip!;
     strip.compose();
     this.cur = Math.min(Math.max(0, strip.N - this.M.N), Math.max(0, strip.resolve(anchor)));
-    readTokens();
     this.motion.jump(this.cur);
     this.surface.reset(this.cur);
     this.arrive(this.cur, quiet);
@@ -491,8 +487,7 @@ export class Reader {
     this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false;
     ui.chip = null;
     this.cursor.end();
-    ui.mapOpen = false; ui.sheet = null;
-    this.surface.setLazy(false);
+    ui.contents = false; ui.sheet = null;
     for (const [, el] of this.surface.rendered()) el.remove();
     this.core.idle?.();
     ui.view = 'library';
@@ -534,7 +529,8 @@ export class Reader {
     if (it.type === 'title') return b.title;
     if (it.type === 'colophon') return embedOpts.endHref ? 'The end' : 'Colophon';
     const s = b.sections[it.sec];
-    if (s.k === 0) return s.title || 'Front matter';
+    // a book without chapters is named by its title
+    if (s.k === 0) return s.title || (b.sections.some(x => x.k === 1) ? 'Front matter' : b.title);
     return s.label && s.title ? `${s.num} · ${s.title}` : chapName(b, it.sec);
   }
 
@@ -553,7 +549,7 @@ export class Reader {
     const k = Math.round(p);
     if (k !== this.shownK) {
       this.shownK = k;
-      ui.runhead = this.headFor(k);
+      ui.runhead = this.headFor(k); ui.page = k + 1;
       // the paper's tint changes only at rest: changing it in motion repainted the whole
       // window (background, curtains) every few frames
     }
@@ -571,7 +567,7 @@ export class Reader {
   private arrive(k: number, quiet = false) {
     const strip = this.strip!;
     this.shownK = k;
-    ui.runhead = this.headFor(k);
+    ui.runhead = this.headFor(k); ui.page = k + 1; ui.pages = strip.N;
     const focus = this.focusCols();
     for (const c of focus) this.visited.add(c);
     this.teach(k);
@@ -619,11 +615,12 @@ export class Reader {
 
   /** A turn: the whole set in view (or `n` columns) on or back. */
   step(d: number, n?: number) {
-    if (!this.strip || ui.mapOpen || ui.sheet) return;
+    if (!this.strip || ui.contents || ui.sheet) return;
     this.motion.tap(d, n);
   }
 
-  /** Map travel lands here without its own animation (the map animates the trip). */
+  /** Lands on a column at once, with no animation of its own (what calls it animates, or
+   *  nothing should move: a book opening, a relayout). */
   jump(k: number) {
     this.cur = Math.max(0, Math.min(Math.max(0, this.strip!.N - this.M.N), k));
     this.motion.jump(this.cur);
@@ -668,7 +665,7 @@ export class Reader {
     if (this.marks.has(key)) this.marks.delete(key);
     else {
       this.marks.add(key);
-      hint('mark', 'Marked. Your marks are in the notebook: the map’s (M) or the library’s (N).', 4200);
+      hint('mark', 'Marked. Your marks are with your highlights: M, then Highlights (or the library’s notebook, N).', 4200);
     }
     this.paintMark(key);
     kv.set('marks.' + this.book!.id, [...this.marks]);
@@ -688,17 +685,17 @@ export class Reader {
   /* ---------- hints ---------- */
   /** On a touch screen, the gestures, once, as reading begins. */
   private touchHint() {
-    setTimeout(() => hint('touch-start', 'Tap near the edges to turn the page, the middle for the menu. Pinch in to see the whole book.', 7000), 900);
+    setTimeout(() => hint('touch-start', 'Tap near the edges to turn the page, the middle for the menu.', 7000), 900);
   }
   private walked = 0;
   private lastK = -1;
-  /** Hints that come with reading: the map after a long walk column by column, selection
+  /** Hints that come with reading: the contents after a long walk column by column, selection
    *  once a reader has read a while and marked nothing. */
   private teach(k: number) {
     const d = this.lastK < 0 ? 0 : Math.abs(k - this.lastK);
     this.lastK = k;
     if (d > 0 && d <= this.M.N * 2) this.walked += d;
-    if (this.walked >= 30) hint('map', 'M shows the whole book at once: choose a place, Enter travels there.');
+    if (this.walked >= 30) hint('contents', 'M shows the contents: every chapter, and your highlights. [ and ] go a chapter on or back.');
     if (this.visited.size >= 14 && !this.ann?.list.length && !this.marks.size) hint('select', 'Hold on a word to select it, drag to take more; then 1–4 highlights and N adds a note. V picks a paragraph from the keyboard.', 7000);
   }
 

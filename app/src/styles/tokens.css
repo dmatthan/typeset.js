@@ -2,7 +2,7 @@
 @import './fonts.css';
 /* Fonts are local files: the same ones the press measures with (core/fonts.ts lists them). */
 
-/* The default theme. Every colour is a token; canvas code reads them through readTokens(). */
+/* The default theme. Every colour is a token. */
 :root {
   --h: 80;                                   /* paper hue: warm, and steady through a book */
   --pl: 0.982; --pc: 0.006;
@@ -98,8 +98,8 @@ html, body, #app { height: 100%; margin: 0; }
    Not `position: fixed`: a fixed body is a layer of its own the size of the window, above
    the page's own (20 MB at a MacBook's 2×, measured in Chromium). */
 html, body { overflow: hidden; overscroll-behavior: none; }
-/* The page never zooms (the reader has its own sizes, and its pinch opens the map): a
-   finger may only scroll, anywhere; what takes pinches (the page, the map) says so. */
+/* The page never zooms (the reader has its own sizes): a finger may only scroll, anywhere;
+   what takes a finger's moves itself (the page) says so. */
 html { touch-action: pan-x pan-y; }
 /* The colour around the page (behind a phone's status bar and toolbar): the surface in
    view (core/edges.ts), changing with it. */
@@ -144,7 +144,7 @@ button { font: inherit; color: inherit; }
   *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
 
-/* buttons shared by leaves, sheets and the map */
+/* buttons shared by leaves, sheets and panels */
 .btn {
   appearance: none; cursor: pointer; border: 0; border-radius: var(--r-m); min-height: 44px; padding: 0 18px;
   font: 500 var(--t-m)/1.2 var(--f-ui); display: inline-flex; align-items: center; justify-content: center; gap: 10px;

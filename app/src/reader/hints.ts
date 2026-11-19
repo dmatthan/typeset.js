@@ -17,7 +17,7 @@ export function hint(id: string, text: string, ms = 5600): boolean {
   if (document.documentElement.classList.contains('touchui') !== id.startsWith('touch-')) return false;
   const seen = kv.get<string[]>('hints', []);
   if (seen.includes(id)) return false;
-  if (ui.sheet || ui.lightbox || (ui.mapOpen && !id.startsWith('map'))) return false;
+  if (ui.sheet || ui.lightbox || ui.contents) return false;
   const now = performance.now();
   if (now - lastAt < GAP) return false;
   lastAt = now;

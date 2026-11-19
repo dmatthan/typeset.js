@@ -54,7 +54,7 @@ test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; 
   await expect(p.locator('kbd').first()).toBeHidden();
 });
 
-test('a phone: back closes the map, then the book; the bar comes back from its band; nothing pans', async ({ page: p }) => {
+test('a phone: back closes the contents, then the book; the bar comes back from its band; nothing pans', async ({ page: p }) => {
   await open(p);
   await p.evaluate(() => (window as any).__vol.setHints(true));
   // the gestures are told once, as reading begins (here: reopened below)
@@ -66,11 +66,12 @@ test('a phone: back closes the map, then the book; the bar comes back from its b
   const bar = (await p.locator('.bar').boundingBox())!;
   await p.touchscreen.tap(bar.x + bar.width / 2, bar.y + bar.height / 2);
   await expect(p.locator('.bar')).not.toHaveClass(/away/);
-  // the map, then back
-  await p.evaluate(() => (window as any).__vol.map.open());
-  await expect(p.locator('.map.ui-in')).toBeVisible();
+  // the contents (the whole width), then back
+  await p.locator('.bar').getByRole('button', { name: 'Contents' }).tap();
+  await expect(p.locator('.contents')).toBeVisible();
+  expect((await p.locator('.contents').boundingBox())!.width).toBeCloseTo(p.viewportSize()!.width, 0);
   await p.goBack();
-  await expect(p.locator('.map')).toBeHidden({ timeout: 6000 });
+  await expect(p.locator('.contents')).toHaveCount(0);
   await expect(p.locator('.reader')).toBeVisible();
   // back again: the library
   await p.goBack();

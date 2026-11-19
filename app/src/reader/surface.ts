@@ -6,7 +6,7 @@ import { fitColumn } from './verify';
 const LEAD_S = 0.1;
 
 /** How long the sheet rests before the next turn's columns are built: past the end of
- *  whatever else was moving (the map's zoom back to the page). */
+ *  whatever else was moving (a turn's last frames, the bar fading). */
 const SETTLE_MS = 250;
 
 /** Runs `f` when the page has a moment: in idle time where the browser says when that is,
@@ -35,11 +35,6 @@ export class Surface {
   private base = 0;
   private dpr = Math.min(3, window.devicePixelRatio || 1);
 
-  /** While the reader is hidden (under the map), what comes into view is built one column
-   *  per frame, nearest the focus first, instead of all in one frame. */
-  private lazy = false;
-  private lazyRaf = 0;
-  private lastPos = 0;
   /** A move the compositor is drawing (`glide`). */
   private anim: Animation | null = null;
   /** Columns being built at rest (`prebuild`): the wait, then each in idle time. */
@@ -47,13 +42,6 @@ export class Surface {
   private unidle = () => {};
 
   constructor(public track: HTMLElement, private src: () => RenderSource) {}
-
-  setLazy(on: boolean) {
-    if (on === this.lazy) return;
-    this.lazy = on;
-    this.quiet();
-    if (!on) { cancelAnimationFrame(this.lazyRaf); this.lazyRaf = 0; if (this.src().strip) this.ensureVisible(this.lastPos); }
-  }
 
   private x(pos: number) {
     const { M } = this.src();
@@ -71,7 +59,6 @@ export class Surface {
    *  motion are built early, one per frame, so none is built in the frame it comes into
    *  view. `glided`: the compositor has the track there already (`glide`). */
   place(pos: number, v = 0, glided = false, to = NaN) {
-    this.lastPos = pos;
     if (!glided || !this.anim) {
       this.stop();
       this.track.style.transform = this.at(pos);
@@ -120,17 +107,6 @@ export class Surface {
     const aLo = Math.min(tLo, v < -0.05 ? Math.max(0, lo - ahead) : Math.max(0, lo - 2));
     const aHi = Math.max(tHi, v > 0.05 ? Math.min(strip.N - 1, hi + ahead) : Math.min(strip.N - 1, hi + 2));
     for (const [k, el] of this.cols) if (k < aLo - 2 || k > aHi + 2) { el.remove(); this.cols.delete(k); }
-    if (this.lazy) {
-      // the focus first, then outwards; one column, then the next frame
-      const f = Math.round(pos);
-      const order = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i).sort((a, b) => Math.abs(a - f) - Math.abs(b - f));
-      const k = order.find(c => !this.cols.has(c));
-      if (k != null) {
-        this.make(k);
-        if (!this.lazyRaf) this.lazyRaf = requestAnimationFrame(() => { this.lazyRaf = 0; if (this.lazy) this.ensureVisible(this.lastPos); });
-      }
-      return;
-    }
     for (let k = lo; k <= hi; k++) if (!this.cols.has(k)) this.make(k);
     if (!v && Math.abs(pos - Math.round(pos)) < 1e-4) { this.prebuild(lo, hi); return; }
     if (Number.isFinite(to)) {
@@ -164,7 +140,7 @@ export class Surface {
     this.settle = window.setTimeout(() => (this.unidle = whenIdle(next)), SETTLE_MS);
   }
 
-  /** Building at rest called off: the sheet moves, or the map takes the screen. */
+  /** Building at rest called off: the sheet moves. */
   private quiet() {
     clearTimeout(this.settle);
     this.unidle();

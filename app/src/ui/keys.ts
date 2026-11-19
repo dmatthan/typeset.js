@@ -3,16 +3,16 @@
  *  keys only it has (the library, quitting) around these. Every key is listed in Help. */
 import { features } from '../core/embed';
 import { shell } from '../core/shell';
-import type { MapCtl } from '../reader/map.svelte';
+import type { Contents } from '../reader/contents.svelte';
 import type { Reader } from '../reader/reader.svelte';
 import { settings, save, type Layout } from '../reader/settings.svelte';
 import { ui, toast } from '../state.svelte';
 
-/** What the keys act on: the reader, its map, and the parts of the page that take keys
- *  of their own while they show. */
+/** What the keys act on: the reader, its contents, and the parts of the page that take
+ *  keys of their own while they show. */
 export interface Keyed {
   reader: Reader;
-  map: MapCtl;
+  contents: Contents;
   chip?: { key(e: KeyboardEvent): boolean };
   findBar?: { refocus(): void };
 }
@@ -22,6 +22,7 @@ export const typing = (t: EventTarget | null) => !!(t as Element)?.closest?.('te
 
 export function openFind(k: Keyed) {
   if (!features.find) return;
+  k.contents.close();
   ui.sheet = null; ui.chip = null;
   if (k.reader.finder.open) k.findBar?.refocus(); else k.reader.finder.show();
 }
@@ -39,10 +40,10 @@ async function cycleLayout(reader: Reader) {
 /** A key while a book is read: true if it was the reader's (its default is then
  *  prevented). */
 export function readerKey(e: KeyboardEvent, k: Keyed): boolean {
-  const { reader, map } = k;
+  const { reader, contents } = k;
   if (e.metaKey || e.altKey) return false;
   if (e.ctrlKey) {
-    if ((e.key === 'f' || e.key === 'F') && ui.view === 'reader') { if (ui.mapOpen) map.focusFind(); else openFind(k); return true; }
+    if ((e.key === 'f' || e.key === 'F') && ui.view === 'reader') { openFind(k); return true; }
     return false;
   }
   if (typing(e.target)) {
@@ -50,13 +51,15 @@ export function readerKey(e: KeyboardEvent, k: Keyed): boolean {
     return false;
   }
   if (e.key === 'F11' || (e.key === 'f' && !ui.sheet)) { shell.toggleFullscreen(); return true; }
-  // the open sheet, the map and the chip handle their own keys
+  // the open sheet, the contents and the chip handle their own keys
   if (ui.sheet || ui.view !== 'reader') return false;
-  if (ui.mapOpen) return map.key(e);
+  if (ui.contents) return contents.key(e);
   if (ui.chip) return !!k.chip?.key(e);
   if (reader.input.key(e)) return true;
   switch (e.key) {
-    case 'm': case 'M': if (!features.map) return false; map.open(); return true;
+    case 'm': case 'M': if (!features.contents) return false; contents.open(); return true;
+    case ']': contents.chapter(1); return true;
+    case '[': contents.chapter(-1); return true;
     case 's': case 'S': if (!features.settings) return false; ui.sheet = 'settings'; return true;
     case '?': ui.sheet = 'help'; return true;
     case '/': if (!features.find) return false; openFind(k); return true;
