@@ -46,14 +46,15 @@
       ['Tab', 'Move through the chapters, the tabs and their buttons'],
       ['M  Esc', 'Put them away'],
     ]],
-    ['Settings', [
+    ['Type and appearance', [
       ['T  Shift+T', 'Next or previous theme'],
-      ['C', 'Customise the theme'],
-      ['B  J', 'Bold text, justified text'],
       ['−  +', 'Size'],
-      ['P', 'Appearance: match the desktop, light, dark'],
-      ['N', 'New theme'],
-      ['0', 'Reset all but the theme'],
+      ['P', 'Appearance: match the device, light, dark'],
+      ['C', 'Style: the font, spacing, margins, columns'],
+      ['B  J  Y', 'Bold text, justified text, hyphenation'],
+      ['1  2  3  A', 'Columns, or as many as fit'],
+      ['0', 'In Style: back to the theme’s design'],
+      ['N', 'A new theme from this one'],
     ]],
     ['Library', [
       ['Arrows  H J K L', 'Move between books'],

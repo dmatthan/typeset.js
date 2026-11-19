@@ -14,7 +14,7 @@ export interface Settings {
 }
 /** The sizes the size control steps through. */
 export const SIZES = [15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 28];
-export const DEFAULTS: Settings = { size: null, layout: 'auto', theme: 'original', appearance: 'auto', motion: 'system' };
+export const DEFAULTS: Settings = { size: null, layout: 'auto', theme: 'book', appearance: 'auto', motion: 'system' };
 
 /** Settings are stored as the changes from DEFAULTS, so "reset" is deleting them; a
  *  setting that no longer exists is left behind as they load. */

@@ -70,7 +70,7 @@ a folder (here `/volumen/`), or built with `VOLUMEN_KIT=1 npx vite build` in `ap
 ```html
 <script type="module" src="/volumen/volumen.js"></script>
 
-<volumen-book src="/books/book.epub" chapters="3" theme="paper"
+<volumen-book src="/books/book.epub" chapters="3" theme="linen"
   end-href="/shop" end-label="Buy the book"></volumen-book>
 
 <volumen-library src="/books.json"></volumen-library>

@@ -5,7 +5,7 @@
 import { chromium, firefox } from '../app/node_modules/playwright/index.mjs';
 import path from 'node:path';
 const file = path.resolve(process.argv[2] || 'corpus/middlemarch.epub');
-const themes = (process.argv[3] || 'original,quiet,paper,bold,calm,focus').split(',');
+const themes = (process.argv[3] || 'book,slate,linen,clear,warm,open').split(',');
 // display scale (devicePixelRatio): node bench/fidelity.mjs book themes 1.5
 const dpr = +(process.argv[4] || 1);
 // browser: node bench/fidelity.mjs book themes dpr firefox

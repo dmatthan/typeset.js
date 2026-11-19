@@ -141,7 +141,7 @@ export async function selftest(reader: Reader, log: (s: string) => Promise<void>
   };
   out.fidelity = { ...fit(), N: reader.strip!.N, focus: reader.M.N, laidOut: reader.strip!.layouts.size, sections: reader.book!.sections.length };
   const themesFit: Record<string, unknown> = {};
-  for (const t of ['quiet', 'paper', 'bold', 'calm', 'focus']) {
+  for (const t of ['slate', 'linen', 'clear', 'warm', 'open']) {
     settings.theme = t;
     await reader.settingsChanged('layout');
     await until(() => reader.strip!.layouts.size === reader.book!.sections.length, `the ${t} theme's whole-book layout`);
@@ -164,9 +164,9 @@ export async function selftest(reader: Reader, log: (s: string) => Promise<void>
     themesFit['system:' + fam] = { ...r, smcp: themes.families[fam]?.smcp ?? null, drawn: getComputedStyle(document.querySelector('.ln')!).fontFamily.split(',')[0] };
     deleteUserTheme('selftest-sys');
   }
-  // Original takes the desktop's colours where the desktop publishes them
+  // Book takes the desktop's colours where the desktop publishes them
   await readDesktop(reader.core);
-  settings.theme = 'original';
+  settings.theme = 'book';
   await reader.settingsChanged('layout');
   out.desktop = { palette: themes.desktop, paper: getComputedStyle(reader.stage.parentElement!).getPropertyValue('--paper'), dataTheme: document.documentElement.getAttribute('data-theme') };
   out.themes = themesFit;
@@ -206,7 +206,7 @@ export async function sheetProbe(reader: Reader, log: (s: string) => Promise<voi
     // the theme editor: the tallest sheet, and one that scrolls
     const { editor } = await import('./ui/editor.svelte');
     const { themeById } = await import('./reader/themes.svelte');
-    editor.start(themeById('calm'), true);
+    editor.start(themeById('warm'), true);
     ui.sheet = 'theme';
     await until(() => !!document.querySelector('.sheet'), 'the theme editor');
     await wait(700);
@@ -396,7 +396,7 @@ export async function scaleProbe(reader: Reader, log: (s: string) => Promise<voi
   for (const z of [1.25, 1.5]) {
     await invoke('dev_zoom', { scale: z });
     await wait(1200);
-    for (const t of ['original', 'paper', 'bold', 'focus']) {
+    for (const t of ['book', 'linen', 'clear', 'open']) {
       settings.theme = t;
       await reader.settingsChanged('layout');
       await until(() => reader.strip!.layouts.size === reader.book!.sections.length, 'the layout');
@@ -410,6 +410,6 @@ export async function scaleProbe(reader: Reader, log: (s: string) => Promise<voi
     }
   }
   await invoke('dev_zoom', { scale: 1 });
-  settings.theme = 'original';
+  settings.theme = 'book';
   await log(JSON.stringify(out));
 }

@@ -9,7 +9,7 @@ await p.waitForFunction(() => { const r = window.__vol.reader; return r.strip &&
 await p.evaluate(() => { const r = window.__vol.reader; let k = Math.floor(r.strip.N * 0.31); while (r.strip.itemAt(k)?.type !== 'sect') k++; r.jump(k); });
 const shots = (process.argv[3] || 'panel').split(',');
 for (const mode of ['light', 'dark']) {
-  await p.evaluate(m => { window.__vol.settings.appearance = m; window.__vol.settings.theme = 'calm'; }, mode);
+  await p.evaluate(m => { window.__vol.settings.appearance = m; window.__vol.settings.theme = 'warm'; }, mode);
   await p.evaluate(() => window.__vol.reader.settingsChanged('layout'));
   await p.waitForTimeout(1200);
   if (shots.includes('panel')) {

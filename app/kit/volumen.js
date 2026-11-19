@@ -11,7 +11,7 @@
 // <volumen-book> attributes:
 //   src        the book: EPUB, Word (.docx) or Markdown, by its address
 //   chapters   only these, as "3" or "1-3" (the book's chapters, counted from 1)
-//   theme      original, quiet, paper, bold, calm or focus
+//   theme      book (the default), slate, linen, clear, warm or open
 //   end-href   at the end, a way on ("Continue reading" by default: end-label)
 //   end-label
 //   remember   the reader's place and highlights kept in this browser (off by default)

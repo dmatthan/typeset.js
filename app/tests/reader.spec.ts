@@ -290,7 +290,7 @@ test('high contrast: what is chosen is ringed, the filled background gone', asyn
   await p.emulateMedia({ forcedColors: 'active' });
   await openSample(p);
   await p.keyboard.press('s');
-  const ring = await p.locator('.seg [role=radio][aria-checked=true]').first().evaluate(e => getComputedStyle(e).outlineStyle);
+  const ring = await p.locator('.th[role=radio][aria-checked=true]').first().evaluate(e => getComputedStyle(e).outlineStyle);
   expect(ring).toBe('solid');
 });
 
@@ -448,7 +448,7 @@ async function fitAll(p: Page) {
   });
 }
 
-for (const id of ['original', 'quiet', 'paper', 'bold', 'calm', 'focus']) {
+for (const id of ['book', 'slate', 'linen', 'clear', 'warm', 'open']) {
   test(`every line fits in the ${id} theme`, async ({ page: p }) => {
     await openSample(p);
     await p.evaluate(t => { (window as any).__vol.settings.theme = t; }, id);
@@ -462,7 +462,7 @@ for (const id of ['original', 'quiet', 'paper', 'bold', 'calm', 'focus']) {
 
 test('customised spacing, bold text and margins still fit, and reset', async ({ page: p }) => {
   await openSample(p);
-  for (const id of ['calm', 'focus']) {
+  for (const id of ['warm', 'open']) {
     await p.evaluate(t => {
       const v = (window as any).__vol, th = v.themeById(t);
       v.settings.theme = t;
@@ -496,24 +496,34 @@ test('a pasted theme imports, saves and is chosen', async ({ page: p }) => {
   await expect.poll(() => p.evaluate(() => getComputedStyle(document.querySelector('.ln')!).fontFamily)).toContain('Charis');
 });
 
-test('the settings panel: themes, customise page, reading page, all by key', async ({ page: p }) => {
+test('type and appearance: the themes, Match device, and Style one step in, all by key too', async ({ page: p }) => {
   await openSample(p);
   await p.keyboard.press('s');
-  const panel = p.getByRole('dialog', { name: 'Themes and settings' });
+  const panel = p.getByRole('dialog', { name: 'Type and appearance' });
   await expect(panel).toBeVisible();
   // fits in the window without scrolling
   expect(await panel.evaluate(el => el.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+  await expect(panel.locator('.th')).toHaveCount(6);
   await p.keyboard.press('t');
-  await expect(panel.locator('.th[aria-checked="true"] .nm')).toHaveText('Quiet');
+  await expect(panel.locator('.th[aria-checked="true"] .nm')).toHaveText('Slate');
+  // the device's appearance, or one chosen
+  await expect(panel.getByRole('switch', { name: 'Match device' })).toHaveAttribute('aria-checked', 'true');
+  await panel.getByRole('switch', { name: 'Match device' }).click();
+  await expect(panel.getByRole('radiogroup', { name: 'Appearance' })).toBeVisible();
+  await panel.getByRole('switch', { name: 'Match device' }).click();
+  // Style: another face for this theme; Reset gives back its own
   await p.keyboard.press('c');
-  await expect(panel.getByText('Customise Quiet')).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Style' })).toBeVisible();
+  await panel.getByRole('radio', { name: /^Charis/ }).click();
+  await expect.poll(() => p.evaluate(() => getComputedStyle(document.querySelector('.ln')!).fontFamily)).toContain('Charis');
   await p.keyboard.press('y');
-  await expect(panel.getByRole('switch', { name: /Hyphenation/ })).toHaveAttribute('aria-checked', 'false');
+  await expect(panel.getByRole('switch', { name: /Hyphenate/ })).toHaveAttribute('aria-checked', 'false');
+  await panel.getByRole('button', { name: 'Reset' }).click();
+  await expect.poll(() => p.evaluate(() => getComputedStyle(document.querySelector('.ln')!).fontFamily)).toContain('Newsreader');
+  await expect(panel.getByRole('switch', { name: /Hyphenate/ })).toHaveAttribute('aria-checked', 'true');
   await p.keyboard.press('Escape');
-  await expect(panel.getByText('Themes & Settings')).toBeVisible();
-  await p.keyboard.press('o');
-  await expect(panel.getByText('Motion')).toBeVisible();
-  await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+  await expect(panel.locator('.th')).toHaveCount(6);
+  await p.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
   // a click on the page closes it too
   await p.keyboard.press('s');

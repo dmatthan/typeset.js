@@ -18,6 +18,9 @@ export interface Options {
   margins: number;
   justify: boolean;
   hyphenate: boolean;
+  /** The face the text is set in, when the reader has chosen another than the theme's
+   *  own: a family a built-in theme is designed around (`typeOf`). */
+  face?: string;
 }
 export interface TypeSpec {
   family: string;
@@ -49,40 +52,40 @@ const opts = (lineSpacing: number, justify: boolean, boldText = false): Options 
 
 export const BUILTIN: Theme[] = [
   {
-    id: 'original', name: 'Original', builtin: true, desktop: true,
+    id: 'book', name: 'Book', builtin: true, desktop: true,
     type: { family: 'Literata', fallback: 'serif', scale: 1, weight: 400, bold: 650, boldText: 520, axes: {} },
-    options: opts(1.5, true), light: null, dark: null,
+    options: opts(1.55, true), light: null, dark: null,
   },
   {
-    id: 'quiet', name: 'Quiet', builtin: true,
+    id: 'slate', name: 'Slate', builtin: true,
     type: { family: 'Newsreader', fallback: 'serif', scale: 1.12, weight: 400, bold: 600, boldText: 500, axes: {} },
     options: opts(1.4, true),
     light: { paper: '#e3e2df', ink: '#46443f', accent: '#5b6675' },
     dark: { paper: '#3c3c3f', ink: '#bebcb7', accent: '#a7b2c0' },
   },
   {
-    id: 'paper', name: 'Paper', builtin: true,
+    id: 'linen', name: 'Linen', builtin: true,
     type: { family: 'Charis', fallback: 'serif', scale: 1.04, weight: 400, bold: 700, boldText: 500, axes: {} },
     options: opts(1.55, true),
     light: { paper: '#f5f1e8', ink: '#1f1d1a', accent: '#86572c' },
     dark: { paper: '#232220', ink: '#d8d3c8', accent: '#d3a46e' },
   },
   {
-    id: 'bold', name: 'Bold', builtin: true,
+    id: 'clear', name: 'Clear', builtin: true,
     type: { family: 'Inter', fallback: 'sans', scale: 0.95, weight: 440, bold: 720, boldText: 560, axes: {} },
     options: opts(1.5, false, true),
     light: { paper: '#ffffff', ink: '#000000', accent: '#0a5fd0' },
     dark: { paper: '#0e0e0f', ink: '#f4f4f4', accent: '#5aa2ff' },
   },
   {
-    id: 'calm', name: 'Calm', builtin: true,
+    id: 'warm', name: 'Warm', builtin: true,
     type: { family: 'Fraunces', fallback: 'serif', scale: 1.04, weight: 370, bold: 600, boldText: 470, axes: { SOFT: 50, WONK: 0 } },
     options: opts(1.55, true),
     light: { paper: '#f0e4cd', ink: '#3d3024', accent: '#985a2c' },
     dark: { paper: '#3a2f25', ink: '#e6d5bb', accent: '#e0a86a' },
   },
   {
-    id: 'focus', name: 'Focus', builtin: true,
+    id: 'open', name: 'Open', builtin: true,
     type: { family: 'Nunito Sans', fallback: 'sans', scale: 1.03, weight: 430, bold: 720, boldText: 530, axes: { wdth: 102 } },
     options: opts(1.42, false),
     light: { paper: '#fbf6ea', ink: '#1e1a15', accent: '#b0502a' },
@@ -108,12 +111,14 @@ export const themes = $state({
   system: null as string[] | null,
 });
 
-export const allThemes = (): Theme[] => [...BUILTIN, ...themes.user];
+/** Every theme, in the order they are offered: the one an embedding page made for its book
+ *  first (`page`, ui/Embed.svelte), then the built-in ones, then the reader's own. */
+export const allThemes = (): Theme[] => [...themes.user.filter(t => t.id === 'page'), ...BUILTIN, ...themes.user.filter(t => t.id !== 'page')];
 export const themeById = (id: string): Theme => allThemes().find(t => t.id === id) ?? BUILTIN[0];
 
 /** The options a theme is designed with (themes saved before an option existed take its
  *  default). */
-export const designOf = (t: Theme): Options => ({ ...t.options, hyphenate: t.options.hyphenate ?? true });
+export const designOf = (t: Theme): Options => ({ ...t.options, hyphenate: t.options.hyphenate ?? true, face: t.type.family });
 export function optionsOf(t: Theme): Options {
   return { ...designOf(t), ...themes.opts[t.id] };
 }
@@ -149,6 +154,15 @@ export function deleteUserTheme(id: string) {
   kv.set('themeOpts', themes.opts);
 }
 
+/** The faces a reader may set any theme in: those the built-in themes are designed around,
+ *  each with its theme's sizing and weights (made for it, and measured). */
+export const FACES = BUILTIN.map(t => t.type);
+/** The type a theme is set in: its own, or the face the reader chose for it. */
+export function typeOf(t: Theme): TypeSpec {
+  const face = optionsOf(t).face;
+  return face === t.type.family ? t.type : FACES.find(f => f.family === face) ?? t.type;
+}
+
 /* ---------- resolving a theme for the reader ---------- */
 
 /** The family chain the press and the CSS use: the theme's face, then bundled faces for
@@ -175,7 +189,7 @@ export interface Resolved {
 
 export function resolve(t: Theme, dark: boolean): Resolved {
   const o = optionsOf(t);
-  const ty = t.type;
+  const ty = typeOf(t);
   const wght = o.boldText ? ty.boldText : ty.weight;
   const bold = Math.min(1000, ty.bold + (wght - ty.weight));
   const chain = chainOf(ty);

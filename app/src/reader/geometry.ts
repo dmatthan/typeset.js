@@ -34,7 +34,8 @@ function spread(W: number, fs: number, phone: boolean, k: number): Across {
   const G = phone ? 24 : Math.round(Math.min(84, Math.max(40, fs * 2.6, W * 0.035)));
   // a phone's margins: a thumb's breadth, a little more or less with the theme's margins
   const margin = phone ? Math.round(18 * (2 - k)) : Math.round(Math.min(fs * 6, Math.max(fs * 1.6, W * 0.055)) * (2 - k));
-  const maxMeasure = Math.round(fs * 34 * k), comfortable = Math.round(fs * 25 * Math.min(1, k)), minMeasure = Math.round(fs * 21 * Math.min(1, k));
+  // (32 em: some 65 characters a line in the bundled faces, however wide the window)
+  const maxMeasure = Math.round(fs * 32 * k), comfortable = Math.round(fs * 25 * Math.min(1, k)), minMeasure = Math.round(fs * 21 * Math.min(1, k));
   const width = (n: number) => Math.floor((W - 2 * margin - (n - 1) * G) / n);
   // auto: two columns when each still gets a comfortable measure, else one
   if (settings.layout === 'auto') {
