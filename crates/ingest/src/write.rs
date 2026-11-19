@@ -1,7 +1,7 @@
 //! A book written out as an EPUB 3, from Volumen's own model: the text with its styles,
 //! headings, quotations, verse, lists, tables, images and notes, in plain XHTML and a
 //! small stylesheet. What it is for first: a sample of a few chapters, so an author puts
-//! only those online (the kit, docs/PLAN.md N13); and it reads back as the same book.
+//! only those online (the kit); and it reads back as the same book.
 
 use std::io::Write;
 use vol_model::{Block, Book, Kind, SectionKind, Target, style};
@@ -44,7 +44,7 @@ fn inline(b: &Block, notes: &mut Vec<u32>) -> String {
                 }
                 piece = format!("<a epub:type=\"noteref\" href=\"#n{n}\">{piece}</a>");
             }
-            Some(Target::Url(u)) if u.starts_with("http://") || u.starts_with("https://") || u.starts_with("mailto:") => {
+            Some(Target::Url(u)) if vol_model::outward(u) => {
                 piece = format!("<a href=\"{}\">{piece}</a>", esc(u));
             }
             _ => {}

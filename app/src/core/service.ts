@@ -1,6 +1,6 @@
-/** The sharing service (service/, docs/PLAN.md M2): this app's own API at the same address
- *  when the app is served by it (Cloudflare); absent on the dev server and in the desktop
- *  app, where sharing falls back to sealed files put anywhere.
+/** The sharing service (service/): this app's own API at the same address when the app
+ *  is served by it (Cloudflare); absent on the dev server and in the desktop app, where
+ *  sharing falls back to sealed files put anywhere.
  *
  *  Writers sign in with a passkey (made once with an invitation); readers need nothing but
  *  the link. Everything sent is sealed first (core/share.ts): the service holds bytes it
@@ -269,7 +269,7 @@ export async function publish(bookId: string, file: { name: string; bytes: Uint8
   return serviceLink(r.id, s.key);
 }
 
-/** Sends this draft to the readers of the link it was carried to (D8): sealed with the
+/** Sends this draft to the readers of the link it was carried to: sealed with the
  *  link's own key, in the place of the one before. */
 export async function sendDraft(bookId: string, file: { name: string; bytes: Uint8Array }): Promise<number> {
   const s = sharedOf(bookId);

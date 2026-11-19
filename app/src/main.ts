@@ -18,8 +18,10 @@ try {
   // (a book on someone else's page keeps nothing, unless it was asked to: core/embed.ts)
   await initKV({ memory: embedded && !embedOpts.remember });
   core = await makeCore();
-  const { default: App } = await import('./ui/App.svelte');
-  mount(App, { target: document.getElementById('app')!, props: { core } });
+  // the app, or one book in another site's page: each its own shell, loaded alone (the
+  // kit is only ever the second, and its build leaves the app out)
+  const { default: Shell } = embedded || import.meta.env.VOLUMEN_KIT ? await import('./ui/Embed.svelte') : await import('./ui/App.svelte');
+  mount(Shell, { target: document.getElementById('app')!, props: { core } });
 } catch (e) {
   // never a blank page: what went wrong, and what to try
   const p = document.createElement('p');

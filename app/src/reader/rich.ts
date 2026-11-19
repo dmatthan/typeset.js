@@ -12,16 +12,30 @@ export const RICH = 'application/xhtml+xml';
 const MAX_W = 900;
 const FACE = `font: 16px/1.4 Georgia, 'Times New Roman', serif; color: #111;`;
 
-/** Its natural size in CSS px: as wide as it wants up to MAX_W, as tall as it then is. */
-export function measureRich(xhtml: string): { w: number; h: number } {
-  const host = document.createElement('div');
-  host.style.cssText = 'position:absolute;left:-20000px;top:0;visibility:hidden;contain:layout style;';
-  const root = host.attachShadow({ mode: 'open' });
-  root.innerHTML = `<style>:host{all:initial}</style><div class="box" style="${FACE} width:max-content;max-width:${MAX_W}px;display:flow-root">${xhtml}</div>`;
-  document.body.append(host);
-  const r = (root.querySelector('.box') as HTMLElement).getBoundingClientRect();
-  host.remove();
-  return { w: Math.max(24, Math.ceil(r.width)), h: Math.max(24, Math.ceil(r.height)) };
+/** Their natural sizes in CSS px: each as wide as it wants up to MAX_W, as tall as it
+ *  then is. Laid out in a frame of their own that runs nothing and fetches nothing
+ *  (sandboxed without scripts, under a policy of its own), never in this page: the markup
+ *  is the book's, and only its drawing (`richURL`, an image) is inert by itself. */
+export async function measureRich(xhtmls: string[]): Promise<{ w: number; h: number }[]> {
+  const frame = document.createElement('iframe');
+  frame.sandbox.value = 'allow-same-origin';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  frame.style.cssText = `position:absolute;left:-20000px;top:0;width:${MAX_W + 40}px;height:100px;border:0;visibility:hidden`;
+  frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><body style="margin:0">`;
+  const loaded = new Promise(r => frame.addEventListener('load', r, { once: true }));
+  document.body.append(frame);
+  try {
+    await loaded;
+    const body = frame.contentDocument!.body;
+    return xhtmls.map(x => {
+      body.innerHTML = `<div style="${FACE} width:max-content;max-width:${MAX_W}px;display:flow-root">${x}</div>`;
+      const r = body.firstElementChild!.getBoundingClientRect();
+      return { w: Math.max(24, Math.ceil(r.width)), h: Math.max(24, Math.ceil(r.height)) };
+    });
+  } finally {
+    frame.remove();
+  }
 }
 
 /** The picture, as a blob URL. */

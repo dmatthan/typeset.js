@@ -1,5 +1,5 @@
-/** A new draft of a book already in the library (docs/PLAN.md N14 d): the same title and
- *  author, and something worth carrying (readers' feedback, one's own notes, a share).
+/** A new draft of a book already in the library: the same title and author, and
+ *  something worth carrying (readers' feedback, one's own notes, a share).
  *  Everything goes to the new draft, found again by its words (crates/engine/src/
  *  anchor.rs): one's own highlights, marks and place; readers' feedback, each reader's
  *  newer set winning; what the writer decided about passages; the share, so notes from
@@ -74,7 +74,7 @@ export async function carryOver(core: Core, from: LibEntry, to: LibEntry): Promi
   };
 }
 
-/** A reader's book from a link, whose writer has sent a newer draft (D8): fetched, its
+/** A reader's book from a link, whose writer has sent a newer draft: fetched, its
  *  reader's notes carried over, the earlier one removed. The new draft's entry. */
 export async function takeNewDraft(core: Core, old: LibEntry, version: number): Promise<{ entry: LibEntry; carried: Carried }> {
   const j = joinedOf(old.id);

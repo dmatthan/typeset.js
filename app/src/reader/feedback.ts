@@ -18,7 +18,7 @@ export interface FileNote extends NoteAnchor {
   kind: 'highlight' | 'mark';
   color?: number;
   note?: string;
-  /** A reaction (D6). */
+  /** A reaction. */
   react?: Reaction;
   created: number;
   updated: number;
@@ -31,7 +31,7 @@ export interface NotesFile {
   from: Me;
   sent: number;
   notes: FileNote[];
-  /** How far the reader got (D7), unless they said not to send it. */
+  /** How far the reader got, unless they said not to send it. */
   progress?: Progress;
 }
 
@@ -128,7 +128,7 @@ export class Feedback {
   list() {
     return Object.entries(this.readers).map(([id, r], i) => ({ id, name: r.name, sent: r.sent, colour: i % READER_COLOURS + 1, count: r.notes.filter(n => !n.lost).length, lost: r.notes.filter(n => n.lost).length, progress: r.progress }));
   }
-  /** The reactions (D6) of the readers shown, counted: what a manuscript's readers felt. */
+  /** The reactions of the readers shown, counted: what a manuscript's readers felt. */
   reactions(): [Reaction, number][] {
     const n = new Map<Reaction, number>();
     for (const [r, rd] of Object.entries(this.readers)) if (!this.hidden.has(r)) for (const x of rd.notes) if (x.react && !x.lost) n.set(x.react, (n.get(x.react) ?? 0) + 1);

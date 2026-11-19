@@ -1,0 +1,9 @@
+{
+  "path": ["app/src", "crates", "src-tauri/src", "service/src"],
+  "format": ["typescript", "svelte", "rust"],
+  "ignore": ["**/core/pkg/**", "**/target/**"],
+  "minTokens": 70,
+  "threshold": 0,
+  "reporters": ["console"],
+  "silent": false
+}

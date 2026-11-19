@@ -6,7 +6,7 @@
   import { shell } from '../core/shell';
   import { canSeal, seal, linkFor, serviceLink } from '../core/share';
   import { service, signIn, signOut, publish, renew, withdraw, sharedOf, myShares, canPasskey, personToken, syncShares, hasVault, unlockVault, sendDraft, type ServiceConfig, type Shared } from '../core/service';
-  import { collectNotes } from '../reader/intake';
+  import { collectNotes } from './library';
   import type { Core, LibEntry } from '../core/types';
   import { me } from '../core/identity';
 

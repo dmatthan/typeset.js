@@ -1,0 +1,25 @@
+# builds
+target/
+node_modules/
+app/dist*/
+app/kit-site/
+app/src/core/pkg/
+src-tauri/gen/
+test-results/
+__pycache__/
+
+# the sharing service, run or deployed from here
+service/.wrangler/
+service/.dev.vars
+service/.origin
+service/wrangler.local.jsonc
+service/deploy.env
+service/worker-configuration.d.ts
+
+# the maintainer's own: notes, test books, font sources (a git repository of its own,
+# linked in below where the code expects them)
+.private/
+/CLAUDE.md
+/docs
+/corpus
+/assets-src

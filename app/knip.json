@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/selftest.ts",
+    "sw.js",
+    "kit/volumen.js",
+    "site/site.js",
+    "tests/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,svelte}",
+    "kit/**/*.js",
+    "site/**/*.js"
+  ],
+  "ignoreDependencies": [
+    "@tauri-apps/cli",
+    "jscpd"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "enumMembers": "off"
+  }
+}

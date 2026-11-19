@@ -57,7 +57,15 @@ pub enum Target {
     Note(u32),
     /// Another place in the book: the block with this key.
     Block(u64),
+    /// An address outside the book: only those `outward` allows.
     Url(String),
+}
+
+/// An address a book may link to outside itself: the web and mail, nothing that runs or
+/// opens on the reader's own machine.
+pub fn outward(url: &str) -> bool {
+    let u = url.trim_start().to_ascii_lowercase();
+    ["https://", "http://", "mailto:"].iter().any(|p| u.starts_with(p))
 }
 
 /// A link over a byte range of a block's text.

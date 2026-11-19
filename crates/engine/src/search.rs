@@ -176,6 +176,15 @@ pub fn in_book(book: &Book, blocks: Option<&[(u32, u32)]>, query: &str, keep: us
     (out.total > 0).then_some(out)
 }
 
+/// Books' matches in the order a library shows them: if the phrase was found anywhere,
+/// only the books with it (they outrank every-word matches); most matches first.
+pub fn rank(mut books: Vec<BookHits>) -> Vec<BookHits> {
+    let phrase = books.iter().any(|h| h.phrase);
+    books.retain(|h| h.phrase == phrase);
+    books.sort_by_key(|h| std::cmp::Reverse(h.total));
+    books
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,6 +222,15 @@ mod tests {
         // only the paragraphs asked about
         assert!(in_book(&b, Some(&[(0, 1)]), "anarchist poet", 5).is_none());
         assert_eq!(in_book(&b, Some(&[(1, 0)]), "anarchist poet", 5).unwrap().total, 1);
+    }
+
+    #[test]
+    fn a_phrase_anywhere_outranks_every_word_then_most_matches_first() {
+        let h = |id: &str, total, phrase| BookHits { id: id.into(), total, phrase, hits: vec![] };
+        let ids = |v: Vec<BookHits>| v.into_iter().map(|h| h.id).collect::<Vec<_>>();
+        assert_eq!(ids(rank(vec![h("a", 9, false), h("b", 1, true), h("c", 4, true)])), ["c", "b"]);
+        assert_eq!(ids(rank(vec![h("a", 2, false), h("b", 7, false)])), ["b", "a"]);
+        assert!(rank(vec![]).is_empty());
     }
 
     #[test]

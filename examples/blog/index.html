@@ -12,9 +12,12 @@
   end-href="/shop" end-label="Buy the book" style="height: 600px"></volumen-book>
 
 <script>
-  // where the reader is, and the end (for a page that wants to know)
+  // what the reader says (for a page that wants to know): open, where it is, the end, or
+  // why it could not open the book. Once ready, the page may move it: book.goTo({ chapter: 1 })
   window.heard = [];
   const book = document.getElementById('book');
+  book.addEventListener('volumen-ready', e => heard.push(['ready', e.detail.chapters]));
   book.addEventListener('volumen-progress', e => heard.push(['progress', e.detail.at]));
   book.addEventListener('volumen-end', () => heard.push(['end']));
+  book.addEventListener('volumen-error', e => heard.push(['error', e.detail.message]));
 </script>

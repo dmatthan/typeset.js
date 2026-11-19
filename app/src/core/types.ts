@@ -1,6 +1,7 @@
-/** What the importer makes of a file, as a number: `vol_ingest::VERSION` (keep the same).
+/** What the importer makes of a file, as a number: `vol_ingest::VERSION` (scripts/rules.mjs
+ *  checks they agree).
  *  Books read by an earlier one are read again from their kept file (reader/reread.ts). */
-export const IMPORTER_VERSION = 4;
+export const IMPORTER_VERSION = 5;
 
 /** The book as the reader receives it (offsets are UTF-16). Mirrors vol_model::js. */
 export interface BookData {
@@ -116,6 +117,9 @@ export interface LibEntry {
   importer?: number;
   source?: boolean;
 }
+
+/** What a library lists about a book (the engine's `Summary`). */
+export type Summary = Pick<LibEntry, 'title' | 'author' | 'year' | 'words' | 'chapters' | 'cover'>;
 
 /** What the reader needs from the engine, whichever shell hosts it. */
 export interface Core {

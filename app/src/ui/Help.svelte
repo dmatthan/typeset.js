@@ -38,7 +38,7 @@
       ['Hold on a word', 'Selects it; drag to take more, word by word'],
       ['then 1–4  N  C', 'Highlight in a colour, add a note, copy with reference'],
       ['then 5–8', 'In a book sent to you: loved, confused, slow, a typo (for its writer)'],
-      ['V', 'Choose a paragraph with J and K: H highlights it, N adds a note, O opens its image or footnote'],
+      ['V', 'Choose a paragraph with J and K: H highlights it, N adds a note, O opens its image, footnote or link'],
       ['Click a note marker', 'The note beside it; G goes to where it is printed'],
       [';', 'Your notes in view, each beside its line (a dot marks them; hover one to see it alone)'],
       ['M, Notebook', 'Send my notes: to the writer, for a book that came by link; otherwise a small file for whoever sent it. Notes from readers arrive by themselves on books you shared by link, or drop their file on the library or the book; the notebook’s Feedback side gathers them'],

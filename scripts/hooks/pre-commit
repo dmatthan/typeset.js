@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# The fast gate on what is being committed (scripts/lint.sh). In use once per clone:
+#   git config core.hooksPath scripts/hooks
+exec scripts/lint.sh --staged

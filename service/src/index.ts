@@ -1,5 +1,5 @@
-/** Volumen's sharing service (docs/PLAN.md, M2): the app's files are static assets; this
- *  Worker answers /api/* only. See limits.ts for what keeps it inside the Free plan. */
+/** Volumen's sharing service: the app's files are static assets; this Worker answers
+ *  /api/* only. See limits.ts for what keeps it inside the Free plan. */
 import { Fail, json, now, DAY } from './http';
 import { sameSite } from './limits';
 import { writerOf, mustWriter, registerBegin, registerFinish, loginBegin, loginFinish, logout } from './auth';

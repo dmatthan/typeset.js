@@ -1,0 +1,40 @@
+# Every push and pull request: the gates a commit passes locally (scripts/lint.sh), the
+# crates' tests, the browser tests (the app, its production build, the sharing service and
+# the kit on an ordinary site), and what a page embedding the kit downloads.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  WASM_BINDGEN: "0.2.129"
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown, components: clippy }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-bindgen@${{ env.WASM_BINDGEN }}" }
+      # the desktop shell's libraries (clippy builds it), and wasm-opt (the engine's size)
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev binaryen
+      - run: scripts/build-wasm.sh
+      - run: npm --prefix app ci && npm --prefix service ci
+      - run: scripts/lint.sh
+      - run: cargo test --workspace
+      - run: (cd app && VOLUMEN_KIT=1 npx vite build --logLevel warn) && node scripts/sizes.mjs
+      - run: npx --prefix app playwright install --with-deps chromium
+      - run: npm --prefix app test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: test-results, path: app/test-results, retention-days: 7 }

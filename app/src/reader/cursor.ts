@@ -61,15 +61,18 @@ export class Cursor {
     }
   }
 
-  /** Opens what the chosen paragraph holds: its picture, or its first note. */
+  /** Opens what the chosen paragraph holds: its picture, its first note, or its first link
+   *  out of the book. */
   open() {
     if (!this.active) return;
     const picked = [...document.querySelectorAll<HTMLElement>('.col .pick')];
     const fig = picked.find(el => el.classList.contains('img'));
     if (fig) { this.r.openImage(+fig.dataset.i!, fig); return; }
     const nr = picked.map(el => el.querySelector<HTMLElement>('a.nr')).find(Boolean);
-    if (nr) this.r.openNote(+nr.dataset.n!, nr);
-    else toast('No note or image here.');
+    if (nr) { this.r.openNote(+nr.dataset.n!, nr); return; }
+    const ur = picked.map(el => el.querySelector<HTMLElement>('a.ur')).find(Boolean);
+    if (ur) this.r.openLink(ur.dataset.u!);
+    else toast('No note, image or link here.');
   }
 
   /** Highlights the chosen paragraph (and opens its note with `note`). */

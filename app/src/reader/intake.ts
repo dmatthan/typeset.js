@@ -5,7 +5,6 @@
  *  plainly. */
 import type { BookData, Core } from '../core/types';
 import { count } from '../core/say';
-import { fetchNotes } from '../core/service';
 import { parseNotes, receive, targetOf, type Feedback, type NotesFile } from './feedback';
 import type { Annotations } from './annotations';
 import { isMine, restoreInto, restoreOwn, restored } from './restore';
@@ -62,19 +61,4 @@ export async function takeNotes(core: Core, texts: string[], library: { id: stri
   for (const [title, k] of missing) said.push(`${count(k, 'file is', 'files are')} for “${title}”, which is not in your library: add the book, then the notes again.`);
   if (bad.length) said.push(`${count(bad.length, 'file was', 'files were')} not notes${bad.length <= 3 ? ` (${bad.join(', ')})` : ''}.`);
   return { said: said.join(' '), changed };
-}
-
-/** Readers' notes from the sharing service, kept as feedback on their books. What came,
- *  per book and reader. */
-export async function collectNotes(): Promise<{ book: string; from: string; notes: number }[]> {
-  const out: { book: string; from: string; notes: number }[] = [];
-  for (const { book, text } of await fetchNotes()) {
-    const files = parseNotes(text);
-    if (typeof files === 'string') continue;
-    for (const f of files) {
-      receive({ ...f, book: { ...f.book, id: book } }, book);
-      out.push({ book, from: f.from.name || 'A reader', notes: f.notes.length });
-    }
-  }
-  return out;
 }

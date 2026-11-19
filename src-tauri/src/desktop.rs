@@ -1,6 +1,30 @@
-//! The computer the app runs on: the desktop's colours (Omarchy publishes them), and what
-//! WebKitGTK on Linux needs to draw and to exit cleanly.
+//! The computer the app runs on: the desktop's colours (Omarchy publishes them), its
+//! browser for links out of a book, and what WebKitGTK on Linux needs to draw and to exit
+//! cleanly.
 use tauri::Emitter;
+
+/// Opens an address a book links to in the system's browser (or mail app): web and mail
+/// addresses only (`vol_model::outward`), handed over as one argument, never through a shell.
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    if !vol_engine::outward(&url) || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("Only web and mail addresses are opened.".into());
+    }
+    #[cfg(target_os = "linux")]
+    let mut c = std::process::Command::new("xdg-open");
+    #[cfg(target_os = "macos")]
+    let mut c = std::process::Command::new("open");
+    #[cfg(target_os = "windows")]
+    let mut c = {
+        let mut c = std::process::Command::new("rundll32");
+        c.arg("url.dll,FileProtocolHandler");
+        c
+    };
+    let mut child = c.arg(&url).spawn().map_err(|e| e.to_string())?;
+    // (waited for elsewhere, so it leaves nothing behind)
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
 
 /// The desktop's colours, where the desktop publishes them (Omarchy).
 fn omarchy_dir() -> Option<std::path::PathBuf> {

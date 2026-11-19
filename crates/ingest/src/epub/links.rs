@@ -45,7 +45,9 @@ pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec
         for (s, e, p) in raw {
             let parts: Vec<&str> = p.splitn(3, '|').collect();
             if parts[0] == "u" {
-                links.push(Link { start: *s, end: *e, to: Target::Url(parts[1].to_string()) });
+                if vol_model::outward(parts[1]) {
+                    links.push(Link { start: *s, end: *e, to: Target::Url(parts[1].to_string()) });
+                }
                 continue;
             }
             let (explicit, target, own) = (parts[0] == "1", parts[1], parts.get(2).copied().unwrap_or(""));

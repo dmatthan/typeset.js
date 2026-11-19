@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
  *  desktop app's, the local preview) keep the app at /. */
 const WEB = !!process.env.VOLUMEN_WEB;
 /** The kit (`VOLUMEN_KIT=1`): the reader alone, to put in a folder of any site, with
- *  volumen.js, the elements that place it on a page (app/kit/, docs/PLAN.md N13). */
+ *  volumen.js, the elements that place it on a page (app/kit/). */
 const KIT = !!process.env.VOLUMEN_KIT;
 const START = WEB ? '/read' : '/';
 
@@ -52,6 +52,17 @@ function website(): Plugin {
   };
 }
 
+/** The policy a book embedded in another site's page runs under: volumen.page sends it as
+ *  a header (assets/_headers, `/embed`); the kit, served by hosts that send none, carries
+ *  it in the page, less `frame-ancestors`, which only a header can say. Without it a
+ *  self-hosted reader would run on the host site's own origin with no policy at all. */
+function embedPolicy(): string {
+  const headers = readFileSync(new URL('../assets/_headers', import.meta.url), 'utf8');
+  const csp = /^\/embed\n(?:[ \t]+.*\n)*?[ \t]+Content-Security-Policy: (.+)$/m.exec(headers)?.[1];
+  if (!csp) throw new Error('assets/_headers: no Content-Security-Policy for /embed');
+  return csp.split(';').map(d => d.trim()).filter(d => d && !d.startsWith('frame-ancestors')).join('; ');
+}
+
 /** The kit's layout: the reader's page as embed.html, volumen.js beside it, and none of
  *  the app's own extras (the sample, the site's headers, the install manifest). */
 function kit(): Plugin {
@@ -61,7 +72,11 @@ function kit(): Plugin {
     enforce: 'post',
     generateBundle(_, bundle) {
       const app = bundle['index.html'];
-      if (app) { delete bundle['index.html']; app.fileName = 'embed.html'; bundle['embed.html'] = app; }
+      if (app?.type === 'asset') {
+        delete bundle['index.html']; app.fileName = 'embed.html'; bundle['embed.html'] = app;
+        // the policy first, before anything it governs
+        app.source = String(app.source).replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${embedPolicy()}">`);
+      }
       for (const f of readdirSync(new URL('./kit/', import.meta.url))) this.emitFile({ type: 'asset', fileName: f, source: readFileSync(new URL('./kit/' + f, import.meta.url)) });
     },
     closeBundle() {

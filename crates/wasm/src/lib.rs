@@ -161,12 +161,9 @@ impl Engine {
         serde_json::to_string(&p).map_err(|e| JsError::new(&e.to_string()))
     }
 
-    /// Library search in one saved book (the web build looks through each in turn, having
-    /// no full-text index): its matches as JSON, or nothing.
-    #[wasm_bindgen(js_name = searchSaved)]
-    pub fn search_saved(&self, bytes: &[u8], query: &str, keep: usize) -> Option<String> {
-        let book = vol_engine::Book::restore(bytes).ok()?;
-        vol_engine::search::in_book(&book, None, query, keep).and_then(|h| serde_json::to_string(&h).ok())
+    /// What a library lists about a book (`vol_engine::Summary`), as JSON.
+    pub fn summary(&self, id: &str) -> Option<String> {
+        self.0.summary(id).and_then(|s| serde_json::to_string(&s).ok())
     }
 
     /// `request` is the layout request as JSON.
@@ -179,6 +176,35 @@ impl Engine {
     pub fn layout(&mut self, id: &str, sections: &[u32], request: &str) -> Result<Vec<u8>, JsError> {
         let r: Request = serde_json::from_str(request).map_err(|e| JsError::new(&e.to_string()))?;
         self.0.layout(id, sections, &r).map_err(|e| JsError::new(&e))
+    }
+}
+
+/// Library search over saved books, one at a time (the web build has no full-text index,
+/// and holds one book's bytes at once): each book's matches are kept, and `finish` ranks
+/// them as the desktop does (`vol_engine::search::rank`).
+#[wasm_bindgen]
+pub struct LibrarySearch {
+    query: String,
+    keep: usize,
+    found: Vec<vol_engine::search::BookHits>,
+}
+
+#[wasm_bindgen]
+impl LibrarySearch {
+    #[wasm_bindgen(constructor)]
+    pub fn new(query: &str, keep: usize) -> LibrarySearch {
+        LibrarySearch { query: query.into(), keep, found: Vec::new() }
+    }
+
+    /// A saved book (`Engine::save`'s bytes) looked through.
+    pub fn add(&mut self, bytes: &[u8]) {
+        let Ok(book) = vol_engine::Book::restore(bytes) else { return };
+        self.found.extend(vol_engine::search::in_book(&book, None, &self.query, self.keep));
+    }
+
+    /// The matches, ranked, as JSON.
+    pub fn finish(self) -> String {
+        serde_json::to_string(&vol_engine::search::rank(self.found)).unwrap_or_else(|_| "[]".into())
     }
 }
 

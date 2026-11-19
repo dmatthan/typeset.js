@@ -1,5 +1,5 @@
-/** Readers' feedback taken out to where the writer works (docs/PLAN.md N14): into their
- *  own Word file as Word comments (crates/ingest/src/annotate.rs), into their Markdown as
+/** Readers' feedback taken out to where the writer works: into their own Word file as
+ *  Word comments (crates/ingest/src/annotate.rs), into their Markdown as
  *  CriticMarkup, or as a report (Markdown) or a spreadsheet (CSV). What is exported is
  *  what the writer's view shows: readers they have hidden are left out, and with `open`
  *  only passages not yet marked done or won't change. */

@@ -35,12 +35,12 @@ export class BookImages {
   async measure(book: BookData) {
     const todo = book.images.map((im, i) => [im, i] as const).filter(([im]) => im[3] === RICH && (!im[0] || !im[1]));
     if (!todo.length) return;
-    const sizes: [number, number, number][] = [];
-    for (const [im, i] of todo) {
-      const { w, h } = measureRich(await this.richOf(book, i));
+    const measured = await measureRich(await Promise.all(todo.map(([, i]) => this.richOf(book, i))));
+    const sizes = todo.map(([im, i], n): [number, number, number] => {
+      const { w, h } = measured[n];
       im[0] = w; im[1] = h;
-      sizes.push([i, w, h]);
-    }
+      return [i, w, h];
+    });
     await this.core.setImageSizes(book.id, sizes);
   }
 

@@ -4,10 +4,10 @@ import { kv } from '../core/kv';
 import { isTauri } from '../core/shell';
 import { isSafari, isInstalled } from '../core/env';
 import { embedded } from '../core/embed';
-import { syncShares, hasVault, sharedOf, service, withdraw } from '../core/service';
+import { syncShares, hasVault, sharedOf, service, withdraw, fetchNotes } from '../core/service';
 import { ui, toast } from '../state.svelte';
 import { forgetBookState } from '../reader/bookstate';
-import { collectNotes } from '../reader/intake';
+import { parseNotes, receive } from '../reader/feedback';
 import { hint } from '../reader/hints';
 import { stale, reread } from '../reader/reread';
 import { forgetBook } from './shelves.svelte';
@@ -75,4 +75,19 @@ export async function rereadStale(core: Core, list: LibEntry[], openId: () => st
   if (!openId()) core.idle?.();
   rereading = false; rereadDone = true;
   if (n) { toast(n === 1 ? 'A book was read again with what Volumen now understands of it.' : `${n} books were read again with what Volumen now understands of them.`, 4200); ui.libVersion++; }
+}
+
+/** Readers' notes from the sharing service, kept as feedback on their books. What came,
+ *  per book and reader. */
+export async function collectNotes(): Promise<{ book: string; from: string; notes: number }[]> {
+  const out: { book: string; from: string; notes: number }[] = [];
+  for (const { book, text } of await fetchNotes()) {
+    const files = parseNotes(text);
+    if (typeof files === 'string') continue;
+    for (const f of files) {
+      receive({ ...f, book: { ...f.book, id: book } }, book);
+      out.push({ book, from: f.from.name || 'A reader', notes: f.notes.length });
+    }
+  }
+  return out;
 }

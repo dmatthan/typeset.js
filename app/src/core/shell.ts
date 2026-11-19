@@ -11,6 +11,20 @@ function download(blob: Blob, name: string) {
 }
 
 export const shell = {
+  /** Opens an address a book links to, outside the reader: a new tab, or the system's
+   *  browser. Web and mail addresses only (as the importer keeps); false for others. */
+  async openLink(url: string): Promise<boolean> {
+    let u: URL;
+    try { u = new URL(url); } catch { return false; }
+    if (!['https:', 'http:', 'mailto:'].includes(u.protocol)) return false;
+    if (isTauri) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_url', { url: u.href });
+    } else {
+      window.open(u.href, '_blank', 'noopener,noreferrer');
+    }
+    return true;
+  },
   async toggleFullscreen() {
     if (isTauri) {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');

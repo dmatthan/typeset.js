@@ -1,6 +1,5 @@
 // The web app and its sharing service, as one Worker (Cloudflare Workers with static
-// assets; see docs/PLAN.md, M2). Built for the Free plan's hard limits: nothing here can
-// be billed. The app's files are static assets (free, and never run this Worker); only
+// assets). Built for the Free plan's hard limits: nothing here can be billed. The app's files are static assets (free, and never run this Worker); only
 // /api/* runs it, and it keeps everything in D1, which refuses work past its free limits
 // rather than charging for it.
 {
@@ -8,7 +7,8 @@
   "name": "volumen",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
-  // to serve it at a domain of your own: "routes": [{ "pattern": "example.org", "custom_domain": true }]
+  // workers.dev here; a domain of your own, the database's id and the Turnstile key are a
+  // deployment's own, kept in deploy.env (see scripts/deploy.sh)
   "workers_dev": true,
   "preview_urls": false,
   "assets": {

@@ -11,7 +11,7 @@
    *  then attached to an email or a message). The name goes with them. */
   let { reader }: { reader: Reader } = $props();
   let name = $state(me().name);
-  // whether how far they read goes too (D7): yes unless they say not
+  // whether how far they read goes too: yes unless they say not
   // svelte-ignore state_referenced_locally
   let far = $state(kv.get('progress.' + reader.book!.id, true));
   const file = $derived.by(() => { name; far; return reader.myNotes(); });

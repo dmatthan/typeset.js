@@ -1,7 +1,7 @@
 //! Markdown (CommonMark, with footnotes): headings make the chapters, `*` and `_` italics,
-//! `**` bold, `>` quotations, `---` scene breaks, code blocks preformatted text. Straight
-//! quotes and dashes are made typographic. A front matter block (`---` … `---`) may give
-//! `title`, `author` and `lang`.
+//! `**` bold, `>` quotations, `---` scene breaks, code blocks preformatted text, links to
+//! the web and mail (others are left as their words). Straight quotes and dashes are made
+//! typographic. A front matter block (`---` … `---`) may give `title`, `author` and `lang`.
 
 use crate::doc::{Doc, Para, assemble};
 use crate::Error;
@@ -33,6 +33,7 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
     let mut in_note: Option<usize> = None;
     let mut heading: Option<u8> = None;
     let mut code: Option<String> = None;
+    let mut linked = false;
     for ev in Parser::new_ext(body, opts) {
         match ev {
             Event::Start(Tag::Heading { level, .. }) => {
@@ -103,6 +104,18 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             Event::End(TagEnd::Emphasis) => st &= !style::ITALIC,
             Event::Start(Tag::Strong) => st |= style::BOLD,
             Event::End(TagEnd::Strong) => st &= !style::BOLD,
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                if let Some(b) = cur.as_mut().filter(|_| vol_model::outward(&dest_url)) {
+                    b.begin_link(format!("u:{dest_url}"));
+                    linked = true;
+                }
+            }
+            Event::End(TagEnd::Link) => {
+                if let Some(b) = cur.as_mut().filter(|_| linked) {
+                    b.end_link();
+                }
+                linked = false;
+            }
             Event::Rule => paras.push(Para::Break),
             Event::Text(t) => {
                 if let Some(c) = code.as_mut() {

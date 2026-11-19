@@ -1,3 +1,4 @@
+import { embedOpts } from '../core/embed';
 import { settings } from './settings.svelte';
 
 /** Height of the reader's bar, which floats over the sheet. */
@@ -91,8 +92,10 @@ export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t
   const cx = Math.round(W / 2);
   const x0 = Math.round(cx - focusW / 2);
   // the chapter name stays at the top, so its band is always reserved: the rest of the bar
-  // fades in and out over it without moving the text
-  const topM = ins.t + BAR + (phone ? 10 : 20), botM = ins.b + (phone ? 26 : 44);
+  // fades in and out over it without moving the text. With no bar at all (a page that
+  // shows its own), the text sits as far from the top as from the bottom
+  const foot = phone ? 26 : 44;
+  const topM = ins.t + (embedOpts.ui === 'none' ? foot : BAR + (phone ? 10 : 20)), botM = ins.b + foot;
   const rows = Math.max(8, Math.min(46, Math.floor((H - topM - botM) / lh)));
   const colH = rows * lh;
   const y0 = topM + Math.max(0, Math.floor((H - topM - botM - colH) / 2));

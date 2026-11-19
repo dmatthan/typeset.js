@@ -1,6 +1,11 @@
 /** The reader's input: keys, the wheel and trackpad, and the pointer (a mouse, a pen, a
- *  finger). It decides what the hand meant and asks the reader and its motion for it;
- *  the interaction rules it keeps are in CLAUDE.md. */
+ *  finger). It decides what the hand meant and asks the reader and its motion for it.
+ *  The rules it keeps (tests/reader.spec.ts holds it to them): Space turns the set in view,
+ *  an arrow one column, a held arrow glides; a wheel notch is one column and every notch
+ *  counts; a drag or trackpad moves the sheet 1:1 and lands on the nearest column (a push
+ *  of less than one goes on to the next); key repeat is ignored; a mouse click on the text
+ *  does nothing, a tap in a page's outer fifth turns it. */
+import { features } from '../core/embed';
 import { ui } from '../state.svelte';
 import { kv } from '../core/kv';
 import { hint } from './hints';
@@ -231,7 +236,7 @@ export class ReaderInput {
         getSelection()?.removeAllRanges();
         if (a && z && (a[0] !== z[0] || a[1] !== z[1] || a[2] !== z[2])) {
           const r = stage.getBoundingClientRect();
-          ui.chip = { x: e.clientX - r.left, y: e.clientY - r.top, sel: { a, z }, ann: null };
+          if (features.highlights) ui.chip = { x: e.clientX - r.left, y: e.clientY - r.top, sel: { a, z }, ann: null };
         }
         return;
       }
@@ -247,6 +252,8 @@ export class ReaderInput {
         if (nr) { this.r.openNote(+nr.dataset.n!, nr); return; }
         const xr = tgt.closest('a.xr') as HTMLElement | null;
         if (xr) { this.r.followRef(xr.dataset.b!); return; }
+        const ur = tgt.closest('a.ur') as HTMLElement | null;
+        if (ur) { this.r.openLink(ur.dataset.u!); return; }
         const fig = tgt.closest('figure.img') as HTMLElement | null;
         if (fig) { this.r.openImage(+fig.dataset.i!, fig); return; }
         const nd = tgt.closest('.nd') as HTMLElement | null;

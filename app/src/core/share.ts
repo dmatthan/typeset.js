@@ -1,4 +1,4 @@
-/** A book sealed for a link (D2: end to end, the key in the link's fragment, which is never
+/** A book sealed for a link (end to end: the key in the link's fragment, which is never
  *  sent to a server). Whoever holds the sealed file without the link cannot read it; the
  *  link holds where the file is and the key.
  *
@@ -6,7 +6,7 @@
  *    header = { v: 1, name, size, sha256, by? }   (the file's name tells its kind; `by`,
  *             who sent it, as they call themselves)
  *    notes  = "VOLN1" | iv | AES-256-GCM( a notes file, JSON )
- *    link   = <the app>#b=<id at the service>&k=<key, base64url>      (service/, M2)
+ *    link   = <the app>#b=<id at the service>&k=<key, base64url>      (service/)
  *           | <the app>#open=<the sealed file's address>&k=<key>      (a file put anywhere)
  *
  *  The key is 32 random bytes; what it opens is derived from it (HKDF-SHA-256), so no

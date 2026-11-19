@@ -8,7 +8,7 @@ pub mod anchor;
 use rustc_hash::{FxHashMap, FxHasher};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-pub use vol_model::{Book, SectionKind, percent_decode};
+pub use vol_model::{Book, SectionKind, outward, percent_decode};
 pub use vol_press::Params;
 /// What the importer makes of a file, as a number (`vol_ingest::VERSION`).
 pub const IMPORTER_VERSION: u32 = vol_ingest::VERSION;
@@ -85,6 +85,32 @@ impl Request {
         let mut h = FxHasher::default();
         format!("{self:?}").hash(&mut h);
         h.finish()
+    }
+}
+
+/// What a library lists about a book, the same in every shell (each adds when and how the
+/// book came to it).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub struct Summary {
+    pub title: String,
+    pub author: String,
+    pub year: String,
+    pub words: usize,
+    pub chapters: usize,
+    #[serde(default)]
+    pub cover: bool,
+}
+
+impl Summary {
+    pub fn of(book: &Book) -> Summary {
+        Summary {
+            title: book.meta.title.clone(),
+            author: book.meta.author.clone(),
+            year: book.meta.year.clone(),
+            words: book.words(),
+            chapters: book.sections.iter().filter(|s| s.kind == SectionKind::Chapter).count(),
+            cover: book.cover.is_some(),
+        }
     }
 }
 
@@ -274,6 +300,11 @@ impl Engine {
 
     pub fn book(&self, id: &str) -> Option<&Book> {
         self.books.get(id)
+    }
+
+    /// What a library lists about a book.
+    pub fn summary(&self, id: &str) -> Option<Summary> {
+        self.books.get(id).map(Summary::of)
     }
 
     pub fn forget(&mut self, id: &str) {

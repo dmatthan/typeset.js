@@ -15,12 +15,15 @@ pub use vol_model::Book;
 
 /// What this importer makes of a file, as a number: raised whenever a book read again
 /// would come out differently, so books read by an earlier one are read again from their
-/// file (the app keeps it). Keep `IMPORTER_VERSION` in app/src/core/types.ts the same.
+/// file (the app keeps it). `IMPORTER_VERSION` in app/src/core/types.ts is the same
+/// (scripts/rules.mjs checks).
 /// 1: before the version was kept. 2: the publisher's styles (hidden text, styles,
 /// alignment), rich blocks (diagram tables, SVG, MathML). 3: apparatus by its semantics.
 /// 4: writing without spaces (Chinese, Japanese) counted fairly, so its short chapters
-/// are not taken for title pages; a book of pictures keeps its pages.
-pub const VERSION: u32 = 4;
+/// are not taken for title pages; a book of pictures keeps its pages. 5: rich blocks keep
+/// only what draws (rich.rs's lists); links out of a book only to the web and mail
+/// (`vol_model::outward`), and Markdown's kept.
+pub const VERSION: u32 = 5;
 use vol_model::{Block, Kind, Meta, Section, SectionKind};
 
 #[derive(Debug)]

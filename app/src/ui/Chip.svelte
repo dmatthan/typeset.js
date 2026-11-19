@@ -30,8 +30,8 @@
     ui.chip = null;
   }
   function remove() { if (ui.chip?.ann) reader.unhighlight(ui.chip.ann); ui.chip = null; }
-  // a manuscript sent by link: the reader's quick reactions for its writer (D6)
-  // (looked up each time the chip opens: the link's record is not reactive)
+  // a manuscript sent by link: the reader's quick reactions for its writer (looked up
+  // each time the chip opens: the link's record is not reactive)
   const asked = $derived(!!ui.chip && !!reader.book && !!kv.get('joined.' + reader.book.id, null));
   function react(r: Reaction) {
     const chip = ui.chip; if (!chip) return;
@@ -98,7 +98,7 @@
     background: var(--sheet); border: 1px solid var(--rule);
     animation: pop .16s cubic-bezier(.2,.8,.2,1); flex-wrap: wrap;
   }
-  /* the reactions for a manuscript's writer (D6): a row of their own */
+  /* the reactions for a manuscript's writer: a row of their own */
   .reacts { flex-basis: 100%; display: flex; justify-content: space-between; gap: 2px; border-top: 1px solid var(--rule); padding-top: 4px; margin-top: 2px; }
   .reacts .act[aria-pressed="true"] { background: var(--hover); }
   .chip-pop.below { transform: translate(calc(-50% + var(--dx, 0px)), 26px); }

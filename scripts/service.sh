@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The sharing service's chores (service/, docs/PLAN.md M2): nobody can sign up, so writers
+# The sharing service's chores (service/): nobody can sign up, so writers
 # are invited from here. An invitation is a link with a random code, good once, for a
 # fortnight; only the code's hash is kept.
 #
@@ -23,6 +23,8 @@ if [[ "${1:-}" == --local ]]; then
   [[ -n "${SERVICE_PERSIST:-}" ]] && where+=(--persist-to "$SERVICE_PERSIST")
   origin="${SERVICE_ORIGIN:-http://localhost:8788}"
 fi
+# the deployed database is named in the config scripts/deploy.sh wrote
+if [[ "${where[0]}" == --remote && -f wrangler.local.jsonc ]]; then W="npx wrangler -c wrangler.local.jsonc"; fi
 sql() { $W d1 execute volumen "${where[@]}" --json --command "$1" 2>/dev/null; }
 q() { printf "%s" "$1" | sed "s/'/''/g"; }
 id_ok() { [[ "$1" =~ ^[A-Za-z0-9_-]{22}$ ]] || { echo "not a writer id: $1" >&2; exit 1; }; }

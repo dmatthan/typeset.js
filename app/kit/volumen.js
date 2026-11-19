@@ -15,7 +15,13 @@
 //   end-href   at the end, a way on ("Continue reading" by default: end-label)
 //   end-label
 //   remember   the reader's place and highlights kept in this browser (off by default)
-// Events: "volumen-progress" (detail.at, 0 to 1), "volumen-end".
+//   ui         how much of the reader's own interface shows: full (the default), minimal
+//              (the chapter's name alone) or none
+//   off        what the reader does not offer, any of: map settings find highlights links
+// Events: "volumen-ready" (detail.title, detail.chapters), "volumen-progress" (detail.at,
+// 0 to 1), "volumen-end", "volumen-error" (detail.message).
+// Methods, once ready: goTo({ chapter }) or goTo({ at }) (0 to 1); setTheme(name, or a
+// theme as Volumen exports one: { format: "volumen-theme/1", … }).
 //
 // <volumen-library src="/books.json">: a shelf from a list of books,
 //   [{ "title", "author", "src", "cover" }], each opened in place. A book with no cover
@@ -25,6 +31,8 @@
 
 const here = new URL('.', import.meta.url);
 const reader = new URL('embed.html', here);
+// the messages between this page and the reader's frame: their version (app/src/core/embed.ts)
+const PROTOCOL = 1;
 
 const css = `
   :host { display: block; position: relative; width: 100%; height: 70vh; min-height: 420px; }
@@ -32,17 +40,34 @@ const css = `
 `;
 
 class VolumenBook extends HTMLElement {
-  static observedAttributes = ['src', 'chapters', 'theme', 'end-href', 'end-label', 'remember'];
+  static observedAttributes = ['src', 'chapters', 'theme', 'end-href', 'end-label', 'remember', 'ui', 'off'];
 
   constructor() {
     super();
     this.attachShadow({ mode: 'open' }).innerHTML = `<style>${css}</style><iframe allow="fullscreen; clipboard-write"></iframe>`;
     this.frame = this.shadowRoot.querySelector('iframe');
+    this.ready = false;
+    // what is sent only from the reader's own frame and origin, in this version, is heard
     this.onMessage = e => {
-      if (e.source !== this.frame.contentWindow || typeof e.data !== 'object' || !e.data?.volumen) return;
-      if (e.data.volumen === 'progress') this.dispatchEvent(new CustomEvent('volumen-progress', { detail: { at: e.data.at }, bubbles: true }));
-      if (e.data.volumen === 'end') this.dispatchEvent(new CustomEvent('volumen-end', { bubbles: true }));
+      if (e.source !== this.frame.contentWindow || e.origin !== reader.origin) return;
+      const d = e.data;
+      if (!d || typeof d !== 'object' || d.volumen !== PROTOCOL) return;
+      const { volumen, type, ...detail } = d;
+      if (!['ready', 'progress', 'end', 'error'].includes(type)) return;
+      if (type === 'ready') this.ready = true;
+      this.dispatchEvent(new CustomEvent('volumen-' + type, { detail, bubbles: true }));
     };
+  }
+
+  /** Goes to a chapter ({ chapter: 3 }, counted from 1) or a place ({ at: 0.5 }). */
+  goTo(where) { this.send({ type: 'goto', ...where }); }
+
+  /** A theme by name, or one made with Volumen (its exported JSON, as an object). */
+  setTheme(theme) { this.send({ type: 'theme', theme }); }
+
+  send(command) {
+    if (!this.ready) throw new Error('The book is not open yet: wait for volumen-ready.');
+    this.frame.contentWindow.postMessage({ volumen: PROTOCOL, ...command }, reader.origin);
   }
 
   connectedCallback() { addEventListener('message', this.onMessage); this.load(); }
@@ -55,14 +80,16 @@ class VolumenBook extends HTMLElement {
     const p = new URLSearchParams();
     // (the book's address as the page sees it: the frame is elsewhere)
     p.set('src', new URL(src, document.baseURI).href);
-    for (const [attr, key] of [['chapters', 'ch'], ['theme', 'theme'], ['end-href', 'end'], ['end-label', 'endl']]) {
+    for (const [attr, key] of [['chapters', 'ch'], ['theme', 'theme'], ['end-href', 'end'], ['end-label', 'endl'], ['ui', 'ui'], ['off', 'off']]) {
       const v = this.getAttribute(attr);
       if (v) p.set(key, attr === 'end-href' ? new URL(v, document.baseURI).href : v);
     }
     if (this.hasAttribute('remember')) p.set('rem', '1');
+    // (this page's origin: the reader talks to it alone)
+    p.set('host', location.origin);
     this.frame.title = this.getAttribute('title') || 'A book';
     const url = `${reader.href}#${p.toString()}`;
-    if (this.frame.src !== url) this.frame.src = url;
+    if (this.frame.src !== url) { this.ready = false; this.frame.src = url; }
   }
 }
 
@@ -193,7 +220,7 @@ class VolumenLibrary extends HTMLElement {
     const book = document.createElement('volumen-book');
     book.setAttribute('src', new URL(b.src, document.baseURI).href);
     book.setAttribute('title', b.title ?? 'A book');
-    for (const k of ['theme', 'remember']) if (this.hasAttribute(k)) book.setAttribute(k, this.getAttribute(k) || '');
+    for (const k of ['theme', 'remember', 'ui', 'off']) if (this.hasAttribute(k)) book.setAttribute(k, this.getAttribute(k) || '');
     r.append(book);
     r.querySelector('.back').onclick = () => this.shelf();
   }

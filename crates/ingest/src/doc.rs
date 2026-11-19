@@ -38,7 +38,14 @@ fn block(b: TextBuilder, kind: Kind, key: u64) -> Block {
     let mut blk = Block::new(key, kind, text, runs);
     blk.links = links
         .into_iter()
-        .filter_map(|(s, e, p)| Some(Link { start: s, end: e, to: Target::Note(p.strip_prefix("n:")?.parse().ok()?) }))
+        .filter_map(|(s, e, p)| {
+            let to = match p.split_once(':')? {
+                ("n", n) => Target::Note(n.parse().ok()?),
+                ("u", u) => Target::Url(u.to_string()),
+                _ => return None,
+            };
+            Some(Link { start: s, end: e, to })
+        })
         .collect();
     blk
 }

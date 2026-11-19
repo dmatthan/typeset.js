@@ -7,16 +7,11 @@ use std::path::Path;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct LibEntry {
     pub id: String,
-    pub title: String,
-    pub author: String,
-    pub year: String,
-    pub words: usize,
-    pub chapters: usize,
+    #[serde(flatten)]
+    pub about: vol_engine::Summary,
     pub added: u64,
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub sample: bool,
-    #[serde(default)]
-    pub cover: bool,
     /// The importer's version that read it (0: before versions were kept), and whether its
     /// file is kept, so a later importer can read it again.
     #[serde(default)]

@@ -97,14 +97,9 @@ fn add_as(app: &App, bytes: &[u8], name: &str, sample: bool, again: Option<&LibE
     let book = eng.book(&id).unwrap();
     let e = LibEntry {
         id: id.clone(),
-        title: book.meta.title.clone(),
-        author: book.meta.author.clone(),
-        year: book.meta.year.clone(),
-        words: book.words(),
-        chapters: book.sections.iter().filter(|s| s.kind == vol_engine::SectionKind::Chapter).count(),
+        about: vol_engine::Summary::of(book),
         added: again.map(|a| a.added).unwrap_or_else(now),
         sample: again.map(|a| a.sample).unwrap_or(sample),
-        cover: book.cover.is_some(),
         importer: vol_engine::IMPORTER_VERSION,
         source: true,
     };
@@ -177,11 +172,7 @@ async fn search_library(query: String, app: State<'_, App>) -> Res<String> {
         };
         out.extend(hits);
     }
-    // a phrase found anywhere outranks every-word matches
-    let phrase_found = out.iter().any(|h| h.phrase);
-    out.retain(|h| h.phrase == phrase_found);
-    out.sort_by_key(|h| std::cmp::Reverse(h.total));
-    serde_json::to_string(&out).map_err(|e| e.to_string())
+    serde_json::to_string(&vol_engine::search::rank(out)).map_err(|e| e.to_string())
 }
 
 fn ensure(app: &App, id: &str) -> Res<()> {
@@ -389,7 +380,7 @@ fn main() {
             import_bytes, open_book, layout, find, search_library, place_notes, font_needs, probe, library, remove_book, reimport, source_name, source_bytes,
             state_load, state_put, cover, set_cover, set_image_sizes, image_bytes, quit_now,
             files::pick_book, files::picked_bytes, files::save_text, files::save_bytes, files::epub_of, files::annotate_docx,
-            fonts::system_families, fonts::load_family, fonts::font_file, desktop::desktop_palette,
+            fonts::system_families, fonts::load_family, fonts::font_file, desktop::desktop_palette, desktop::open_url,
             dev::selftest_mode, dev::selftest_arg, dev::dev_corpus, dev::dev_zoom, dev::dev_log,
         ])
         .on_window_event(|window, event| {

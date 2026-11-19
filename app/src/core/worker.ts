@@ -1,9 +1,9 @@
 /// <reference lib="webworker" />
 // The engine for the web build. Book blobs live in IndexedDB here, so the main thread
 // never holds or parses a whole book.
-import init, { Engine, catchPanics, lastPanic, faultForTest, importerVersion, annotateDocx, epubOf } from './pkg/vol_wasm.js';
+import init, { Engine, LibrarySearch, catchPanics, lastPanic, faultForTest, importerVersion, annotateDocx, epubOf } from './pkg/vol_wasm.js';
 import wasmUrl from './pkg/vol_wasm_bg.wasm?url';
-import type { BookData, BookHits, FamilyLoad, LibEntry } from './types';
+import type { BookHits, FamilyLoad, LibEntry, Summary } from './types';
 import { bundledFiles } from './fonts';
 import { at } from './root';
 import { tx, library } from './db';
@@ -80,7 +80,6 @@ const ops: Record<string, (...a: any[]) => Promise<unknown>> = {
     await ready;
     // (an extract of some chapters, for a page: kit/volumen.js)
     const id = chapters ? eng.import_chapters(bytes, name, chapters[0], chapters[1]) : eng.import(bytes, name);
-    const book = JSON.parse(eng.bookJson(id)!) as BookData;
     await tx('books', 'readwrite', s => s.put(eng.save(id)!, id));
     // its file, to be read again by a later importer (an extract is made again instead)
     if (!chapters) await tx('sources', 'readwrite', s => s.put({ name, bytes }, id));
@@ -92,7 +91,7 @@ const ops: Record<string, (...a: any[]) => Promise<unknown>> = {
       const bytes = eng.imageBytes(id, i), mime = eng.imageMime(id, i);
       if (bytes && mime) await tx('images', 'readwrite', s => s.put({ mime, bytes }, `${id}/${i}`));
     }
-    return { id, title: book.title, author: book.author, year: book.year, words: book.words, chapters: book.sections.filter(s => s.k === 1).length, added: Date.now(), sample, cover: !!cover, importer: importerVersion(), source: !chapters } satisfies LibEntry;
+    return { id, ...(JSON.parse(eng.summary(id)!) as Summary), added: Date.now(), sample, importer: importerVersion(), source: !chapters } satisfies LibEntry;
   },
   async open(id: string) {
     await ensure(id);
@@ -127,15 +126,12 @@ const ops: Record<string, (...a: any[]) => Promise<unknown>> = {
   /** Library search: every saved book in turn (the desktop has an index instead). */
   async searchLibrary(query: string): Promise<BookHits[]> {
     await ready;
-    const out: BookHits[] = [];
+    const search = new LibrarySearch(query, 3);
     for (const e of await library()) {
       const blob = await tx<Uint8Array | undefined>('books', 'readonly', s => s.get(e.id));
-      const json = blob && eng.searchSaved(blob, query, 3);
-      if (json) out.push(JSON.parse(json));
+      if (blob) search.add(blob);
     }
-    // a phrase found anywhere outranks every-word matches, as on the desktop
-    const phrase = out.some(h => h.phrase);
-    return out.filter(h => h.phrase === phrase).sort((a, z) => z.total - a.total);
+    return JSON.parse(search.finish());
   },
   /** Sizes the reader measured for rich blocks: in the engine, and kept with the book. */
   async setImageSizes(id: string, flat: number[]) {

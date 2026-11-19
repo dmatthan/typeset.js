@@ -65,7 +65,7 @@ export async function publish(env: Env, req: Request, w: Writer): Promise<Respon
   return json({ id, expires });
 }
 
-/** A new draft to the same link (D8): sealed with the link's own key by the app, it takes
+/** A new draft to the same link: sealed with the link's own key by the app, it takes
  *  the place of the one before, all at once (a reader fetching meanwhile gets one or the
  *  other, whole), and the book's version goes up. */
 export async function newDraft(env: Env, req: Request, w: Writer, id: string): Promise<Response> {

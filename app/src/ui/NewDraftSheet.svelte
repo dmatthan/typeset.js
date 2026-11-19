@@ -6,7 +6,7 @@
   import { takeNewDraft } from '../reader/draft';
   import { removeBook } from './library';
 
-  /** The writer has sent a newer draft to the link this book came by (D8): read it, with
+  /** The writer has sent a newer draft to the link this book came by: read it, with
    *  this reader's notes carried over, or later. Asked when the book opens, never while
    *  it is being read. */
   let { reader }: { reader: Reader } = $props();

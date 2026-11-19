@@ -6,12 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "playwright test --project=chromium --project=build --project=service --project=kit",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.63.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tauri-apps/cli": "^2.12.2",
     "@types/node": "^24.19.2",
+    "jscpd": "^4.3.0",
+    "knip": "^5.88.1",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
     "typescript": "^5.9.3",

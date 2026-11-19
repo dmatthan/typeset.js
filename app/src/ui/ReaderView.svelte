@@ -1,6 +1,6 @@
 <script lang="ts">
   import { droppedFiles } from './files';
-  import { embedded } from '../core/embed';
+  import { embedded, embedOpts, features } from '../core/embed';
   import { isNotesMarkdown } from '../reader/notesmd';
   import { isWebAnno } from '../reader/webanno';
   import { onMount, untrack } from 'svelte';
@@ -19,13 +19,11 @@
   import Help from './Help.svelte';
   import Chip from './Chip.svelte';
   import NoteSheet from './NoteSheet.svelte';
-  import SendSheet from './SendSheet.svelte';
-  import WelcomeSheet from './WelcomeSheet.svelte';
-  import FeedbackExportSheet from './FeedbackExportSheet.svelte';
-  import NewDraftSheet from './NewDraftSheet.svelte';
 
   let { reader, map, hidden, chip = $bindable(), findBar = $bindable() }: { reader: Reader; map: MapCtl; hidden: boolean; chip?: Chip; findBar?: FindBar } = $props();
-  let stage: HTMLElement, track: HTMLElement, bar: HTMLElement;
+  let stage: HTMLElement, track: HTMLElement;
+  // (none when the page around an embedded reader shows no bar)
+  let bar: HTMLElement | undefined = $state();
   onMount(() => reader.mount(stage, track));
 
   // The bar's controls fade away while reading and come back when the pointer seeks the
@@ -71,12 +69,14 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <!-- a tap in the bar’s band while it is away brings it back (a phone has no pointer to
        seek it with); its buttons take taps only once they show -->
+  {#if embedOpts.ui !== 'none'}
   <header class="bar" class:away={(away && ui.sheet !== 'settings') || reader.finder.open} bind:this={bar} onfocusin={show} onfocusout={() => hideSoon()}
     onpointerup={e => { if (away && e.pointerType !== 'mouse') { show(); hideSoon(4000); } }}>
+    <!-- (the sides stay, empty, with the running head alone: it keeps the middle) -->
     <div class="side">
-      {#if embedded}
+      {#if embedded && embedOpts.ui === 'full'}
         <a class="ibtn home" href="https://volumen.page" target="_blank" rel="noopener" aria-label="Volumen (opens in a new tab)"><span class="lbl">Volumen</span></a>
-      {:else}
+      {:else if !embedded}
         <button class="ibtn" onclick={() => reader.close()} aria-label="Back to the library (Q)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg><span class="lbl">Library</span>
         </button>
@@ -84,12 +84,17 @@
     </div>
     <div class="runhead" aria-live="polite">{ui.runhead}</div>
     <div class="side right">
+      {#if features.map && embedOpts.ui === 'full'}
       <button class="ibtn" onclick={() => map.open()} aria-label="Map of the book (M)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="8" height="14" rx="1.5" /><rect x="13" y="5" width="8" height="14" rx="1.5" /><path d="M5.5 9h3M5.5 12h3M5.5 15h2M15.5 9h3M15.5 12h3M15.5 15h2" /></svg><span class="lbl">Map</span>
       </button>
+      {/if}
+      {#if features.settings && embedOpts.ui === 'full'}
       <button class="ibtn" data-settings-toggle aria-pressed={ui.sheet === 'settings'} onclick={() => (ui.sheet = ui.sheet === 'settings' ? null : 'settings')} aria-label="Themes and settings (S)"><span class="aa" aria-hidden="true">Aa</span></button>
+      {/if}
     </div>
   </header>
+  {/if}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div class="stage" bind:this={stage} tabindex="0" role="region" aria-label="Book text. Space turns the page, arrow keys move one column. Press ? for all keys.">
     <div class="spoken" aria-live="polite"></div>
@@ -104,16 +109,13 @@
   {#if !hidden && reader.finder.open}<FindBar {reader} bind:this={findBar} />{/if}
 </section>
 
-<MapView {map} {reader} />
+{#if features.map}<MapView {map} {reader} />{/if}
 
-{#if !hidden && ui.sheet === 'settings'}<SettingsPanel {reader} />{/if}
-{#if !hidden && ui.sheet === 'theme' && editor.draft}<ThemeEditor {reader} />{/if}
+<!-- the reader's own sheets; the app adds those about sharing (App.svelte) -->
+{#if !hidden && features.settings && ui.sheet === 'settings'}<SettingsPanel {reader} />{/if}
+{#if !hidden && features.settings && ui.sheet === 'theme' && editor.draft}<ThemeEditor {reader} />{/if}
 {#if !hidden && ui.sheet === 'help'}<Help onclose={() => (ui.sheet = null)} />{/if}
-{#if !hidden && ui.sheet === 'note'}<NoteSheet {reader} />{/if}
-{#if !hidden && ui.sheet === 'send' && reader.book}<SendSheet {reader} />{/if}
-{#if !hidden && ui.sheet === 'welcome' && reader.book}<WelcomeSheet {reader} />{/if}
-{#if !hidden && ui.sheet === 'fbexport' && reader.fb}<FeedbackExportSheet {reader} />{/if}
-{#if !hidden && ui.sheet === 'newdraft' && ui.newDraft && reader.book}<NewDraftSheet {reader} />{/if}
+{#if !hidden && features.highlights && ui.sheet === 'note'}<NoteSheet {reader} />{/if}
 
 <style>
   .bar { position: absolute; top: env(safe-area-inset-top); left: env(safe-area-inset-left); right: env(safe-area-inset-right); z-index: 5; height: 52px; will-change: transform; transform: translateZ(0); display: grid; grid-template-columns: 1fr minmax(0, auto) 1fr; align-items: center; padding-inline: 10px; gap: 8px; color: var(--ink-3); }

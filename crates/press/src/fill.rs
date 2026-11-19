@@ -166,10 +166,50 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                     let mut x = 0.0;
                     loop {
                         let room = p.measure - x;
-                        let mut stop = end;
-                        while stop > start && wide(&b.text[start..stop], mono, m) > room {
-                            stop = b.text[start..stop].char_indices().last().map(|(i, _)| start + i).unwrap_or(start);
+                        // the longest piece from `start` that fits, counted in characters: a
+                        // piece only widens as it grows, so its length is searched for from
+                        // the face's advance, outward and then by halves (a line many times the
+                        // measure costs a few measurements, not one per character)
+                        let rest = &b.text[start..end];
+                        let chars = rest.chars().count();
+                        let end_of = |n: usize| rest.char_indices().nth(n).map_or(end, |(i, _)| start + i);
+                        let fits = |n: usize, mono: &mut Mono, m: &mut Measurer| wide(&b.text[start..end_of(n)], mono, m) <= room;
+                        // `lo` characters fit, `hi` do not
+                        let (mut lo, mut hi) = (0, chars + 1);
+                        let mut step = 1;
+                        let guess = ((room / (size * 0.6)) as usize).clamp(1, chars.max(1));
+                        if fits(guess, mono, m) {
+                            lo = guess;
+                            while lo < chars {
+                                let n = (lo + step).min(chars);
+                                if !fits(n, mono, m) {
+                                    hi = n;
+                                    break;
+                                }
+                                lo = n;
+                                step *= 2;
+                            }
+                        } else {
+                            hi = guess;
+                            while hi > step {
+                                let n = hi - step;
+                                if fits(n, mono, m) {
+                                    lo = n;
+                                    break;
+                                }
+                                hi = n;
+                                step *= 2;
+                            }
                         }
+                        while lo + 1 < hi {
+                            let mid = (lo + hi) / 2;
+                            if fits(mid, mono, m) {
+                                lo = mid;
+                            } else {
+                                hi = mid;
+                            }
+                        }
+                        let mut stop = end_of(lo);
                         if stop == start {
                             stop = end.min(start + b.text[start..].chars().next().map(char::len_utf8).unwrap_or(0));
                         }
@@ -601,15 +641,21 @@ mod tests {
         Typeface::single(files.iter().map(|f| std::fs::read(format!("{d}{f}")).unwrap()).collect()).unwrap()
     }
 
-    #[test]
-    fn preformatted_lines_keep_their_spaces_and_fit() {
-        let text = "  Lat.    Summer   Winter\n\n  50 N      15.2     3.1\n".to_string() + &"0123456789 ".repeat(20);
-        let block = Block { key: 1, kind: Kind::Pre, text: text.clone(), runs: vec![], links: vec![], image: None, table: None };
+    /// A block of preformatted text set alone, in a measure of 400 px; the monospaced face
+    /// it was set in, to measure with.
+    fn preformatted(text: &str) -> (SectionLayout, Params, Mono) {
+        let block = Block { key: 1, kind: Kind::Pre, text: text.into(), runs: vec![], links: vec![], image: None, table: None };
         let sec = Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block] };
         let p = Params { typo: Typo::plain(19.0, false), measure: 400.0, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true };
         let mut m = Measurer::new(&face(&["Literata.ttf"]), p.typo, "en");
         let mut mono = Mono::new(Some(face(&["JetBrainsMono.ttf"])));
-        let lay = layout_section(&mut m, &mut mono, &sec, &[], &p, None);
+        (layout_section(&mut m, &mut mono, &sec, &[], &p, None), p, mono)
+    }
+
+    #[test]
+    fn preformatted_lines_keep_their_spaces_and_fit() {
+        let text = "  Lat.    Summer   Winter\n\n  50 N      15.2     3.1\n".to_string() + &"0123456789 ".repeat(20);
+        let (lay, p, _) = preformatted(&text);
         let pre: Vec<&PLine> = lay.lines.iter().filter(|l| l.flags & flag::SIZED != 0).collect();
         // one size for the whole block: too long a line for any size wraps rather than shrinks past 0.55 em
         let size = pre[0].spaces as f32 / 16.0;
@@ -627,6 +673,27 @@ mod tests {
         assert!(got[3..].iter().all(|l| l.trim_end().split(' ').all(|n| n == "0123456789")));
         assert!(pre[3].x == 0.0 && pre[4..].iter().all(|l| l.x > 0.0 && l.x + l.avail <= p.measure + 0.01));
         assert!(pre[0].flags & flag::FIRST != 0 && pre[1].flags & flag::FIRST == 0);
+    }
+
+    #[test]
+    fn a_long_unbroken_preformatted_line_is_cut_in_few_measurements() {
+        // minified code or base64: one line, no spaces, far wider than any measure. Each
+        // piece's end is searched for, not walked back to a character at a time (which
+        // shaped every prefix of the line: minutes, and a cache entry each)
+        let text = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo".repeat(400);
+        let t = std::time::Instant::now();
+        let (lay, _, mut mono) = preformatted(&text);
+        assert!(t.elapsed().as_secs_f32() < 2.0, "{:?}", t.elapsed());
+        let pre: Vec<&PLine> = lay.lines.iter().filter(|l| l.flags & flag::SIZED != 0).collect();
+        // every piece fits, and is as long as fits: one more character would not
+        assert!(pre.iter().all(|l| l.natural <= l.avail));
+        let u16s: Vec<u16> = text.encode_utf16().collect();
+        let size = pre[0].spaces as f32 / 16.0;
+        for l in &pre[..pre.len() - 1] {
+            let longer = String::from_utf16(&u16s[l.s as usize..l.e as usize + 1]).unwrap();
+            assert!(mono.width(size, false, false, &longer).unwrap() > l.avail);
+        }
+        assert_eq!(pre.iter().map(|l| (l.e - l.s) as usize).sum::<usize>(), u16s.len());
     }
 
     fn table(text: &str, cols: u32) -> Section {

@@ -16,8 +16,8 @@ import { Finder } from './find.svelte';
 import { notebookOf, saveDigest } from './notebook';
 import { Feedback, notesFile, type Progress } from './feedback';
 import { takeNotes } from './intake';
-import { sendQuietly } from '../core/service';
-import { embedded, embedMoved, embedOpts } from '../core/embed';
+import { embedded, embedMoved, embedOpts, features } from '../core/embed';
+import { shell } from '../core/shell';
 import { hint } from './hints';
 import { spokenPage } from './spoken';
 import { ui, toast } from '../state.svelte';
@@ -53,6 +53,8 @@ export class Reader {
   private shownK = -1;
   private dwellT = 0; private saveT = 0; private seenT = 0;
   onMapOpen: () => void = () => {};
+  /** The reader's notes on a book may have changed (`notes` makes them, when wanted). */
+  onNotes: (id: string, notes: () => ReturnType<Reader['myNotes']>) => void = () => {};
 
   input!: ReaderInput;
   /** Marking from the keyboard (V). */
@@ -216,7 +218,7 @@ export class Reader {
   /** This reader's notes on the open book, as a notes file. */
   myNotes() {
     const f = notesFile(this.book!, this.ann?.list ?? [], this.marks, this.strip!.keyIndex);
-    // how far they got goes with their notes, unless they said not (D7)
+    // how far they got goes with their notes, unless they said not
     if (kv.get('progress.' + this.book!.id, true)) f.progress = this.progress();
     return f;
   }
@@ -498,10 +500,10 @@ export class Reader {
     kv.set('marks.' + id, [...this.marks]);
     if (this.digestT) { clearTimeout(this.digestT); this.digestT = 0; this.saveDigest(); }
     const it = this.strip.itemAt(this.cur);
-    // a book sent by link: the reader's notes go back by themselves, if they changed
-    // (not while it is still opening: it has not found its place yet, and how far the
-    // reader got would read as changed)
-    if (this.ann && !this.opening && kv.get('joined.' + id, null)) sendQuietly(id, this.myNotes());
+    // the reader's notes, for whoever keeps them elsewhere (the app: a book sent by link
+    // sends them back); not while it is still opening: it has not found its place yet,
+    // and how far the reader got would read as changed
+    if (this.ann && !this.opening) this.onNotes(id, () => this.myNotes());
     kv.set('state.' + id, { where: it && it.sec >= 0 && it.type !== 'colophon' ? chapName(this.book, Math.min(it.sec, this.book.sections.length - 1)) : it?.type === 'colophon' ? 'At the end' : 'At the beginning', done: it?.type === 'colophon' });
   }
 
@@ -628,6 +630,12 @@ export class Reader {
     ui.chip = null;
     ui.bookNote = { i, x: r.left + r.width / 2 - st.left, y: (below ? r.bottom + 6 : r.top - 6) - st.top, below };
   }
+  /** Opens an address outside the book it links to, unless the page around an embedded
+   *  reader has said its links are not to be followed. */
+  openLink(url: string) {
+    if (!features.links) return;
+    shell.openLink(url).then(ok => { if (!ok) toast('That link goes nowhere a book may send you.'); });
+  }
   /** Travels to the block a reference names. */
   followRef(key: string) {
     if (!this.strip) return;
@@ -733,7 +741,7 @@ export class Reader {
   }
 
   recolor(id: string, color: number) { this.ann!.update(id, { color }); this.refreshAnn(id); }
-  /** A reaction (D6) on a highlight, or on a selection (highlighted for it); the same one
+  /** A reaction on a highlight, or on a selection (highlighted for it); the same one
    *  again takes it off. */
   react(on: { ann?: string | null; sel?: Sel | null }, r: Reaction): string | null {
     const id = on.ann ?? (on.sel ? this.highlight(on.sel, 1) : null);

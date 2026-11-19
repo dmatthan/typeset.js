@@ -59,11 +59,11 @@
     {/each}
   </div>
   {#if readers.some(r => r.progress)}
-    <!-- how far each reader got (D7), as they last sent it -->
+    <!-- how far each reader got, as they last sent it -->
     <p class="far">{readers.filter(r => r.progress).map(r => r.progress!.done ? `${r.name} finished it` : `${r.name} has read ${Math.round(r.progress!.furthest * 100)}%${r.progress!.where ? `, and is at ${r.progress!.where}` : ''}`).join('; ')}.</p>
   {/if}
   {#if reactions.length}
-    <!-- the readers' reactions (D6), counted -->
+    <!-- the readers' reactions, counted -->
     <p class="far">{reactions.map(([r, n]) => `${REACTION_LABEL[r]} ${n}`).join(' · ')}</p>
   {/if}
   {#if readers.some(r => r.lost)}

@@ -2,7 +2,7 @@ import type { BookData, Core } from '../core/types';
 import { kv } from '../core/kv';
 import { readingOrder, shareOf, type KeyIndex } from '../core/book';
 
-/** One-tap reactions a reader of a manuscript gives a passage (D6), in the order of their
+/** One-tap reactions a reader of a manuscript gives a passage, in the order of their
  *  keys in the chip (5 to 8). */
 export const REACTIONS = ['loved', 'confused', 'slow', 'typo'] as const;
 export type Reaction = (typeof REACTIONS)[number];
@@ -31,7 +31,7 @@ export interface Annotation {
   was?: string;
   /** Not found in this version of the book: kept, but not drawn or listed. */
   lost?: boolean;
-  /** A reaction (D6), with or without a note. */
+  /** A reaction, with or without a note. */
   react?: Reaction;
 }
 
