@@ -7,8 +7,6 @@ export const BAR = 52;
 /** Reading geometry for a stage size. */
 export interface Metrics {
   W: number; H: number; phone: boolean;
-  /** Set as a spread (Minimal, or a phone): solid paper beside the columns. */
-  minimal: boolean;
   fs: number; lh: number; G: number; P: number;
   /** Columns in the focus window, and its width and left edge. */
   N: number; focusW: number; x0: number;
@@ -29,24 +27,7 @@ export interface Look {
 }
 export const PLAIN_LOOK: Look = { scale: 1, lineSpacing: 1.5, margins: 0 };
 
-/** Flow: the focus columns at their natural measure, with room either side for the
- *  neighbours to show and fade. */
-function flow(W: number, fs: number, phone: boolean, k: number): Across {
-  const G = phone ? 22 : Math.round(Math.min(56, Math.max(36, fs * 2.3)));
-  const side = (colW: number, n: number) => (phone ? 24 : n === 1 ? Math.max(120, colW * 0.24) : 84);
-  const measure = Math.round(fs * 30.5 * k), minMeasure = Math.round(fs * 24 * Math.min(1, k));
-  const fits = (n: number, w: number) => n * w + (n - 1) * G + 2 * side(w, n) <= W;
-  const want = settings.layout === 'auto' ? 3 : settings.layout;
-  for (let n = want; n >= 1; n--) {
-    // the measure may narrow to 24 em for an explicitly chosen layout, never for auto
-    if (fits(n, measure)) return { N: n, colW: measure, G };
-    if (settings.layout !== 'auto' && fits(n, minMeasure)) return { N: n, colW: Math.min(measure, Math.floor((W - 2 * side(minMeasure, n) - (n - 1) * G) / n)), G };
-  }
-  return { N: 1, colW: Math.max(220, Math.min(measure, W - 2 * side(measure, 1))), G };
-}
-
-/** Minimal: a spread of exactly the chosen columns filling the window, like an open
- *  book. Gutters and outer margins grow with the window; the measure is capped, so a
+/** A spread of exactly the chosen columns filling the window, like an open book. Gutters and outer margins grow with the window; the measure is capped, so a
  *  wide window gets wider margins rather than overlong lines. Nothing beside the spread
  *  shows: during a turn columns pass under the paper at its sides. */
 function spread(W: number, fs: number, phone: boolean, k: number): Across {
@@ -82,11 +63,9 @@ export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t
   const fs = Math.round((size || (phone ? 17 : 20)) * look.scale);
   const lh = Math.round(fs * look.lineSpacing);
   const k = 1 - 0.08 * look.margins;
-  // a phone has no room for neighbours to show beside the text: it reads as a spread of
-  // one column, whatever the view (`minimal` reports it)
   // the columns keep clear of the insets at the sides (a phone held sideways)
   const side = Math.max(ins.l, ins.r);
-  const across = settings.view === 'minimal' || phone ? spread(W - 2 * side, fs, phone, k) : flow(W - 2 * side, fs, phone, k);
+  const across = spread(W - 2 * side, fs, phone, k);
   const { N, colW, G } = across;
   const focusW = N * colW + (N - 1) * G;
   const cx = Math.round(W / 2);
@@ -100,7 +79,7 @@ export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t
   const colH = rows * lh;
   const y0 = topM + Math.max(0, Math.floor((H - topM - botM - colH) / 2));
   return {
-    W, H, phone, minimal: settings.view === 'minimal' || phone, fs, lh, G, P: colW + G, N, focusW, x0, reduced: settings.layout !== 'auto' && N < settings.layout,
+    W, H, phone, fs, lh, G, P: colW + G, N, focusW, x0, reduced: settings.layout !== 'auto' && N < settings.layout,
     colW, colH, rows, y0, cx, headRows: rows < 16 ? 4 : phone ? 6 : 7,
   };
 }

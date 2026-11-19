@@ -18,15 +18,15 @@ async function closeSheet(p: Page) {
   }).toPass({ timeout: 5000 });
 }
 
-/** Holds on the n-th line of prose in the middle column, drags over a few words, and
- *  highlights them (2). */
+/** Holds on the n-th line of prose in the first column in view, drags over a few words,
+ *  and highlights them (2). */
 async function highlight(r: Page, n: number) {
   const handle = await r.waitForFunction(n => {
     const found = [];
     for (const l of document.querySelectorAll('.ln[data-b]')) {
       const b = l.getBoundingClientRect(), mid = b.left + b.width / 2;
       // (above the toasts)
-      if (mid > 400 && mid < 880 && b.top > 100 && b.bottom < 620 && (l.textContent ?? '').length > 40 && !l.querySelector('mark')) found.push({ x: b.left, y: b.top, height: b.height });
+      if (mid > 60 && mid < innerWidth / 2 && b.top > 100 && b.bottom < 620 && (l.textContent ?? '').length > 40 && !l.querySelector('mark')) found.push({ x: b.left, y: b.top, height: b.height });
     }
     return found[n * 3] ?? null;
   }, n, { timeout: 15000 });

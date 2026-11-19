@@ -202,7 +202,7 @@ test('dark paper, help, reset', async ({ page: p }) => {
   await expect(p.locator('html')).not.toHaveAttribute('data-theme', 'dark');
   await p.keyboard.press('Escape');
   await p.keyboard.press('?');
-  await expect(p.getByText('Everything has a key')).toBeVisible();
+  await expect(p.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible();
 });
 
 test('plain-text import', async ({ page: p }) => {
@@ -392,21 +392,16 @@ test('hold then drag selects; 2 highlights; N adds a note; the notebook lists an
   await expect(p.locator('.nb-note')).toHaveText('Gregory is all paradox.');
 });
 
-test('Minimal shows only the spread; the bar hides and returns without moving the text', async ({ page: p }) => {
+test('only the spread shows; the bar hides and returns without moving the text', async ({ page: p }) => {
   await p.setViewportSize({ width: 1600, height: 900 });
-  await p.addInitScript(() => { if (!localStorage.getItem('volumen.settings')) localStorage.setItem('volumen.settings', JSON.stringify({ view: 'minimal' })); });
   await openSample(p);
-  await p.evaluate(() => localStorage.setItem('volumen.settings', JSON.stringify({ view: 'minimal' })));
-  await p.reload();
-  await p.locator('.book[data-id]').first().click();
-  await p.waitForFunction(() => (window as any).__vol.reader.reading);
   await toChapterOne(p);
   const g = await p.evaluate(() => { const M = (window as any).__vol.reader.M; return { N: M.N, x0: M.x0, right: M.W - M.x0 - M.focusW, G: M.G }; });
   expect(g.N).toBe(2);
   expect(Math.abs(g.x0 - g.right)).toBeLessThan(2);                         // balanced margins
   // the paper at the sides covers everything outside the spread
-  const veilL = await p.locator('.veil.l').boundingBox();
-  expect(veilL!.width).toBeCloseTo(g.x0 - g.G / 2, 0);
+  const curtain = await p.locator('.curtain.l').boundingBox();
+  expect(curtain!.width).toBeCloseTo(g.x0 - g.G / 2, 0);
   // the bar steps aside while reading, comes back at the top, and never moves the text
   await p.mouse.move(800, 500); await p.waitForTimeout(2600);
   await expect(p.locator('.bar')).toHaveClass(/away/);
@@ -505,7 +500,7 @@ test('the settings panel: themes, customise page, reading page, all by key', asy
   await p.keyboard.press('Escape');
   await expect(panel.getByText('Themes & Settings')).toBeVisible();
   await p.keyboard.press('o');
-  await expect(panel.getByRole('switch', { name: /Veil/ })).toBeVisible();
+  await expect(panel.getByText('Motion')).toBeVisible();
   await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
   // a click on the page closes it too
@@ -656,12 +651,13 @@ test('notes beside their lines: a dot in the gutter, ; shows them all, hover sho
     return { right: col.right, dots: [...document.querySelectorAll(`.col[data-k="${k}"] .nd`)].map(d => d.getBoundingClientRect().left) };
   }, k);
   expect(geo.dots.every(x => x > geo.right)).toBe(true);
-  // ; pins both beside the focus columns; a move puts them away
+  // ; pins both; a spread leaves no room beside it, so each lies over its column below its
+  // highlight, inside the window; a move puts them away
   await p.keyboard.press(';');
   const cards = p.locator('.sn');
   await expect(cards).toHaveCount(2);
-  const focusRight = await p.evaluate(() => { const r = (window as any).__vol.reader; return r.stage.getBoundingClientRect().left + r.M.x0 + r.M.focusW; });
-  for (const b of await cards.evaluateAll(els => els.map(e => e.getBoundingClientRect().left))) expect(b).toBeGreaterThan(focusRight);
+  const W = await p.evaluate(() => innerWidth);
+  for (const b of await cards.evaluateAll(els => els.map(e => e.getBoundingClientRect()).map(r => ({ left: r.left, right: r.right })))) expect(b.left >= 0 && b.right <= W).toBe(true);
   const [a, z] = await cards.evaluateAll(els => els.map(e => e.getBoundingClientRect()).map(r => ({ top: r.top, bottom: r.bottom })));
   expect(z.top).toBeGreaterThanOrEqual(a.bottom);
   await p.keyboard.press('ArrowRight');
@@ -1160,8 +1156,11 @@ test('rich blocks are measured where nothing runs or fetches, never in the page'
     const { measureRich }: typeof import('../src/reader/rich') = await import(/* @vite-ignore */ path);
     const w = window as any;
     w.ran = 0;
+    // what reached the page itself (the app's own work adds and removes its probes meanwhile)
     const added: string[] = [];
-    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => added.push(n.nodeName)))).observe(document.body, { childList: true });
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeName === 'IFRAME' || n.textContent?.includes('Edward III')) added.push(n.nodeName);
+    }))).observe(document.body, { childList: true, subtree: true });
     const [size] = await measureRich(['<div style="background: url(/beacon1)">Edward III<img src="/beacon2" onerror="parent.ran = 1; window.ran = 1"/></div>']);
     await new Promise(r => setTimeout(r, 300));
     return { size, ran: w.ran, added, left: document.querySelectorAll('iframe').length };

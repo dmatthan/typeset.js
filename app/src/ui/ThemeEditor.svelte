@@ -185,7 +185,7 @@
   </div>
 
   <div class="acts two">
-    <button class="btn quiet" onclick={() => (ui.sheet = 'settings')}>Cancel <kbd>Esc</kbd></button>
+    <button class="btn quiet" onclick={() => (ui.sheet = 'settings')}>Cancel</button>
     <button class="btn primary" onclick={saveIt}>{editor.isNew ? 'Save theme' : 'Save changes'}</button>
   </div>
 </Sheet>

@@ -13,19 +13,14 @@
 .track { position: absolute; left: 0; top: var(--y0); height: var(--colH); will-change: transform; }
 /* no paint containment: marks and note dots sit in the gutter, outside the column */
 .col { position: absolute; top: 0; width: var(--colW); height: var(--colH); contain: size layout style; }
-/* The veil has no edge: the neighbours recede along a smooth curve that starts at the
-   focus window. It stays constant while the sheet moves, so turning never changes the light. */
-/* static overlays above the moving sheet get their own layers, so they are painted once
+/* The curtains: paper either side of the spread, so nothing beside it shows; the columns
+   built ahead of a turn pass under them like pages under a frame (a short fade at the
+   gutter). Not a mask over the track: WebKitGTK re-composited a masked track every frame.
+   Static overlays above the moving sheet get their own layers, so they are painted once
    and only composited while it moves (without this WebKitGTK repainted them every frame) */
-.veil { position: absolute; top: 0; bottom: 0; pointer-events: none; transition: opacity .55s cubic-bezier(.3,.6,.3,1); will-change: transform; transform: translateZ(0); }
-.veil.l { left: 0; width: var(--fl); background: linear-gradient(to left, transparent, var(--veil-soft) calc(var(--feather) * 0.45), var(--veil) var(--feather), var(--paper) 100%); }
-.veil.r { right: 0; width: var(--fr); background: linear-gradient(to right, transparent, var(--veil-soft) calc(var(--feather) * 0.45), var(--veil) var(--feather), var(--paper) 100%); }
-.clear-veil .veil { opacity: 0; }
-/* Minimal: nothing beside the spread shows. The sides are paper, with a short fade at the
-   gutter, so during a turn the columns pass under them like pages under a frame. */
-.view-minimal .veil.l { background: linear-gradient(to left, transparent, var(--paper) 14px); }
-.view-minimal .veil.r { background: linear-gradient(to right, transparent, var(--paper) 14px); }
-.view-minimal.clear-veil .veil { opacity: 1; }
+.curtain { position: absolute; top: 0; bottom: 0; pointer-events: none; will-change: transform; transform: translateZ(0); }
+.curtain.l { left: 0; width: var(--fl); background: linear-gradient(to left, transparent, var(--paper) 14px); }
+.curtain.r { right: 0; width: var(--fr); background: linear-gradient(to right, transparent, var(--paper) 14px); }
 
 .ln {
   --o: var(--opsz); --w: var(--wb, 400);
@@ -121,7 +116,6 @@ html:not(.touchui) .ln a.xr:hover { text-decoration-color: var(--accent); }
 .leaf .tl-author { font: 600 var(--t-m)/1.3 var(--f-ui); color: var(--ink-2); }
 .leaf .tl-title { margin: 0; max-width: 94%; font: var(--wB, 620) calc(var(--fs) * 2.3)/1.06 var(--f-text, var(--f-book)); font-variation-settings: var(--fvs, "wght" 400,) "opsz" 72, "wght" var(--wB, 620); text-wrap: balance; }
 .leaf .tl-sub { font: var(--wb, 400) calc(var(--fs) * 1.1)/1.3 var(--f-text, var(--f-book)); color: var(--ink-2); }
-.leaf .tl-hint { font: 500 var(--t-s)/1.5 var(--f-ui); color: var(--ink-3); max-width: 34ch; }
 .leaf .co-way { margin-top: 2.2em; }
 .leaf .co-way a { text-decoration: none; }
 .leaf .co-finis { font: var(--wB, 600) calc(var(--fs) * 2)/1 var(--f-text, var(--f-book)); font-variation-settings: var(--fvs, "wght" 400,) "opsz" 60, "wght" var(--wB, 600); }

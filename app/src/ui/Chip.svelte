@@ -74,16 +74,16 @@
   {@const c = ui.chip}
   <div class="chip-pop lift r12" bind:this={pop} style:left="{c.x}px" style:top="{c.y}px" style:--dx="{dx}px" class:below role="toolbar" aria-label="Highlight">
     {#each [1, 2, 3, 4] as n}
-      <button class="dot h{n}" class:on={ann?.color === n} onclick={() => color(n)} aria-label="Highlight colour {n}"><kbd>{n}</kbd></button>
+      <button class="dot h{n}" class:on={ann?.color === n} onclick={() => color(n)} aria-label="Highlight colour {n}"></button>
     {/each}
     <span class="sep"></span>
-    <button class="act" onclick={note}>{ann?.note ? 'Edit note' : 'Note'} <kbd>N</kbd></button>
-    <button class="act" onclick={copy}>Copy <kbd>C</kbd></button>
-    {#if c.ann}<button class="act" onclick={remove}>Remove <kbd>X</kbd></button>{/if}
+    <button class="act" onclick={note}>{ann?.note ? 'Edit note' : 'Note'}</button>
+    <button class="act" onclick={copy}>Copy</button>
+    {#if c.ann}<button class="act" onclick={remove}>Remove</button>{/if}
     {#if asked}
       <div class="reacts" role="group" aria-label="Tell the writer">
-        {#each REACTIONS as r, i}
-          <button class="act" aria-pressed={ann?.react === r} onclick={() => react(r)} title={REACTION_LABEL[r]}>{r[0].toUpperCase() + r.slice(1)} <kbd>{i + 5}</kbd></button>
+        {#each REACTIONS as r}
+          <button class="act" aria-pressed={ann?.react === r} onclick={() => react(r)} title={REACTION_LABEL[r]}>{r[0].toUpperCase() + r.slice(1)}</button>
         {/each}
       </div>
     {/if}
@@ -115,7 +115,6 @@
   .dot { appearance: none; cursor: pointer; width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; display: grid; place-items: center; }
   .dot.on { border-color: var(--ink-2); }
   .dot.h1 { background: var(--hs1); } .dot.h2 { background: var(--hs2); } .dot.h3 { background: var(--hs3); } .dot.h4 { background: var(--hs4); }
-  .dot kbd { border: 0; font-size: 12px; opacity: .75; }
   .sep { width: 1px; height: 24px; background: var(--rule); margin: 0 4px; }
   .act { appearance: none; cursor: pointer; border: 0; background: none; border-radius: var(--r-s); height: 34px; padding: 0 10px; font: 600 var(--t-s)/1 var(--f-ui); color: var(--ink); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   :global(html:not(.touchui)) .act:hover { background: var(--hover); }

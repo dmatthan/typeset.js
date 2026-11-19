@@ -11,10 +11,10 @@ export function readTokens(): Tokens {
   const g = (n: string) => cs.getPropertyValue(n).trim();
   T = {
     ink: g('--ink'), ink2: g('--ink-2'), ink3: g('--ink-3'), accent: g('--accent'), rule: g('--rule'), ground: g('--ground'), read: g('--read'),
-    pl: g('--pl'), pc: g('--pc'), ui: '"Inter", system-ui, sans-serif',
+    pl: g('--pl'), pc: g('--pc'), ui: g('--f-ui'),
     hs: [1, 2, 3, 4].map(i => g(`--hs${i}`)), rd: [1, 2, 3, 4, 5, 6].map(i => g(`--r${i}`)),
   };
   return T;
 }
-/** Paper hue along the book. */
-export const hueAt = (frac: number) => 96 + 150 * frac;
+/** The paper's hue (tokens.css, `--h`): one, through the whole book. */
+export const PAPER_HUE = 80;

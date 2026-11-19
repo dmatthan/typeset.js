@@ -246,8 +246,6 @@ export function leafHTML(strip: Strip, it: Item, ctx: LeafCtx): string {
           <h1 class="tl-title">${esc(b.title)}</h1>
           ${b.subtitle ? `<p class="tl-sub">${esc(b.subtitle)}</p>` : ''}
         </div>
-        <p class="tl-hint keys-only">Space turns the page; → moves one column, held it glides. M for the map, ? for every key.</p>
-        <p class="tl-hint touch-only">Tap near the edges to turn the page, the middle for the menu. Pinch in for the map.</p>
       </section>`;
     case 'colophon':
       // an extract on someone else's page, with a way on (kit/volumen.js: end-href)

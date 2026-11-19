@@ -17,7 +17,7 @@ const APP = 'app-' + VERSION, FILES = 'files-' + VERSION;
 
 // what nearly every visit needs: the interface face, the default book face (the last
 // fallback of every theme), English patterns, the sample book
-const COMMON = ['/fonts/Inter.ttf', '/fonts/Literata.ttf', '/fonts/Literata-Italic.ttf', '/hyph/en.bin', '/sample.epub', '/ui/shadow-16.png', '/ui/shadow-12.png', '/ui/shadow-cover.png'];
+const COMMON = ['/fonts/Literata.ttf', '/fonts/Literata-Italic.ttf', '/hyph/en.bin', '/sample.epub', '/ui/shadow-16.png', '/ui/shadow-12.png', '/ui/shadow-cover.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(Promise.all([caches.open(APP).then(c => c.addAll(SHELL)), caches.open(FILES).then(c => c.addAll(COMMON).catch(() => {}))]));

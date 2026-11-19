@@ -7,7 +7,6 @@
   import { type Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
   import type { MapCtl } from '../reader/map.svelte';
-  import { settings } from '../reader/settings.svelte';
   import MapView from './MapView.svelte';
   import SettingsPanel from './SettingsPanel.svelte';
   import FindBar from './FindBar.svelte';
@@ -51,7 +50,7 @@
 
 <svelte:window onpointermove={onMove} />
 
-<section class="reader" class:clear-veil={!settings.veil} class:view-minimal={settings.view === 'minimal' || ui.phone} {hidden} aria-label="Reader"
+<section class="reader" {hidden} aria-label="Reader"
   ondragover={e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); }}
   ondrop={async e => {
     // notes on this book dropped onto it (files, or a folder of them): notes files,
@@ -77,20 +76,20 @@
       {#if embedded && embedOpts.ui === 'full'}
         <a class="ibtn home" href="https://volumen.page" target="_blank" rel="noopener" aria-label="Volumen (opens in a new tab)"><span class="lbl">Volumen</span></a>
       {:else if !embedded}
-        <button class="ibtn" onclick={() => reader.close()} aria-label="Back to the library (Q)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg><span class="lbl">Library</span>
+        <button class="ibtn" onclick={() => reader.close()} aria-label="Back to the library" title="Back to the library (Q)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg><span class="lbl">Back</span>
         </button>
       {/if}
     </div>
     <div class="runhead" aria-live="polite">{ui.runhead}</div>
     <div class="side right">
       {#if features.map && embedOpts.ui === 'full'}
-      <button class="ibtn" onclick={() => map.open()} aria-label="Map of the book (M)">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="8" height="14" rx="1.5" /><rect x="13" y="5" width="8" height="14" rx="1.5" /><path d="M5.5 9h3M5.5 12h3M5.5 15h2M15.5 9h3M15.5 12h3M15.5 15h2" /></svg><span class="lbl">Map</span>
+      <button class="ibtn" onclick={() => map.open()} aria-label="Map of the book" title="Map of the book (M)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="8" height="14" rx="1.5" /><rect x="13" y="5" width="8" height="14" rx="1.5" /><path d="M5.5 9h3M5.5 12h3M5.5 15h2M15.5 9h3M15.5 12h3M15.5 15h2" /></svg>
       </button>
       {/if}
       {#if features.settings && embedOpts.ui === 'full'}
-      <button class="ibtn" data-settings-toggle aria-pressed={ui.sheet === 'settings'} onclick={() => (ui.sheet = ui.sheet === 'settings' ? null : 'settings')} aria-label="Themes and settings (S)"><span class="aa" aria-hidden="true">Aa</span></button>
+      <button class="ibtn" data-settings-toggle aria-pressed={ui.sheet === 'settings'} onclick={() => (ui.sheet = ui.sheet === 'settings' ? null : 'settings')} aria-label="Type and appearance" title="Type and appearance (S)"><span class="aa" aria-hidden="true">Aa</span></button>
       {/if}
     </div>
   </header>
@@ -99,8 +98,8 @@
   <div class="stage" bind:this={stage} tabindex="0" role="region" aria-label="Book text. Space turns the page, arrow keys move one column. Press ? for all keys.">
     <div class="spoken" aria-live="polite"></div>
     <div class="track" bind:this={track}></div>
-    <div class="veil l"></div>
-    <div class="veil r"></div>
+    <div class="curtain l"></div>
+    <div class="curtain r"></div>
     <Chip {reader} bind:this={chip} />
     {#if ui.bookNote && reader.book}<BookNote {reader} />{/if}
     {#if ui.sideNotes && reader.book}<SideNotes {reader} />{/if}
@@ -125,15 +124,15 @@
   .away .runhead { opacity: .7; }
   .right { justify-content: flex-end; }
   .ibtn {
-    appearance: none; border: 0; background: none; cursor: pointer; height: 40px; min-width: 40px; padding: 0 10px;
-    border-radius: var(--r-s); display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    color: var(--ink-3); font: 600 var(--t-s)/1 var(--f-ui); transition: color .15s, background-color .15s;
+    appearance: none; border: 0; background: none; cursor: pointer; height: 36px; min-width: 36px; padding: 0 8px;
+    border-radius: var(--r-s); display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    color: var(--ink-3); font: 500 var(--t-s)/1 var(--f-ui); transition: color .15s, background-color .15s;
   }
   :global(html:not(.touchui)) .ibtn:hover { color: var(--ink); background: var(--hover); }
-  .ibtn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .aa { font: 650 18px/1 var(--f-ui); }
+  .ibtn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .aa { font: 500 17px/1 var(--f-ui); }
   .side, .runhead { position: relative; }
-  .runhead { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; font: 600 var(--t-m)/1 var(--f-ui); color: var(--ink-3); }
+  .runhead { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; font: 500 var(--t-s)/1 var(--f-ui); color: var(--ink-3); }
   @media (max-width: 639px) { .lbl { display: none; } }
   /* (embedded: the way to Volumen itself, named on a phone too) */
   .ibtn.home { text-decoration: none; font-family: var(--f-book); }

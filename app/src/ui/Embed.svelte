@@ -46,8 +46,11 @@
     .catch(e => { error = `The book could not be opened (${(e as Error).message}).`; })
     .finally(() => { if (error) tellPage('error', { message: error }); });
 
-  onCommand(c => {
+  onCommand(async c => {
     if (!reader.book || !reader.strip) return;
+    // (a place named before the whole book is set would be travelled to by estimate)
+    await reader.whole;
+    if (!reader.strip) return;
     if (c.type === 'theme') { if (useTheme(c.theme)) reader.themeChanged(); return; }
     // a chapter (counted from 1, as the page counts them), or a fraction of the book
     const chapters = reader.book.sections.flatMap((s, i) => (s.k === 1 ? [i] : []));

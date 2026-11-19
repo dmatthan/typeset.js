@@ -2,7 +2,6 @@
   import { toWebAnno } from '../reader/webanno';
   import { FORMAT, type NotesFile } from '../reader/feedback';
   import { me } from '../core/identity';
-  import { keyHint } from './touch';
   import { onMount, untrack } from 'svelte';
   import { type Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
@@ -109,9 +108,9 @@
     </ol>
   </div>
   <div class="m-foot m-ui">
-    <button class="btn" onclick={() => map.close(mp.here)}>Back to my place <kbd>Esc</kbd></button>
+    <button class="btn" onclick={() => map.close(mp.here)}>Back to my place</button>
     {#if mp.view === 'strip'}
-      <button class="btn primary go" disabled={mp.sel == null || mp.sel === mp.here} onclick={() => mp.sel != null && map.close(mp.sel)} title={mp.goLabel}><span class="go-l">{mp.goLabel}</span> <kbd>Enter</kbd></button>
+      <button class="btn primary go" disabled={mp.sel == null || mp.sel === mp.here} onclick={() => mp.sel != null && map.close(mp.sel)} title={mp.goLabel}><span class="go-l">{mp.goLabel}</span></button>
     {/if}
   </div>
   {#if mp.view === 'marks'}
@@ -124,7 +123,7 @@
               <button aria-pressed={nbMode === 'feedback'} onclick={() => (nbMode = 'feedback')}>Feedback · {reader.fb.size}</button>
             </div>
           {/if}
-          <input class="nb-filter" type="search" placeholder={(nbMode === 'mine' ? 'Filter your notes' : 'Filter the feedback') + keyHint('/')} bind:value={filter} aria-label="Filter the notebook" />
+          <input class="nb-filter" type="search" placeholder={nbMode === 'mine' ? 'Filter your notes' : 'Filter the feedback'} bind:value={filter} aria-label="Filter the notebook" />
           {#if nbMode === 'mine'}
             <button class="btn quiet" disabled={!shown.length} onclick={() => map.copy(map.markdown(shown))}>Copy as Markdown</button>
             <button class="btn quiet" disabled={!shown.length} onclick={exportMd}>Export…</button>

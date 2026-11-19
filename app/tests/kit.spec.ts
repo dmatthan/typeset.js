@@ -130,7 +130,7 @@ test('a page shows as much of the reader as it wants, and turns off what it does
 
   await hostPage(p, '<volumen-book src="/books/meditations.epub" off="map settings find" style="height: 600px"></volumen-book>');
   await ready(p);
-  await expect(f.getByRole('button', { name: /Map of the book|Themes and settings/ })).toHaveCount(0);
+  await expect(f.getByRole('button', { name: /Map of the book|Type and appearance/ })).toHaveCount(0);
   await p.locator('volumen-book').click({ position: { x: 300, y: 300 } });
   for (const k of ['m', 's', '/']) await p.keyboard.press(k);
   await p.waitForTimeout(400);

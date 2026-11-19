@@ -40,7 +40,7 @@
     <span class="of">of {n}</span>
   </div>
   <div class="acts two">
-    <button class="btn" onclick={onclose}>Not now <kbd>Esc</kbd></button>
+    <button class="btn" onclick={onclose}>Not now</button>
     <button class="btn primary" disabled={busy || !ok} onclick={save}>{busy ? 'Saving…' : whole ? 'Save the book' : 'Save the sample'}</button>
   </div>
 </Sheet>

@@ -86,9 +86,9 @@
 
 <Sheet label={touch ? 'Gestures' : 'Keyboard shortcuts'} {onclose} wide>
   {#if touch}
-    <div><p class="eyebrow">Gestures</p><h2>How to move around</h2></div>
+    <h2>Gestures</h2>
   {:else}
-    <div><p class="eyebrow">Keyboard</p><h2>Everything has a key</h2></div>
+    <h2>Keyboard shortcuts</h2>
   {/if}
   <div class="cols">
     {#each touch ? gestures : keyGroups as [name, keys]}

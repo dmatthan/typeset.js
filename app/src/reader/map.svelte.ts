@@ -3,7 +3,7 @@ import type { Reader } from './reader.svelte';
 import { ui, toast } from '../state.svelte';
 import { F, FIELDS, Flag } from './strip';
 import { BlockKind } from '../core/types';
-import { T, readTokens, hueAt } from './tokens';
+import { T, readTokens, PAPER_HUE } from './tokens';
 import { chapName, chapTitle } from './render';
 import { reduceMotion } from './settings.svelte';
 import { markdownOf, type NoteEntry } from './notebook';
@@ -324,7 +324,7 @@ export class MapCtl {
     const X = (wx: number) => (wx - this.cx) * s + this.sx;
     const k0 = Math.max(0, Math.floor((this.cx - this.sx / s) / M.P) - 1);
     const k1 = Math.min(strip.N - 1, Math.ceil((this.cx + (this.W - this.sx) / s) / M.P) + 1);
-    // paper: one fill per hue step (the hue drifts slowly, so neighbours share a colour)
+    // paper: one fill
     let runK = k0, runHue = -1;
     const flushPaper = (end: number) => {
       if (runHue < 0) return;
@@ -333,7 +333,7 @@ export class MapCtl {
       ctx.fillRect(Math.floor(xa), top - pad, Math.ceil(xb - xa) + 1, h + pad * 2);
     };
     for (let k = k0; k <= k1 + 1; k++) {
-      const hq = k <= k1 ? Math.round(hueAt(strip.frac(k)) * 2) / 2 : -2;
+      const hq = k <= k1 ? PAPER_HUE : -2;
       if (hq !== runHue) { flushPaper(k); runK = k; runHue = hq; }
     }
     if (s < 0.7) {

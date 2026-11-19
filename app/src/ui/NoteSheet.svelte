@@ -24,7 +24,7 @@
   <textarea bind:this={ta} bind:value={text} onkeydown={keys} rows="6" placeholder="Your thoughts. Markdown is fine."></textarea>
   <div class="acts two">
     <button class="btn quiet" onclick={removeAll}>Remove highlight</button>
-    <button class="btn primary" onclick={done}>Done <kbd>Ctrl+Enter</kbd></button>
+    <button class="btn primary" onclick={done}>Done</button>
   </div>
 </Sheet>
 

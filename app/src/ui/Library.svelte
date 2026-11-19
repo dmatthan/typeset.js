@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { keyHint, touchUI } from './touch';
+  import { touchUI } from './touch';
   import { coverThumb } from './thumb';
   import { fitImage, fitTitle } from './covers';
   import { backup, restore, isBackup } from '../core/backup';
@@ -280,18 +280,18 @@
       <h1>Library</h1>
       <div class="seg" role="group" aria-label="Show">
         <button aria-pressed={view === 'books'} onclick={() => setView('books')}>Books</button>
-        <button aria-pressed={view === 'notebook'} onclick={() => setView('notebook')}>Notebook <kbd>N</kbd></button>
+        <button aria-pressed={view === 'notebook'} onclick={() => setView('notebook')}>Notebook</button>
       </div>
     </div>
     <div class="head-acts">
       {#if view === 'books'}
         <label class="search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
-          <input bind:this={searchEl} type="search" bind:value={query} onkeydown={searchKey} placeholder={'Search books and their text' + keyHint('/')} aria-label="Search the library" spellcheck="false" autocomplete="off" />
+          <input bind:this={searchEl} type="search" bind:value={query} onkeydown={searchKey} placeholder="Search books and their text" aria-label="Search the library" spellcheck="false" autocomplete="off" />
         </label>
       {/if}
-      <button class="btn add-btn" onclick={add} aria-label="Add a book (O)"><span class="add-l">Add a book</span><span class="add-p" aria-hidden="true">+</span> <kbd>O</kbd></button>
-      <button class="btn quiet keys-only" onclick={() => (ui.sheet = 'help')} aria-label="Keyboard shortcuts">Keys <kbd>?</kbd></button>
+      <button class="btn add-btn" onclick={add} aria-label="Add a book (O)"><span class="add-l">Add a book</span><span class="add-p" aria-hidden="true">+</span></button>
+      <button class="btn quiet keys-only" onclick={() => (ui.sheet = 'help')} aria-label="Keyboard shortcuts">Keys</button>
     </div>
   </header>
   {#if view === 'notebook'}
@@ -342,7 +342,7 @@
     {/if}
   </div>
   {#if view === 'books'}<LibraryResults bind:this={results} {core} {reader} {query} {books} />{/if}
-  <p class="foot" hidden={view !== 'books'}>Books stay on this device. <button class="link-btn" onclick={backUp}>Back up the library…</button> (Restore one by adding its file.) <span class="keys-only">Use the arrow keys or H J K L to move, Enter to open, A for a book’s collections, [ and ] for the shelves, X to remove.</span></p>
+  <p class="foot" hidden={view !== 'books'}>Books stay on this device. <button class="link-btn" onclick={backUp}>Back up the library…</button> (Restore one by adding its file.)</p>
   <!-- (a phone's picker greys out what it cannot match to a type it knows, notes files
        among them; there every file may be chosen, and the importer says what it is) -->
   <input type="file" bind:this={file} accept={touchUI() ? undefined : '.epub,.docx,.md,.markdown,.txt,.vnotes,.json,.jsonld,.vbackup,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain'} multiple
@@ -364,8 +364,8 @@
     <div><p class="eyebrow">Collections</p><h2>{b.title}</h2>
       {#if stale(b) && !b.source}<p class="where">Read by an earlier version of Volumen. Add its file again to see it as Volumen now reads it: your place and notes stay.</p>{/if}</div>
     <div class="cols" role="group" aria-label="Collections">
-      {#each shelves.list as c, i (c.id)}
-        <label class="col-row"><input type="checkbox" checked={c.books.includes(b.id)} onchange={() => toggleShelf(c.id, b.id)} /><span class="cn">{c.name}</span>{#if i < 9}<kbd>{i + 1}</kbd>{/if}</label>
+      {#each shelves.list as c (c.id)}
+        <label class="col-row"><input type="checkbox" checked={c.books.includes(b.id)} onchange={() => toggleShelf(c.id, b.id)} /><span class="cn">{c.name}</span></label>
       {/each}
       <form class="new" onsubmit={e => { e.preventDefault(); addNew(b); }}>
         <input type="text" placeholder={shelves.list.length ? 'New collection' : 'Name a first collection, e.g. Essays'} bind:value={newName} aria-label="New collection" />
@@ -375,8 +375,8 @@
     <button class="btn quiet share" onclick={() => { sharing = b; sheetBook = null; ui.sheet = 'share'; }}>Share as a link…</button>
     {#if b.source}<button class="btn quiet share" onclick={() => { epubOf = b; sheetBook = null; ui.sheet = 'epub'; }}>Save as EPUB…</button>{/if}
     <div class="acts two">
-      <button class="btn quiet" onclick={() => { removing = b; sheetBook = null; ui.sheet = 'remove'; }}>Remove book <kbd>X</kbd></button>
-      <button class="btn primary" data-autofocus onclick={() => { ui.sheet = null; sheetBook = null; }}>Done <kbd>Esc</kbd></button>
+      <button class="btn quiet" onclick={() => { removing = b; sheetBook = null; ui.sheet = 'remove'; }}>Remove book</button>
+      <button class="btn primary" data-autofocus onclick={() => { ui.sheet = null; sheetBook = null; }}>Done</button>
     </div>
   </Sheet>
 {/if}
@@ -402,7 +402,7 @@
     </form>
     <div class="acts two">
       <button class="btn quiet" onclick={() => { deleteShelf(c.id); ui.sheet = null; setShelf('all'); toast(`Deleted “${c.name}”.`); }}>Delete the collection</button>
-      <button class="btn primary" onclick={() => (ui.sheet = null)}>Done <kbd>Esc</kbd></button>
+      <button class="btn primary" onclick={() => (ui.sheet = null)}>Done</button>
     </div>
   </Sheet>
 {/if}
@@ -412,8 +412,8 @@
     <div><p class="eyebrow">Remove from the library</p><h2>{b.title}</h2>
       <p class="where">Your place, highlights and notes for this book are removed too.{#if sharedOf(b.id)} Its link stops working, and readers’ notes waiting for you go with it.{/if}</p></div>
     <div class="acts two">
-      <button class="btn" data-autofocus onclick={() => { ui.sheet = null; removing = null; }}>Keep it <kbd>Esc</kbd></button>
-      <button class="btn primary" onclick={() => { ui.sheet = null; remove(b); }}>Remove <kbd>Y</kbd></button>
+      <button class="btn" data-autofocus onclick={() => { ui.sheet = null; removing = null; }}>Keep it</button>
+      <button class="btn primary" onclick={() => { ui.sheet = null; remove(b); }}>Remove</button>
     </div>
   </Sheet>
 {/if}
@@ -428,7 +428,6 @@
   .seg { display: inline-flex; padding: 3px; border-radius: var(--r-m); background: var(--read); }
   .seg button { appearance: none; border: 0; background: none; cursor: pointer; padding: 8px 14px; border-radius: 9px; font: 600 var(--t-s)/1.2 var(--f-ui); color: var(--ink-2); display: inline-flex; align-items: center; gap: 8px; }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px oklch(0 0 0 / 0.12); }
-  .seg kbd { font-size: 11px; }
   .books[hidden], .foot[hidden] { display: none; }
   .search { display: flex; align-items: center; gap: 8px; width: min(320px, 40vw); height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: var(--r-m); border: 1.5px solid var(--rule); background: var(--surface); color: var(--ink-3); cursor: text; }
   .search:focus-within { border-color: var(--accent); }

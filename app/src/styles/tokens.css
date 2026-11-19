@@ -4,24 +4,22 @@
 
 /* The default theme. Every colour is a token; canvas code reads them through readTokens(). */
 :root {
-  --h: 96;                                   /* paper hue: drifts from the start of a book to its end */
-  --pl: 0.965; --pc: 0.008;
+  --h: 80;                                   /* paper hue: warm, and steady through a book */
+  --pl: 0.982; --pc: 0.006;
   --paper: oklch(var(--pl) var(--pc) var(--h));
-  --veil: oklch(var(--pl) var(--pc) var(--h) / 0.62);
-  --veil-soft: oklch(var(--pl) var(--pc) var(--h) / 0.36);
-  --ground: oklch(0.93 0.005 250);
-  --surface: oklch(0.985 0.003 250);
-  --ink: oklch(0.24 0.014 262);
-  --ink-2: oklch(0.42 0.013 262);
-  --ink-3: oklch(0.51 0.011 262);   /* 4.7:1 on the ground, 5.2:1 on paper (WCAG AA) */
-  --rule: oklch(0.86 0.006 262);
-  --accent: oklch(0.47 0.13 262);
-  --accent-ink: oklch(0.985 0.004 262);
-  --wash: oklch(0.47 0.13 262 / 0.10);
-  --read: oklch(0.24 0.014 262 / 0.05);
-  --hover: oklch(0.24 0.014 262 / 0.06);
+  --ground: oklch(0.955 0.005 80);
+  --surface: oklch(0.99 0.003 80);
+  --ink: oklch(0.23 0.008 70);
+  --ink-2: oklch(0.42 0.008 70);
+  --ink-3: oklch(0.52 0.008 70);   /* 4.8:1 on the ground, 5.2:1 on paper (WCAG AA) */
+  --rule: oklch(0.88 0.006 75);
+  --accent: oklch(0.5 0.11 255);
+  --accent-ink: oklch(0.99 0.003 80);
+  --wash: oklch(0.5 0.11 255 / 0.10);
+  --read: oklch(0.23 0.008 70 / 0.05);
+  --hover: oklch(0.23 0.008 70 / 0.06);
   --sheet: oklch(0.985 0.003 250);
-  --scrim: oklch(0.2 0.012 262 / 0.32);
+  --scrim: oklch(0.2 0.012 70 / 0.32);
   --shadow: 0 1px 2px oklch(0.2 0.02 262 / 0.10), 0 12px 40px oklch(0.2 0.02 262 / 0.18);
   --focus: oklch(0.55 0.16 262);
   --hl-lift: oklch(1 0 0 / 0.9); --hl-edge: oklch(0.5 0.08 80 / 0.4);
@@ -33,36 +31,34 @@
      colours, legible as a 2 px underline */
   --r1: oklch(0.58 0.17 28); --r2: oklch(0.56 0.12 195); --r3: oklch(0.52 0.16 300); --r4: oklch(0.64 0.15 62); --r5: oklch(0.55 0.14 145); --r6: oklch(0.52 0.15 260);
 
-  --f-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-ui: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Inter", sans-serif;
   --f-book: "Literata", Georgia, serif;
 
-  /* Interface type scale: nothing smaller than 13px, labels are not hairline. */
-  --t-xs: 13px; --t-s: 14px; --t-m: 16px; --t-l: 18px; --t-xl: 24px; --t-xxl: 34px;
+  /* Interface type scale: quiet, nothing smaller than 13px. */
+  --t-xs: 13px; --t-s: 13px; --t-m: 15px; --t-l: 17px; --t-xl: 20px; --t-xxl: 28px;
   --r-s: 8px; --r-m: 12px; --r-l: 16px;
   color-scheme: light;
 }
 /* a phone: the larger sizes a step down (the body size stays: it is already a phone's) */
 @media (max-width: 640px) {
-  :root { --t-xl: 21px; --t-xxl: 28px; }
+  :root { --t-xl: 19px; --t-xxl: 24px; }
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --pl: 0.205; --pc: 0.006;
-    --veil: oklch(var(--pl) var(--pc) var(--h) / 0.70);
-    --veil-soft: oklch(var(--pl) var(--pc) var(--h) / 0.42);
-    --ground: oklch(0.165 0.005 262);
-    --surface: oklch(0.215 0.006 262);
+    --ground: oklch(0.165 0.005 70);
+    --surface: oklch(0.215 0.006 70);
     --ink: oklch(0.88 0.012 84);
     --ink-2: oklch(0.74 0.011 84);
     --ink-3: oklch(0.6 0.01 84);
-    --rule: oklch(0.32 0.006 262);
+    --rule: oklch(0.32 0.006 70);
     --accent: oklch(0.76 0.1 262);
     --accent-ink: oklch(0.18 0.03 262);
     --wash: oklch(0.76 0.1 262 / 0.14);
     --read: oklch(0.88 0.012 84 / 0.06);
     --hover: oklch(0.88 0.012 84 / 0.08);
-    --sheet: oklch(0.23 0.006 262);
-    --scrim: oklch(0.06 0.01 262 / 0.55);
+    --sheet: oklch(0.23 0.006 70);
+    --scrim: oklch(0.06 0.01 70 / 0.55);
     --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 50px oklch(0 0 0 / 0.5);
     --focus: oklch(0.78 0.12 262);
     --hl-lift: oklch(0.75 0.03 90 / 0.5); --hl-edge: oklch(0.1 0 0 / 0.5);
@@ -74,21 +70,19 @@
 }
 :root[data-theme="dark"] {
   --pl: 0.205; --pc: 0.006;
-  --veil: oklch(var(--pl) var(--pc) var(--h) / 0.70);
-  --veil-soft: oklch(var(--pl) var(--pc) var(--h) / 0.42);
-  --ground: oklch(0.165 0.005 262);
-  --surface: oklch(0.215 0.006 262);
+  --ground: oklch(0.165 0.005 70);
+  --surface: oklch(0.215 0.006 70);
   --ink: oklch(0.88 0.012 84);
   --ink-2: oklch(0.74 0.011 84);
   --ink-3: oklch(0.6 0.01 84);
-  --rule: oklch(0.32 0.006 262);
+  --rule: oklch(0.32 0.006 70);
   --accent: oklch(0.76 0.1 262);
   --accent-ink: oklch(0.18 0.03 262);
   --wash: oklch(0.76 0.1 262 / 0.14);
   --read: oklch(0.88 0.012 84 / 0.06);
   --hover: oklch(0.88 0.012 84 / 0.08);
-  --sheet: oklch(0.23 0.006 262);
-  --scrim: oklch(0.06 0.01 262 / 0.55);
+  --sheet: oklch(0.23 0.006 70);
+  --scrim: oklch(0.06 0.01 70 / 0.55);
   --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 50px oklch(0 0 0 / 0.5);
   --focus: oklch(0.78 0.12 262);
   --hl-lift: oklch(0.75 0.03 90 / 0.5); --hl-edge: oklch(0.1 0 0 / 0.5);
@@ -139,8 +133,7 @@ html.touchui, .touchui body, .touchui .edge-strip { transition-property: backgro
 .lift.small::after { inset: -24px; border-image: url("/ui/shadow-cover.png") 96 / 32px; }
 body {
   color: var(--ink);
-  font: 500 var(--t-m)/1.45 var(--f-ui);
-  font-feature-settings: "cv11", "ss01";
+  font: 400 var(--t-m)/1.45 var(--f-ui);
   overflow: hidden; overscroll-behavior: none;
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
 }
@@ -154,7 +147,7 @@ button { font: inherit; color: inherit; }
 /* buttons shared by leaves, sheets and the map */
 .btn {
   appearance: none; cursor: pointer; border: 0; border-radius: var(--r-m); min-height: 44px; padding: 0 18px;
-  font: 600 var(--t-m)/1.2 var(--f-ui); display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font: 500 var(--t-m)/1.2 var(--f-ui); display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   background: var(--read); color: var(--ink); transition: filter .15s, background-color .15s;
 }
 html:not(.touchui) .btn:not(.primary):hover { background: var(--hover); }

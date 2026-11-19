@@ -4,8 +4,6 @@
 export function touchUI(): boolean {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('touchui');
 }
-/** "  ( / )" after a placeholder, where there is a keyboard to press it on. */
-export const keyHint = (k: string) => (touchUI() ? '' : `  ( ${k} )`);
 
 /** Marks the page as touch-driven (main.ts calls this first thing). */
 export function watchTouch() {

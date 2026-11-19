@@ -21,8 +21,8 @@ async function open(p: Page) {
 
 test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; no key hints', async ({ page: p }) => {
   await open(p);
-  const M = await p.evaluate(() => { const m = (window as any).__vol.reader.M; return { N: m.N, minimal: m.minimal, x0: m.x0, colW: m.colW }; });
-  expect(M).toMatchObject({ N: 1, minimal: true });
+  const M = await p.evaluate(() => { const m = (window as any).__vol.reader.M; return { N: m.N, x0: m.x0, colW: m.colW }; });
+  expect(M.N).toBe(1);
   expect(M.x0).toBeGreaterThanOrEqual(16);
   const box = (await p.locator('.stage').boundingBox())!;
   const y = box.y + box.height / 2;
@@ -102,7 +102,7 @@ test('a phone: settings are a sheet from the bottom edge; help shows gestures; a
   // help, on a touch screen: the gestures
   await p.evaluate(() => { (window as any).__vol.ui.sheet = 'settings'; });
   await panel.getByRole('button', { name: 'Gestures' }).tap();
-  await expect(p.locator('.sheet h2')).toHaveText('How to move around');
+  await expect(p.locator('.sheet h2')).toHaveText('Gestures');
   await expect(p.locator('.sheet')).toContainText('Tap near an edge');
 });
 

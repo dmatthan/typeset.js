@@ -52,8 +52,8 @@
     {#if why}<p class="why" role="alert">{why}</p>{/if}
   {/if}
   <div class="acts two">
-    <button class="btn" onclick={close}>Not now <kbd>Esc</kbd></button>
-    <button class="btn primary" disabled={busy || !name.trim() || !canPasskey()} onclick={accept}>{busy ? 'Making the passkey…' : 'Make my passkey'} <kbd>Enter</kbd></button>
+    <button class="btn" onclick={close}>Not now</button>
+    <button class="btn primary" disabled={busy || !name.trim() || !canPasskey()} onclick={accept}>{busy ? 'Making the passkey…' : 'Make my passkey'}</button>
   </div>
 </Sheet>
 

@@ -95,16 +95,16 @@ export async function selftest(reader: Reader, map: MapCtl, log: (s: string) => 
   out.mapDetail = { jumpMs, openSpan: Math.round(openSpan), parts };
   out.mapTrip = stop();
 
-  // long holds in wider layouts and both edge styles, full screen
+  // long holds in wider layouts, full screen
   {
     const { shell } = await import('./core/shell');
 
     await shell.toggleFullscreen(); await wait(1200);
     const wide: Record<string, unknown> = {};
     const { fitControl } = await import('./reader/verify');
-    for (const check of [true, false]) for (const layout of [2, 3] as const) for (const view of ['flow', 'minimal'] as const) {
+    for (const check of [true, false]) for (const layout of [2, 3] as const) {
       fitControl.on = check;
-      settings.layout = layout; settings.view = view;
+      settings.layout = layout;
       await reader.settingsChanged('layout'); await wait(800);
       reader.jump(10); await wait(300);
       // time our own work per frame: placing the track, with column building
@@ -119,11 +119,11 @@ export async function selftest(reader: Reader, map: MapCtl, log: (s: string) => 
       window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
       await wait(1200);
       sf.place = place0; sf.make = make0;
-      wide[`${layout}-${view}${check ? '' : ' (no check)'}`] = { ...stop(), cols: reader.M.N, travelled: reader.cur - 10, jsPerFrame: { place: +(tPlace / nFrames).toFixed(2) }, makes: nMake, makeMs: +(tMake / Math.max(1, nMake)).toFixed(2), domCols: document.querySelectorAll('.col').length };
+      wide[`${layout}${check ? '' : ' (no check)'}`] = { ...stop(), cols: reader.M.N, travelled: reader.cur - 10, jsPerFrame: { place: +(tPlace / nFrames).toFixed(2) }, makes: nMake, makeMs: +(tMake / Math.max(1, nMake)).toFixed(2), domCols: document.querySelectorAll('.col').length };
     }
     fitControl.on = true;
     out.wideHold = wide;
-    settings.layout = 'auto'; settings.view = 'flow';
+    settings.layout = 'auto';
     await shell.toggleFullscreen(); await wait(1000);
     await reader.settingsChanged('layout'); await wait(800);
   }

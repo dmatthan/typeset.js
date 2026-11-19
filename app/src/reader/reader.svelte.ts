@@ -7,7 +7,7 @@ import { Strip, parseLayout, F, FIELDS, type Anchor } from './strip';
 import { columnHTML, leafHTML, chapName, esc } from './render';
 import { Surface } from './surface';
 import { Motion } from './motion';
-import { readTokens, hueAt } from './tokens';
+import { readTokens } from './tokens';
 import { calibrate } from './calibrate';
 import { settings, reduceMotion, SIZES } from './settings.svelte';
 import { themes, themeById, resolve, loadFamily, fontsReady, type Resolved } from './themes.svelte';
@@ -25,6 +25,9 @@ import { spans, selText, type Sel } from './selection';
 import { ReaderInput } from './input';
 import { Cursor } from './cursor';
 import { BookImages } from './images';
+
+/** The measure, in ems, below which lines are set ragged. */
+const NARROW = 24;
 
 export class Reader {
   core: Core;
@@ -117,7 +120,7 @@ export class Reader {
     if (el) {
       const pal = this.look.palette;
       const set = (k: string, v: string) => el.style.setProperty(k, v);
-      const TOK = ['--paper', '--ink', '--ink-2', '--ink-3', '--rule', '--accent', '--accent-ink', '--focus', '--veil', '--veil-soft', '--wash', '--read', '--hover'];
+      const TOK = ['--paper', '--ink', '--ink-2', '--ink-3', '--rule', '--accent', '--accent-ink', '--focus', '--wash', '--read', '--hover'];
       if (!pal) for (const k of TOK) el.style.removeProperty(k);
       else {
         const { paper, ink, accent } = pal;
@@ -127,8 +130,6 @@ export class Reader {
         set('--ink-2', `color-mix(in oklab, ${ink} ${more ? 90 : 74}%, ${paper})`);
         set('--ink-3', `color-mix(in oklab, ${ink} ${more ? 84 : 62}%, ${paper})`);   // (4.5:1 at least: WCAG AA)
         set('--rule', `color-mix(in oklab, ${ink} 16%, ${paper})`);
-        set('--veil', `color-mix(in srgb, ${paper} 62%, transparent)`);
-        set('--veil-soft', `color-mix(in srgb, ${paper} 36%, transparent)`);
         set('--wash', `color-mix(in srgb, ${accent} 13%, transparent)`);
         set('--read', `color-mix(in srgb, ${ink} 5%, transparent)`);
         set('--hover', `color-mix(in srgb, ${ink} 7%, transparent)`);
@@ -286,8 +287,11 @@ export class Reader {
   calibErr = 0;
   private params(M = this.M): LayoutParams {
     const L = this.look, o = L.options;
+    // a short measure (a phone's) is set ragged, whatever the theme says: justified lines of
+    // under ~45 characters open rivers between their words
+    const justify = o.justify && M.colW >= M.fs * NARROW;
     return {
-      size: M.fs, measure: M.colW, rows: M.rows, headRows: M.headRows, lh: M.lh, justify: o.justify, hyphenate: o.hyphenate, round: this.round, appUnits: this.appUnits,
+      size: M.fs, measure: M.colW, rows: M.rows, headRows: M.headRows, lh: M.lh, justify, hyphenate: o.hyphenate, round: this.round, appUnits: this.appUnits,
       font: L.chain, wght: L.wght, bold: L.bold, ls: +((o.charSpacing / 100) * M.fs).toFixed(3), ws: +((o.wordSpacing / 100) * M.fs).toFixed(3), axes: L.axes, spaceKern: this.spaceKern, linkRuns: this.linkRuns,
     };
   }
@@ -299,11 +303,9 @@ export class Reader {
     st.setProperty('--opsz', String(Math.min(144, Math.max(6, M.fs))));
     st.setProperty('--opsz-s', String(Math.min(144, Math.max(6, M.fs * 0.7))));
     this.applyType();
-    // the focus window, and how far the veil takes to reach full strength beside it
+    // the paper either side of the spread (the curtains, reader.css)
     st.setProperty('--fl', M.x0 - M.G / 2 + 'px');
     st.setProperty('--fr', M.W - (M.x0 + M.focusW + M.G / 2) + 'px');
-    const side = Math.min(M.x0, M.W - M.x0 - M.focusW) - M.G / 2;
-    st.setProperty('--feather', Math.round(Math.max(24, Math.min(220, side * 0.6, M.P * 0.33))) + 'px');
     ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone;
   }
 
@@ -367,8 +369,15 @@ export class Reader {
   }
 
   /** Lays the book out around an anchor: its section first, then (not awaited) the rest. */
+  /** Settles once the whole book is laid out for the parameters in use (until then the
+   *  columns of the sections not yet set are estimates): what travels to a place named
+   *  from outside waits for it. */
+  whole: Promise<void> = Promise.resolve();
+  private wholeLaid = () => {};
+
   private async layoutFrom(anchor: Anchor | null, gen: number) {
     const strip = this.strip!, book = this.book!;
+    this.whole = new Promise(r => (this.wholeLaid = r));
     this.applyLook();
     this.M = metrics(this.stage.clientWidth, this.stage.clientHeight, this.lookGeom(), insets());
     this.applyCSS();
@@ -401,6 +410,7 @@ export class Reader {
       strip.layouts = all;
       this.recompose(keep ?? strip.anchorAt(this.cur), true);
       ui.layoutVersion++;
+      this.wholeLaid();
     }, e => toast(`Couldn’t lay out the book: ${(e as Error).message}`, 5000));
   }
 
@@ -483,7 +493,6 @@ export class Reader {
     this.cursor.end();
     ui.mapOpen = false; ui.sheet = null;
     this.surface.setLazy(false);
-    document.documentElement.style.removeProperty('--h');
     for (const [, el] of this.surface.rendered()) el.remove();
     this.core.idle?.();
     ui.view = 'library';
@@ -546,7 +555,7 @@ export class Reader {
       this.shownK = k;
       ui.runhead = this.headFor(k);
       // the paper's tint changes only at rest: changing it in motion repainted the whole
-      // window (background, veils) every few frames
+      // window (background, curtains) every few frames
     }
   }
 
@@ -563,14 +572,15 @@ export class Reader {
     const strip = this.strip!;
     this.shownK = k;
     ui.runhead = this.headFor(k);
-    document.documentElement.style.setProperty('--h', hueAt(strip.frac(k)).toFixed(1));
     const focus = this.focusCols();
     for (const c of focus) this.visited.add(c);
     this.teach(k);
     clearTimeout(this.dwellT); this.dwellT = window.setTimeout(() => focus.forEach(c => this.markSeen(c)), 1600);
     this.furthest = Math.max(this.furthest, this.viewEnd());
     clearTimeout(this.saveT); this.saveT = window.setTimeout(() => { if (!this.book) return; kv.set('pos.' + this.book.id, strip.anchorAt(this.cur)); kv.set('far.' + this.book.id, this.furthest); }, 400);
-    if (embedded) embedMoved(strip.frac(k), k >= strip.N - 1);
+    // (by the view's last column: a spread ends with the book's last on its right)
+    const last = focus[focus.length - 1] ?? k;
+    if (embedded) embedMoved(strip.frac(last), last >= strip.N - 1);
     // controls in leaves are reachable only while their leaf is in focus, and a screen
     // reader hears a leaf only then; the text in view it hears as a document (spoken.ts)
     for (const [c, el] of this.surface.rendered()) {

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { copyText } from '../core/clipboard';
-  import { keyHint } from './touch';
   import { onMount, tick } from 'svelte';
   import type { LibEntry } from '../core/types';
   import type { Reader } from '../reader/reader.svelte';
@@ -85,7 +84,7 @@
 <div class="nb">
   <div class="nb-head">
     <input bind:this={field} class="nb-filter" type="search" bind:value={query} onkeydown={fieldKey}
-      placeholder={(total ? `Filter ${total} entr${total === 1 ? 'y' : 'ies'}` : 'Filter') + keyHint('/')} aria-label="Filter the notebook" spellcheck="false" autocomplete="off" />
+      placeholder={total ? `Filter ${total} entr${total === 1 ? 'y' : 'ies'}` : 'Filter'} aria-label="Filter the notebook" spellcheck="false" autocomplete="off" />
     <button class="btn quiet" disabled={!shown.count} onclick={copy}>Copy as Markdown</button>
     <button class="btn" disabled={!shown.count} onclick={exportMd}>Export…</button>
   </div>

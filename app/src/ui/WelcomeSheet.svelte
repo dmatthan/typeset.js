@@ -34,7 +34,7 @@
     {/if}
     <li>How far you have read goes with them; you can turn that off when you send.</li>
   </ul>
-  <div class="acts"><button class="btn primary" data-autofocus onclick={close}>Start reading {#if !touch}<kbd>Enter</kbd>{/if}</button></div>
+  <div class="acts"><button class="btn primary" data-autofocus onclick={close}>Start reading </button></div>
 </Sheet>
 
 <style>

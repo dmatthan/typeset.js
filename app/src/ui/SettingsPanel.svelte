@@ -55,7 +55,7 @@
   function set<K extends keyof Settings>(k: K, v: Settings[K]) {
     if (settings[k] === v) return;
     settings[k] = v; save();
-    if (k === 'layout' || k === 'view' || k === 'theme') relayout();
+    if (k === 'layout' || k === 'theme') relayout();
   }
   function opt<K extends keyof Options>(k: K, v: Options[K]) {
     if (o[k] === v) return;
@@ -103,7 +103,6 @@
     else if (k === 't') cycleTheme(1);
     else if (k === 'T') cycleTheme(-1);
     else if (k === 'p') set('appearance', APPEAR[(APPEAR.indexOf(settings.appearance) + 1) % 3]);
-    else if (k === 'e') set('view', settings.view === 'flow' ? 'minimal' : 'flow');
     else if (k === '1' || k === '2' || k === '3') set('layout', +k as Layout);
     else if (k === 'a') set('layout', 'auto');
     else if (k === 'c') go(page === 'theme' ? 'main' : 'theme');
@@ -113,7 +112,6 @@
     else if (k === 'y') opt('hyphenate', !o.hyphenate);
     else if (k === '0' && page === 'theme') { resetOptions(theme); relayout(); }
     else if (k === 'n') newTheme();
-    else if (k === 'v') set('veil', !settings.veil);
     else if (k === 'Tab') { trap(e); done = false; }
     else done = false;
     if (done) { e.preventDefault(); e.stopImmediatePropagation(); }
@@ -147,8 +145,8 @@
   </div>
 {/snippet}
 {#snippet toggle(label: string, on: boolean, flip: () => void, keyName: string, changed = false)}
-  <button class="row tg" role="switch" aria-checked={on} onclick={flip}>
-    <span class="lbl">{label} <kbd>{keyName}</kbd>{#if changed}<span class="dot"></span>{/if}</span>
+  <button class="row tg" role="switch" aria-checked={on} onclick={flip} title="{label} ({keyName})">
+    <span class="lbl">{label}{#if changed}<span class="dot"></span>{/if}</span>
     <span class="sw" aria-hidden="true"></span>
   </button>
 {/snippet}
@@ -198,15 +196,11 @@
           </button>
         </div>
         <button class="row nav" onclick={() => go('theme')}>
-          <span class="lbl"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>Customise {theme.name} <kbd>C</kbd>{#if anyOptionChanged(theme)}<span class="dot"></span>{/if}</span>
+          <span class="lbl"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>Customise {theme.name}{#if anyOptionChanged(theme)}<span class="dot"></span>{/if}</span>
           <svg class="chev" viewBox="0 0 24 24"><path d="m10 7 5 5-5 5" /></svg>
         </button>
-        <!-- (a phone shows one page, whatever the view and the columns) -->
+        <!-- (a phone shows one page, whatever the columns) -->
         {#if !ui.phone}
-        <div class="row">
-          <span class="lbl">View <kbd>E</kbd></span>
-          {@render seg('View', [{ v: 'flow', t: 'Flow' }, { v: 'minimal', t: 'Minimal' }], settings.view, v => set('view', v as Settings['view']))}
-        </div>
         <div class="row">
           <span class="lbl">Columns</span>
           {@render seg('Columns', LAYOUTS.map(v => ({ v, t: v === 'auto' ? 'Auto' : String(v), k: v === 'auto' ? 'A' : String(v) })), settings.layout, v => set('layout', v as Layout))}
@@ -214,7 +208,7 @@
         {#if settings.layout !== 'auto' && ui.colsReduced}<p class="note">Too narrow for {settings.layout} here; showing {ui.cols}.</p>{/if}
         {/if}
         <button class="row nav" onclick={() => go('reading')}>
-          <span class="lbl"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5.5h5.5a2 2 0 0 1 1.5.7 2 2 0 0 1 1.5-.7H19v13h-5.5a2 2 0 0 0-1.5.7 2 2 0 0 0-1.5-.7H5z" /><path d="M12 6.2v13" /></svg>Reading <kbd>O</kbd></span>
+          <span class="lbl"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5.5h5.5a2 2 0 0 1 1.5.7 2 2 0 0 1 1.5-.7H19v13h-5.5a2 2 0 0 0-1.5.7 2 2 0 0 0-1.5-.7H5z" /><path d="M12 6.2v13" /></svg>Reading</span>
           <svg class="chev" viewBox="0 0 24 24"><path d="m10 7 5 5-5 5" /></svg>
         </button>
         {#if touchUI()}
@@ -239,7 +233,7 @@
           {@render toggle('Hyphenation', o.hyphenate, () => opt('hyphenate', !o.hyphenate), 'Y', optionChanged(theme, 'hyphenate'))}
         </div>
         <div class="foot">
-          <button class="txt" onclick={newTheme}>New theme from this <kbd>N</kbd></button>
+          <button class="txt" onclick={newTheme}>New theme from this</button>
           {#if !theme.builtin}
             <span class="sp"></span>
             <button class="txt" onclick={editTheme}>Edit</button>
@@ -254,7 +248,6 @@
           <span></span>
         </header>
         <div class="list">
-          {#if !ui.phone}{@render toggle('Veil the neighbouring columns', settings.veil, () => set('veil', !settings.veil), 'V')}{/if}
           <div class="row">
             <span class="lbl">Motion</span>
             {@render seg('Motion', [{ v: 'system', t: 'As system' }, { v: 'reduce', t: 'Reduced' }], settings.motion, v => set('motion', v as Settings['motion']))}
@@ -318,7 +311,6 @@
   .row.nav, .row.tg { cursor: pointer; }
   :global(html:not(.touchui)) .row.nav:hover, :global(html:not(.touchui)) .row.tg:hover { background: var(--hover); }
   .lbl { display: inline-flex; align-items: center; gap: 8px; font: 600 var(--t-s)/1.25 var(--f-ui); color: var(--ink); }
-  .lbl kbd { font-size: 11px; padding: 2px 5px; opacity: .45; }
   .ic { width: 18px; height: 18px; color: var(--ink-2); }
   .chev { width: 18px; height: 18px; color: var(--ink-3); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }

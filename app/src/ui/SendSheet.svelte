@@ -110,12 +110,12 @@
     {#if why}<p class="why" role="alert">{why}</p>{/if}
     <div class="acts two">
       <button class="btn" onclick={send} disabled={!name.trim() || !some}>Save as a file</button>
-      <button class="btn primary" disabled={busy || !name.trim() || !some} onclick={sendBack}>{busy ? 'Sending…' : 'Send to the writer'} <kbd>Enter</kbd></button>
+      <button class="btn primary" disabled={busy || !name.trim() || !some} onclick={sendBack}>{busy ? 'Sending…' : 'Send to the writer'}</button>
     </div>
   {:else}
     <div class="acts two">
-      <button class="btn" onclick={close}>Not now <kbd>Esc</kbd></button>
-      <button class="btn primary" disabled={!name.trim() || !some} onclick={send}>{canShare ? 'Send…' : 'Save the file'} <kbd>Enter</kbd></button>
+      <button class="btn" onclick={close}>Not now</button>
+      <button class="btn primary" disabled={!name.trim() || !some} onclick={send}>{canShare ? 'Send…' : 'Save the file'}</button>
     </div>
   {/if}
 </Sheet>
