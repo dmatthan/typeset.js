@@ -26,17 +26,21 @@
   let bar: HTMLElement | undefined = $state();
   onMount(() => reader.mount(stage, track));
 
-  // The bar's controls fade away while reading and come back when the pointer seeks the
-  // top band or keyboard focus reaches them. The chapter name stays. Nothing here changes
-  // the page's layout: the bar floats over a band the text never uses.
+  // The bar's controls and the progress line under the text fade away while reading, and
+  // come back when the pointer seeks either band (the top's, the foot's) or keyboard focus
+  // reaches them. Nothing here changes the page's layout: both float over bands the text
+  // never uses.
   const ZONE = 76;
   let away = $state(false);
   let hideT = 0;
+  let foot: HTMLElement | undefined = $state();
+  const held = () => !!(bar?.matches(':hover, :focus-within') || foot?.matches(':hover, :focus-within'));
   const show = () => { clearTimeout(hideT); away = false; };
-  const hideSoon = (ms = 700) => { clearTimeout(hideT); hideT = window.setTimeout(() => { if (!bar?.matches(':hover, :focus-within')) away = true; }, ms); };
+  const hideSoon = (ms = 700) => { clearTimeout(hideT); hideT = window.setTimeout(() => { if (!held()) away = true; }, ms); };
   function onMove(e: PointerEvent) {
     if (hidden || e.buttons) return;
-    if (e.clientY - (bar?.getBoundingClientRect().top ?? 0) < ZONE) show();
+    const r = stage?.getBoundingClientRect();
+    if (e.clientY - (bar?.getBoundingClientRect().top ?? 0) < ZONE || (r && r.bottom - e.clientY < ZONE)) show();
     else if (!away) hideSoon();
   }
   // a book opening shows the bar for a moment, then it steps aside
@@ -110,7 +114,7 @@
     {#if ui.bookNote && reader.book}<BookNote {reader} />{/if}
     {#if (ui.sideNotes || ui.railed) && reader.book}<SideNotes {reader} />{/if}
   </div>
-  {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} />{/if}
+  {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} bind:el={foot} />{/if}
   {#if ui.lightbox && reader.book}<Lightbox {reader} />{/if}
   {#if !hidden && reader.finder.open}<FindBar {reader} bind:this={findBar} />{/if}
 </section>
@@ -128,8 +132,7 @@
   .side { display: flex; align-items: center; gap: 4px; transition: opacity .3s ease; }
   .away .side { opacity: 0; pointer-events: none; }
   /* (over the text, not the window, when the notes' rail is beside it) */
-  .runhead { transition: opacity .3s ease; translate: calc(var(--rail, 0px) / -2); }
-  .away .runhead { opacity: .7; }
+  .runhead { translate: calc(var(--rail, 0px) / -2); }
   .right { justify-content: flex-end; }
   .ibtn {
     appearance: none; border: 0; background: none; cursor: pointer; height: 36px; min-width: 36px; padding: 0 8px;

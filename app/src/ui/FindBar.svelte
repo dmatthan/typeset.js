@@ -75,9 +75,11 @@
 
 <style>
   /* (one column the bar's width, not its field's: an input's own width would widen it) */
-  .find { position: absolute; z-index: 44; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(600px, calc(100% - 28px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .find { position: absolute; z-index: 44; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(600px, calc(100% - 28px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; container-type: inline-size; }
   .field { display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 6px 0 12px; border-radius: 12px; background: var(--sheet); border: 1px solid var(--rule); color: var(--ink); }
   .mag { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
+  /* the narrowest phone: the field keeps room for a finger, the magnifier (only a sign) goes */
+  @container (max-width: 340px) { .mag { display: none; } }
   svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0 6px; }
   input::placeholder { color: var(--ink-3); }

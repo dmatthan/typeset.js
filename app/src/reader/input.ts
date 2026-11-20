@@ -4,19 +4,22 @@
  *  an arrow one column, a held arrow glides; a wheel notch is one column and every notch
  *  counts; a drag or trackpad moves the sheet 1:1 and lands on the nearest column (a push
  *  of less than one goes on to the next); key repeat is ignored; a mouse click on the text
- *  does nothing, a tap in a page's outer fifth turns it. */
+ *  does nothing, a tap in a page's outer fifth turns it; the text is selected as anywhere
+ *  (a mouse's drag, a finger's hold: the browser's and the system's own), and while
+ *  something is selected a finger's press only puts it away. */
 import { features } from '../core/embed';
 import { ui } from '../state.svelte';
 import { kv } from '../core/kv';
 import { hint } from './hints';
-import { caretAt, pointAt, showSel, wordAt } from './selection';
+import { pointAt } from './selection';
 import type { Reader } from './reader.svelte';
 
 /** Interaction constants: these are the point of the reader. */
 const CRUISE_AFTER = 260;       // ms a key or press is held before the tap flows into a cruise
 const WHEEL_QUIET = 90;         // ms without wheel input that end a trackpad gesture
 const WHEEL_LOCK = 200;         // ms of quiet before input is read again after a takeover
-const SELECT_AFTER = 300;      // ms held still before the press selects a word (moving first moves the sheet)
+const HOLD = 450;               // ms a finger rests before it is no longer a tap (the system's selecting)
+const SETTLED = 300;            // ms a finger's selection is still before the menu comes (handles move it)
 
 export class ReaderInput {
   private keyHeld: string | null = null; private keyHoldT = 0;
@@ -29,17 +32,20 @@ export class ReaderInput {
   /** The pointer last pressed on the page ('mouse', 'touch', 'pen'). */
   private pointer = '';
 
-  /** What the browser's selection covers in the book, and where its menu goes (above its
-   *  middle, in the stage's coordinates); null when nothing of the book is selected. */
-  private selected() {
+  /** What the browser's selection covers in the book, and the box its menu keeps clear of
+   *  (in the stage's coordinates); null when nothing of the book is selected. `native`: a
+   *  finger's selection, beside which the system shows a menu of its own. */
+  private selected(native: boolean) {
     const s = getSelection(), strip = this.r.strip;
     if (!s || s.isCollapsed || !s.rangeCount || !strip) return null;
     const r0 = s.getRangeAt(0);
     const a = pointAt(strip, r0.startContainer, r0.startOffset), z = pointAt(strip, r0.endContainer, r0.endOffset);
     if (!a || !z || (a[0] === z[0] && a[1] === z[1] && a[2] === z[2])) return null;
     const box = r0.getBoundingClientRect(), st = this.r.stage.getBoundingClientRect();
-    return { x: box.left + box.width / 2 - st.left, y: box.top - st.top, sel: { a, z }, ann: null };
+    return { x: box.left + box.width / 2 - st.left, y: box.top - st.top, b: box.bottom - st.top, native, sel: { a, z }, ann: null };
   }
+  /** Something of the book is selected (by the hand or the system). */
+  private selecting() { const s = getSelection(); return !!s && !s.isCollapsed && !!s.anchorNode && this.r.stage.contains(s.anchorNode); }
 
   private zoneAt(clientX: number): 'prev' | 'next' | 'focus' {
     const M = this.r.M, x = clientX - this.r.stage.getBoundingClientRect().left;
@@ -181,10 +187,7 @@ export class ReaderInput {
 
     const PTR = new Map<number, { x: number; y: number }>();
     let GS: any = null;
-    const cancelPress = () => {
-      if (!GS) return;
-      clearTimeout(GS.holdT); clearTimeout(GS.armT);
-    };
+    const cancelPress = () => { if (GS) clearTimeout(GS.holdT); };
     stage.addEventListener('pointerdown', e => {
       if (ui.contents || !this.r.strip || e.button > 0) return;
       // a card over the page (a book's note, your notes) takes its own presses: never a
@@ -195,13 +198,16 @@ export class ReaderInput {
       if (ctl && this.zoneAt(e.clientX) === 'focus') return;
       if (ctl) e.preventDefault();
       const zone = this.zoneAt(e.clientX);
-      // a mouse in the text selects it as in any document: the browser's own selection,
-      // and the menu when the button is let go; it never moves the sheet there (the keys,
-      // the wheel and the sides do)
+      // the text is selected as in any document, by the browser or the system: a mouse's drag
+      // (the menu when the button is let go; it never moves the sheet there: the keys, the
+      // wheel and the sides do), a finger held on a word (the system's handles and menu,
+      // and ours once it rests). A finger's press is captured only once it drags the sheet,
+      // so that a hold stays the system's
       const native = e.pointerType === 'mouse' && zone === 'focus';
+      const touch = e.pointerType !== 'mouse';
       this.pointer = e.pointerType;
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (!native) try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+      if (!native && !(touch && zone === 'focus')) try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
       // a second finger ends what the first began: two-finger gestures are the system's
       if (PTR.size === 2) {
         cancelPress();
@@ -211,23 +217,12 @@ export class ReaderInput {
       }
       if (PTR.size > 2) return;
       // (the stage captures any pointer but a mouse in the text: remember what was under the press)
-      GS = { x0: e.clientX, y0: e.clientY, xl: e.clientX, zone, moved: false, dragging: false, down: e.target, touch: e.pointerType === 'touch', native };
+      // something selected: a finger's press only puts it away (the system's way), never a
+      // turn or a drag of the sheet under the handles
+      GS = { x0: e.clientX, y0: e.clientY, xl: e.clientX, t0: performance.now(), zone, moved: false, dragging: false, down: e.target, touch, native, clearing: touch && this.selecting() };
       ui.chip = null;
-      if (native) return;
-      if (zone === 'focus') {
-        // held still for a moment, the press selects the word under it; moving then extends
-        // the selection word by word (moving at once moves the sheet instead)
-        GS.armT = setTimeout(() => {
-          if (!GS || GS.moved) return;
-          const c = caretAt(e.clientX, e.clientY);
-          if (!c || !pointAt(this.r.strip!, c.node, c.off)) return;
-          GS.anchor = wordAt(c.node, c.off);
-          GS.selecting = true;
-          this.r.stage.parentElement!.classList.add('selecting');
-          showSel(GS.anchor, GS.anchor);
-          try { navigator.vibrate?.(6); } catch { /* no vibration */ }
-        }, SELECT_AFTER);
-      } else {
+      if (native || GS.clearing) return;
+      if (zone !== 'focus') {
         const d = zone === 'next' ? 1 : -1;
         GS.holdT = setTimeout(() => { if (GS && !GS.moved) { GS.holding = true; this.r.motion.tap(d); this.r.motion.cruise(d); } }, CRUISE_AFTER + 160);
       }
@@ -235,18 +230,16 @@ export class ReaderInput {
     stage.addEventListener('pointermove', e => {
       if (!PTR.has(e.pointerId) || !GS) return;
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (GS.native) return;
+      if (GS.native || GS.clearing) return;
       const dx = e.clientX - GS.x0, dy = e.clientY - GS.y0;
-      if (GS.selecting) {
-        const c = caretAt(e.clientX, e.clientY);
-        if (c && pointAt(this.r.strip!, c.node, c.off)) showSel(GS.anchor, wordAt(c.node, c.off));
-        return;
-      }
       // (a finger rests less still than a mouse: a tap may wander a little)
       if (!GS.moved && Math.hypot(dx, dy) > (GS.touch ? 12 : 8)) {
         GS.moved = true; cancelPress();
         if (GS.holding) return;
-        if (Math.abs(dx) >= Math.abs(dy)) { GS.dragging = true; this.r.motion.directStart(); GS.xl = GS.x0; }   // catch up with the hand
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          GS.dragging = true; this.r.motion.directStart(); GS.xl = GS.x0;   // catch up with the hand
+          try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+        }
       }
       // the sheet follows the hand, one to one
       if (GS.dragging) { this.r.motion.directBy(-(e.clientX - GS.xl) / this.r.M.P); GS.xl = e.clientX; }
@@ -258,23 +251,16 @@ export class ReaderInput {
       const g = GS; cancelPress(); GS = null;
       // the browser's selection, made with the mouse: the menu above it
       if (g.native) {
-        const sel = this.selected();
+        const sel = this.selected(false);
         if (sel) { if (features.highlights) ui.chip = sel; return; }
       }
-      if (g.selecting) {
-        this.r.stage.parentElement!.classList.remove('selecting');
-        const r0 = getSelection()?.rangeCount ? getSelection()!.getRangeAt(0) : null;
-        const a = r0 ? pointAt(this.r.strip!, r0.startContainer, r0.startOffset) : null, z = r0 ? pointAt(this.r.strip!, r0.endContainer, r0.endOffset) : null;
-        getSelection()?.removeAllRanges();
-        if (a && z && (a[0] !== z[0] || a[1] !== z[1] || a[2] !== z[2])) {
-          const r = stage.getBoundingClientRect();
-          if (features.highlights) ui.chip = { x: e.clientX - r.left, y: e.clientY - r.top, sel: { a, z }, ann: null };
-        }
-        return;
-      }
+      // what a finger's press did while something was selected: put it away, and no more
+      if (g.clearing) { if (!g.moved) getSelection()?.removeAllRanges(); return; }
       if (g.holding) { this.r.motion.release(); return; }
       if (g.dragging) { this.r.motion.directEnd(); return; }
       if (e.type === 'pointercancel') return;
+      // a finger that rested was the system's (selecting, or its menu): not a tap
+      if (g.touch && g.zone === 'focus' && (performance.now() - g.t0 > HOLD || this.selecting())) return;
       const dy = e.clientY - g.y0;
       if (g.moved) { if (Math.abs(dy) > 44) this.r.step(dy < 0 ? 1 : -1); return; }
       // explicit targets in the focus column: a note marker, a reference, an image
@@ -295,8 +281,8 @@ export class ReaderInput {
       // a highlight opens its chip; find hits (h5, h6) are not annotations
       const mark = (g.down as Element)?.closest?.('mark.hl:not(.h5):not(.h6)') as HTMLElement | null;
       if (g.zone === 'focus' && mark) {
-        const r = stage.getBoundingClientRect();
-        ui.chip = { x: e.clientX - r.left, y: e.clientY - r.top, sel: null, ann: mark.dataset.a! };
+        const r = stage.getBoundingClientRect(), m = mark.getBoundingClientRect();
+        ui.chip = { x: e.clientX - r.left, y: m.top - r.top, b: m.bottom - r.top, sel: null, ann: mark.dataset.a! };
         return;
       }
       // a finger, as phone readers expect: the outer fifth of the page turns it, the middle
@@ -336,16 +322,28 @@ export class ReaderInput {
       clearTimeout(hoverT);
       hoverT = window.setTimeout(() => { if (ui.sideNotes && !ui.sideNotes.pinned) ui.sideNotes = null; }, 280);
     });
-    // the browser selects only for a mouse in the text; a finger's selection is the reader's
-    // own, word by word (selecting), and nothing else selects
-    stage.addEventListener('selectstart', e => { if (this.pointer !== 'mouse' && !this.r.stage.parentElement!.classList.contains('selecting')) e.preventDefault(); });
+    // a selection begins only in the book's text (beside it, a press moves the sheet)
+    const inText = (t: EventTarget | null) => { const n = t as Node | null; return !!(n?.nodeType === 3 ? n.parentElement : (n as Element | null))?.closest?.('.track .ln'); };
+    stage.addEventListener('selectstart', e => { if (!inText(e.target)) e.preventDefault(); });
+    // a finger's selection, as the system makes it and its handles change it: the menu
+    // comes once it rests, and goes when it does (a mouse's is read when the button is let go)
+    let restT = 0;
+    document.addEventListener('selectionchange', () => {
+      clearTimeout(restT);
+      if (GS?.native || this.pointer === 'mouse') return;
+      if (ui.chip?.sel) ui.chip = null;
+      if (!this.selecting()) return;
+      restT = window.setTimeout(() => { const sel = this.selected(true); if (sel && features.highlights && !ui.sheet) ui.chip = sel; }, SETTLED);
+    });
     stage.addEventListener('mousedown', e => {
       const t = e.target as Element;
       if (t.closest?.('textarea, input, button, a, label')) return;
       this.r.stage.focus({ preventScroll: true });
       if (!(t.closest?.('.ln') && this.zoneAt(e.clientX) === 'focus')) e.preventDefault();
     });
-    stage.addEventListener('contextmenu', e => { if (!(e.target as Element).closest?.('textarea')) e.preventDefault(); });
+    // a finger's long press on the text is the system's (Android selects through it); a
+    // mouse's right click keeps the page's own quiet (no browser menu over the book)
+    stage.addEventListener('contextmenu', e => { if (!(e.target as Element).closest?.('textarea') && (this.pointer === 'mouse' || !(e.target as Element).closest?.('.ln'))) e.preventDefault(); });
     stage.addEventListener('scroll', () => { stage.scrollLeft = 0; stage.scrollTop = 0; });
 
     const track = this.r.surface.track;

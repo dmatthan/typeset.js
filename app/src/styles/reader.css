@@ -93,11 +93,10 @@ html:not(.touchui) .ln a.xr:hover { text-decoration-color: var(--accent); }
 .ln .fb { padding-bottom: 1px; }
 /* a paragraph another reader marked: a bar in their colour, outside one's own mark's */
 .fmb { position: absolute; height: var(--lh); width: 3px; border-radius: 2px; background: var(--fmc); transform: scaleY(0.75); }
-/* text is selectable for caret lookups; selection itself is allowed only while a
-   hold-and-drag selects (selectstart is cancelled otherwise, see reader.svelte.ts) */
-.track { user-select: text; -webkit-user-select: text; }
+/* the book's text is selected as anywhere: the browser's selection, and on a phone the
+   system's handles and menu (Copy, Look Up); beside the text nothing selects (input.ts) */
+.track { user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; }
 .ln::selection, .ln *::selection { background: var(--wash); }
-.ln.pressing { background: var(--wash); transition: background-color .3s; }
 .ln.pick { background: var(--hover); box-shadow: calc(-6px - var(--x, 0px)) 0 0 var(--hover), 6px 0 0 var(--hover); }
 .ln.pick::before { content: ""; position: absolute; left: calc(-12px - var(--x, 0px)); top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--ink-3); }
 

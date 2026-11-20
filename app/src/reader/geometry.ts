@@ -13,6 +13,9 @@ export interface Metrics {
   /** Whether the requested layout had to give way to a narrower window. */
   reduced: boolean;
   colW: number; colH: number; rows: number; y0: number; cx: number; headRows: number;
+  /** The band under the text, above the window's safe area, that holds where the reader is
+   *  (Progress.svelte): nothing of the text is ever in it. */
+  foot: number;
 }
 
 interface Across { N: number; colW: number; G: number }
@@ -92,6 +95,6 @@ export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t
   const y0 = topM + Math.max(0, Math.floor((H - topM - botM - colH) / 2));
   return {
     W, H, phone, fs, lh, G, P: colW + G, N, focusW, x0, reduced: layout !== 'auto' && N < layout,
-    colW, colH, rows, y0, cx, headRows: rows < 16 ? 4 : phone ? 6 : 7,
+    colW, colH, rows, y0, cx, headRows: rows < 16 ? 4 : phone ? 6 : 7, foot,
   };
 }

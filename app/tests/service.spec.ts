@@ -108,7 +108,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await expect(welcome).toContainText('Send my notes');
   await r.keyboard.press('Enter');
   await expect(welcome).toHaveCount(0);
-  await expect(r.locator('.where')).toBeVisible({ timeout: 20000 });
+  await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 20000 });
   expect(await r.evaluate(() => location.hash)).toBe('');
   // a few words held and dragged over, highlighted; then sent from the notebook
   await r.keyboard.press('ArrowRight');
@@ -133,7 +133,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await r.keyboard.press('q');
   await expect.poll(() => puts.length, { timeout: 10000 }).toBe(1);
   await r.locator('.book[data-id]', { hasText: 'Tables and Figures' }).click();
-  await expect(r.locator('.where')).toBeVisible();
+  await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   await r.keyboard.press('q');
   await r.waitForTimeout(1500);
   expect(puts.length).toBe(1);
@@ -255,7 +255,7 @@ test('a book embedded in another site\'s page: read in place, nothing else of th
   const p = await ctx.newPage();
   await p.goto('http://127.0.0.1:8799/post'); // (another origin: a public one may not frame localhost)
   const f = p.frameLocator('iframe');
-  await expect(f.locator('.where')).toBeVisible({ timeout: 30000 });
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   // no library, nothing to go back to: a way to Volumen itself instead
   await expect(f.getByRole('button', { name: /Back to the library/ })).toHaveCount(0);
   await expect(f.getByRole('link', { name: /Volumen/ })).toHaveAttribute('href', 'https://volumen.page');
@@ -264,7 +264,7 @@ test('a book embedded in another site\'s page: read in place, nothing else of th
   await f.locator('.stage, [role=region]').first().click({ position: { x: 450, y: 300 } }).catch(() => {});
   await p.keyboard.press('m'); await p.waitForTimeout(400); await p.keyboard.press('Escape');
   await p.keyboard.press('q');
-  await expect(f.locator('.where')).toBeVisible();
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   expect(await p.evaluate(() => history.length)).toBe(before);
   // a book that cannot be read from here: said plainly
   await p.goto('http://127.0.0.1:8799/closed');
@@ -305,7 +305,7 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   await r.goto(link.replace('http://localhost:8788', ''));
   await r.getByRole('dialog', { name: 'A book sent to you' }).waitFor({ timeout: 20000 });
   await r.keyboard.press('Enter');
-  await expect(r.locator('.where')).toBeVisible();
+  await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   await r.keyboard.press('ArrowRight');
   await r.waitForTimeout(900);
   await highlight(r, 0);
@@ -330,7 +330,7 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   await expect(offer).toBeVisible({ timeout: 20000 });
   await offer.getByRole('button', { name: 'Read the new draft' }).click();
   await expect(r.locator('.toast')).toContainText('1 note of yours carried over');
-  await expect(r.locator('.where')).toBeVisible();
+  await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   await r.keyboard.press('q');
   await expect(r.locator('.book[data-id]', { hasText: 'The Lantern Keeper' })).toHaveCount(1);
   await r.locator('.book[data-id]', { hasText: 'The Lantern Keeper' }).click();

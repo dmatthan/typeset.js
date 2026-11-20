@@ -19,36 +19,87 @@ async function open(p: Page) {
   await p.evaluate(() => (window as any).__vol.reader.jump(10)); await settled(p);
 }
 
-test('a phone: a long press selects a word, a drag takes more word by word; a note is written in a sheet', async ({ page: p }) => {
+/** A selection as the phone's own makes it (the system's handles and menu are its own;
+ *  a test can only set what they would): words `from`–`to` of a line in the column in view. */
+async function select(p: Page, line: number | 'last', from = 1, to = 4) {
+  return p.evaluate(({ line, from, to }) => {
+    const r = (window as any).__vol.reader;
+    const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
+    const ln = lns[line === 'last' ? lns.length - 1 : line];
+    const t = [...ln.childNodes].find(n => n.nodeType === 3 && /\S+\s+\S+\s+\S+\s+\S+/.test(n.textContent!)) as Text;
+    const words = [...t.data.matchAll(/\S+/g)];
+    getSelection()!.setBaseAndExtent(t, words[from].index!, t, words[to].index! + words[to][0].length);
+    const b = getSelection()!.getRangeAt(0).getBoundingClientRect();
+    return { top: b.top, bottom: b.bottom, text: getSelection()!.toString() };
+  }, { line, from, to });
+}
+const box = (p: Page) => p.locator('.chip-pop').evaluate(e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+
+test('a phone: the selection is the system\'s, and stays; the menu stands clear of the system\'s own', async ({ page: p }) => {
   await open(p);
   const k = await cur(p);
-  const lines = p.locator(`.col[data-k="${k}"] .ln[data-b]`);
-  const [a, z] = [(await lines.nth(4).boundingBox())!, (await lines.nth(5).boundingBox())!];
-  // a finger held on a word, then drawn down a line, then lifted
-  await p.evaluate(async ({ x, y, y2 }) => {
-    const st = document.querySelector('.stage')!;
-    const ev = (type: string, cy: number) => st.dispatchEvent(new PointerEvent(type, { pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: cy, bubbles: true, buttons: type === 'pointerup' ? 0 : 1 }));
-    ev('pointerdown', y);
-    await new Promise(r => setTimeout(r, 650));
-    for (let i = 1; i <= 6; i++) { ev('pointermove', y + ((y2 - y) * i) / 6); await new Promise(r => requestAnimationFrame(r)); }
-    ev('pointerup', y2);
-  }, { x: a.x + a.width * 0.4, y: a.y + a.height / 2, y2: z.y + z.height / 2 });
-  await expect(p.locator('.chip-pop')).toBeVisible();
+  // a few words mid-page: the system's menu goes above them, ours below, clear of the
+  // handle that hangs under the selection's end; no Copy (the system has its own)
+  const mid = await select(p, 8);
+  const menu = p.locator('.chip-pop');
+  await expect(menu).toBeVisible();
+  expect(await menu.getByRole('button', { name: 'Copy' }).count()).toBe(0);
+  let m = await box(p);
+  expect(m.top).toBeGreaterThanOrEqual(mid.bottom + 20);
+  // it stays selected while the menu shows
+  expect(await p.evaluate(() => getSelection()!.toString())).toBe(mid.text);
+  // the top line: below it if the system's has room above, else past the system's below
+  const top = await select(p, 0);
+  if (top.top >= 74) await expect.poll(async () => (await box(p)).top).toBeGreaterThanOrEqual(top.bottom + 20);
+  else await expect.poll(async () => (await box(p)).top).toBeGreaterThanOrEqual(top.bottom + 60);
+  // the last line: the system's above it, and no room below for ours: above the system's
+  const last = await select(p, 'last');
+  await expect.poll(async () => (await box(p)).bottom).toBeLessThanOrEqual(last.top - 60);
+  m = await box(p);
+  expect(m.top).toBeGreaterThanOrEqual(0);
+  // a tap elsewhere only puts the selection away: no turn, no bar
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
+  const away = await p.locator('.bar').getAttribute('class');
+  const st = (await p.locator('.stage').boundingBox())!;
+  await p.touchscreen.tap(st.x + st.width * 0.9, st.y + st.height * 0.5);
+  await expect(menu).toHaveCount(0);
+  expect(await p.evaluate(() => getSelection()!.isCollapsed)).toBe(true);
   expect(await cur(p)).toBe(k);
-  // whole words, from the one held to the one under the finger a line below
-  const sel = await p.evaluate(() => { const w = window as any; return w.__vol.reader.marking.selText(w.__vol.ui.chip.sel) as string; });
-  expect(sel).toMatch(/^[\p{L}“‘(]/u);
-  expect(sel.split(/\s+/).length).toBeGreaterThan(4);
-  // N: the note's sheet, the passage quoted above the field; Done keeps it
-  await p.locator('.chip-pop').getByRole('button', { name: /note/i }).tap();
+  expect(await p.locator('.bar').getAttribute('class')).toBe(away);
+  // a colour highlights it; Note writes a note in a sheet with the passage quoted
+  const sel = await select(p, 8);
+  await menu.getByRole('button', { name: 'Highlight colour 2' }).tap();
+  await expect(menu).toHaveCount(0);
+  expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.quote))).toEqual([sel.text]);
+  await select(p, 4);
+  await menu.getByRole('button', { name: 'Note' }).tap();
   const sheet = p.locator('.sheet');
-  await expect(sheet.locator('.q')).toContainText(sel.trim().slice(0, 12));
+  await expect(sheet.locator('.q')).toBeVisible();
   await sheet.getByRole('textbox', { name: 'Your note' }).fill('From a phone.');
   await sheet.getByRole('button', { name: 'Done' }).tap();
   await expect(sheet).toHaveCount(0);
-  expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.note))).toEqual(['From a phone.']);
+  expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.filter((a: any) => a.note).map((a: any) => a.note))).toEqual(['From a phone.']);
 });
 
+test('a phone: a finger held on the text and lifted is not a tap (the system selects there)', async ({ page: p }) => {
+  await open(p);
+  const k = await cur(p);
+  // (reading: the bar gone since the book opened)
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
+  const away = await p.locator('.bar').getAttribute('class');
+  const st = (await p.locator('.stage').boundingBox())!;
+  // held in the middle (a tap there shows the bar) and at the edge (a tap there turns)
+  for (const at of [0.5, 0.9]) {
+    await p.evaluate(async ({ x, y }) => {
+      const s = document.querySelector('.stage')!;
+      const ev = (type: string) => s.dispatchEvent(new PointerEvent(type, { pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true, buttons: type === 'pointerup' ? 0 : 1 }));
+      ev('pointerdown'); await new Promise(r => setTimeout(r, 700)); ev('pointerup');
+    }, { x: st.x + st.width * at, y: st.y + st.height * 0.5 });
+    await settled(p);
+    expect(await cur(p)).toBe(k);
+    expect(await p.locator('.bar').getAttribute('class')).toBe(away);
+  }
+});
 test('a phone: a picture tapped opens large and stays (the tap\'s own click does not close it)', async ({ page: p }) => {
   test.setTimeout(120000);
   await openFile(p, '../bench/fixtures/beagle.epub', 'Beagle');
@@ -78,11 +129,16 @@ test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; 
   expect(await cur(p)).toBe(k + 1);
   await p.touchscreen.tap(box.x + box.width * 0.08, y); await settled(p);
   expect(await cur(p)).toBe(k);
-  // the middle: the bar's controls come, and go again
-  await p.waitForTimeout(2200);
-  await expect(p.locator('.bar')).toHaveClass(/away/);
+  // the middle: the bar's controls come, and go again; while reading only the page's number
+  // shows under the text, with the bar the line and "N of Total"
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
+  await expect(p.locator('.pn')).toHaveText([String(k + 1)]);
+  await expect(p.locator('.where')).not.toBeVisible();
   await p.touchscreen.tap(box.x + box.width * 0.5, y);
   await expect(p.locator('.bar')).not.toHaveClass(/away/);
+  const N = await p.evaluate(() => (window as any).__vol.reader.strip.N);
+  await expect(p.locator('.where')).toHaveText(`${k + 1} of ${N}`);
+  await expect(p.locator('.pn')).not.toBeVisible();
   expect(await cur(p)).toBe(k);
   await p.touchscreen.tap(box.x + box.width * 0.5, y);
   await expect(p.locator('.bar')).toHaveClass(/away/);
@@ -154,7 +210,7 @@ test('a phone: settings are a sheet from the bottom edge; help shows gestures; a
   await expect(p.locator('.sheet')).toContainText('Tap near an edge');
 });
 
-test('a phone: the colour around the page follows it; nothing scrolls the frame; the selection bar stays on the screen', async ({ page: p }) => {
+test('a phone: the colour around the page follows it; nothing scrolls the frame; the menu keeps clear of the screen edges', async ({ page: p }) => {
   await p.goto('/');
   await p.evaluate(() => localStorage.clear());
   await p.goto('/');
@@ -190,12 +246,16 @@ test('a phone: the colour around the page follows it; nothing scrolls the frame;
   await p.locator('.panel .row.nav').nth(1).tap();
   expect(await p.evaluate(() => [document.querySelector('.app')!.scrollTop, document.querySelector('.app')!.scrollLeft, visualViewport!.scale])).toEqual([0, 0, 1]);
   await p.evaluate(() => { (window as any).__vol.ui.sheet = null; });
-  // the selection's controls: a bar along the foot of the screen, inside it
-  await p.evaluate(() => { const st = (window as any).__vol.reader.stage.getBoundingClientRect(); (window as any).__vol.ui.chip = { x: st.width - 10, y: 20, sel: { a: [3, 2, 0], z: [3, 2, 20] }, ann: null }; });
+  // the selection's menu, for a selection in a corner: on the screen, clear of its edges
+  // (where a browser's own bars may be)
   const vw = p.viewportSize()!;
-  const r = (await p.locator('.chip-pop').boundingBox())!;
-  expect(r.x).toBeGreaterThanOrEqual(0);
-  expect(r.x + r.width).toBeLessThanOrEqual(vw.width);
-  expect(r.y + r.height).toBeGreaterThan(vw.height - 80);
-  expect(r.y + r.height).toBeLessThanOrEqual(vw.height);
+  for (const [x, y] of [[vw.width - 10, 20], [10, vw.height - 70]]) {
+    await p.evaluate(([x, y]) => { (window as any).__vol.ui.chip = null; (window as any).__vol.ui.chip = { x, y, b: y + 20, native: true, sel: { a: [3, 2, 0], z: [3, 2, 20] }, ann: null }; }, [x, y]);
+    await expect(p.locator('.chip-pop')).toBeVisible();
+    const r = (await p.locator('.chip-pop').boundingBox())!;
+    expect(r.x).toBeGreaterThanOrEqual(10);
+    expect(r.x + r.width).toBeLessThanOrEqual(vw.width - 10);
+    expect(r.y).toBeGreaterThanOrEqual(10);
+    expect(r.y + r.height).toBeLessThanOrEqual(vw.height - 10);
+  }
 });

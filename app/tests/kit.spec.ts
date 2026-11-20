@@ -8,11 +8,11 @@ import { test, expect } from './base';
 test('a chapter on a blog: only that chapter, the page told where the reader is, a way on at the end', async ({ page: p }) => {
   await p.goto('/');
   const f = p.frameLocator('volumen-book iframe');
-  await expect(f.locator('.where')).toBeVisible({ timeout: 30000 });
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   // only Book III: its own title page, then its text
   await p.locator('volumen-book').click({ position: { x: 300, y: 300 } });
   await p.keyboard.press('Space');
-  await expect(f.locator('.where')).toHaveText(/Book III/, { timeout: 10000 });
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
   // reading on to the end: the page hears where the reader is, then the end
   for (let i = 0; i < 40 && !(await p.evaluate(() => (window as any).heard.some((h: any) => h[0] === 'end'))); i++) { await p.keyboard.press('Space'); await p.waitForTimeout(250); }
   const heard = await p.evaluate(() => (window as any).heard);
@@ -32,7 +32,7 @@ test('a chapter on a blog: only that chapter, the page told where the reader is,
 test('the reader runs under its own policy on the host\'s origin: nothing from elsewhere but books', async ({ page: p }) => {
   await p.goto('/');
   const f = p.frameLocator('volumen-book iframe');
-  await expect(f.locator('.where')).toBeVisible({ timeout: 30000 });
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   const policy = await f.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
   expect(policy).toContain("default-src 'self'");
   expect(policy).toContain("object-src 'none'");
@@ -58,7 +58,7 @@ test('a library on a page: a shelf from a list, each book opened in place', asyn
   await expect(shelf.locator('.c.own')).toHaveCount(1);
   await expect(shelf.locator('.c').nth(1)).toHaveText('Tables and Figures');
   await shelf.getByRole('button', { name: /Tables and Figures/ }).click();
-  await expect(p.frameLocator('volumen-library volumen-book iframe').locator('.where')).toBeVisible({ timeout: 30000 });
+  await expect(p.frameLocator('volumen-library volumen-book iframe').getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   await shelf.getByRole('button', { name: '← All books' }).click();
   await expect(shelf.getByRole('button', { name: /Meditations/ })).toBeVisible();
 });
@@ -109,7 +109,7 @@ test('the page hears the reader open and moves it: to a chapter, to a place, int
   expect((await heardOf(p, 'ready'))[0].chapters).toBeGreaterThan(3);
   const f = p.frameLocator('volumen-book iframe');
   await p.evaluate(() => (document.getElementById('b') as any).goTo({ chapter: 3 }));
-  await expect(f.locator('.where')).toHaveText(/Book III/, { timeout: 10000 });
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
   await p.evaluate(() => (document.getElementById('b') as any).goTo({ at: 1 }));
   await expect.poll(() => heardOf(p, 'progress').then(a => a.at(-1)?.at), { timeout: 10000 }).toBe(1);
   // a theme the page made, as Volumen exports one: checked as any theme file is
@@ -126,7 +126,7 @@ test('a page shows as much of the reader as it wants, and turns off what it does
 
   await hostPage(p, '<volumen-book src="/books/meditations.epub" ui="minimal" style="height: 600px"></volumen-book>');
   await ready(p);
-  await expect(f.locator('.where')).toBeVisible();
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   await expect(f.locator('.bar button')).toHaveCount(0);
 
   await hostPage(p, '<volumen-book src="/books/meditations.epub" off="contents settings find" style="height: 600px"></volumen-book>');
@@ -151,7 +151,7 @@ test('across sites: the page hears its reader, and a reader obeys only the page 
   await hostPage(p, `<volumen-book id="b" src="${KIT}/books/meditations.epub" style="height: 600px"></volumen-book>`, 'http://host.test');
   await ready(p);
   await p.evaluate(() => (document.getElementById('b') as any).goTo({ chapter: 3 }));
-  await expect(p.frameLocator('volumen-book iframe').locator('.where')).toHaveText(/Book III/, { timeout: 10000 });
+  await expect(p.frameLocator('volumen-book iframe').getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
   // a frame that names another page: it says nothing to this one, and takes no orders from it
   const said = await p.evaluate(kit => new Promise<number>(res => {
     let n = 0;
@@ -165,9 +165,9 @@ test('across sites: the page hears its reader, and a reader obeys only the page 
   }), KIT);
   expect(said).toBe(0);
   const other = p.frameLocator('#other');
-  await expect(other.locator('.where')).toBeVisible({ timeout: 30000 });
-  const before = await other.locator('.where').textContent();
+  await expect(other.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
+  const before = await other.getByRole('slider', { name: 'Place in the book' }).getAttribute('aria-valuetext');
   await p.evaluate(() => (document.getElementById('other') as HTMLIFrameElement).contentWindow!.postMessage({ volumen: 1, type: 'goto', chapter: 3 }, '*'));
   await p.waitForTimeout(1500);
-  await expect(other.locator('.where')).toHaveText(before!);
+  await expect(other.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', before!);
 });

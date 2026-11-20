@@ -43,8 +43,10 @@ export const ui = $state({
   /** Bumps whenever the columns are composed again: a new measure, a setting, the whole
    *  book's layout arriving (column counts become exact). */
   layoutVersion: 0,
-  /** The chip offered after a selection or on a highlight. */
-  chip: null as null | { x: number; y: number; sel: Sel | null; ann: string | null },
+  /** The menu offered on a selection or a highlight: what it is for, and the box it keeps
+   *  clear of (`x` its middle, `y` its top, `b` its bottom, in the stage's coordinates);
+   *  `native`, a finger's selection, beside which the system shows a menu of its own. */
+  chip: null as null | { x: number; y: number; b?: number; native?: boolean; sel: Sel | null; ann: string | null },
   /** The annotation whose note is being edited. */
   noteFor: '' as string,
   /** A book note shown beside its marker: its index, and where (stage px). */

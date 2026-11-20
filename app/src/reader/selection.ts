@@ -53,41 +53,9 @@ export function pointAt(strip: Strip, node: Node | null, off: number): Point | n
   return [it.sec, +ln.dataset.b!, +ln.dataset.s! + n];
 }
 
-/** A word's ends within its text node. */
-export type Word = { s: [Node, number]; e: [Node, number] };
-
-/** The word around a DOM point, as start and end points within its text node. */
-export function wordAt(node: Node, off: number): Word {
-  if (node.nodeType !== 3) return { s: [node, off], e: [node, off] };
-  const t = (node as Text).data;
-  const w = (c: string | undefined) => !!c && /[\p{L}\p{N}’'-]/u.test(c);
-  let a = off;
-  // over a gap (space, punctuation): hold at the end of the word before it
-  while (a > 0 && !w(t[a]) && !w(t[a - 1])) a--;
-  if (!w(t[a]) && a > 0 && w(t[a - 1])) a--;
-  let z = a;
-  while (a > 0 && w(t[a - 1])) a--;
-  while (z < t.length && w(t[z])) z++;
-  // keep punctuation that closes the word (a full stop, a comma, a closing quote)
-  while (z < t.length && /[.,;:!?”’)]/.test(t[z])) z++;
-  if (z === a) z = Math.min(t.length, a + 1);
-  return { s: [node, a], e: [node, z] };
-}
-
-/** Shows a selection from one word to another, whichever comes first in the text. */
-export function showSel(a: Word, f: Word) {
-  const r = document.createRange();
-  r.setStart(a.s[0], a.s[1]);
-  let before = false;
-  try { before = r.comparePoint(f.s[0], f.s[1]) < 0; } catch { /* different roots */ }
-  const [s, e] = before ? [f.s, a.e] : [a.s, f.e];
-  try { getSelection()?.setBaseAndExtent(s[0], s[1], e[0], e[1]); } catch { /* outside text */ }
-}
-
-/** The text position under a point of the window. */
-export function caretAt(x: number, y: number): { node: Node; off: number } | null {
-  const d = document as any;
-  if (d.caretPositionFromPoint) { const p = d.caretPositionFromPoint(x, y); return p ? { node: p.offsetNode, off: p.offset } : null; }
-  if (d.caretRangeFromPoint) { const r = d.caretRangeFromPoint(x, y); return r ? { node: r.startContainer, off: r.startOffset } : null; }
-  return null;
+/** The browser's selection put away, if it lies in `within` (the book's stage): what a
+ *  highlight made, a note begun, Escape or the page moving end. */
+export function unselect(within: Element | undefined) {
+  const s = getSelection();
+  if (s && !s.isCollapsed && s.anchorNode && within?.contains(s.anchorNode)) s.removeAllRanges();
 }

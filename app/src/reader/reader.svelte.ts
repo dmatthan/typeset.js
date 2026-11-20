@@ -20,6 +20,7 @@ import { hint } from './hints';
 import { spokenPage } from './spoken';
 import { ui, toast } from '../state.svelte';
 import { Marking } from './marking';
+import { unselect } from './selection';
 import { ReaderInput } from './input';
 import { Cursor } from './cursor';
 import { BookImages } from './images';
@@ -300,7 +301,7 @@ export class Reader {
     const M = this.M, st = this.stage.parentElement!.style;
     st.setProperty('--fs', M.fs + 'px'); st.setProperty('--lh', M.lh + 'px');
     st.setProperty('--colW', M.colW + 'px'); st.setProperty('--colH', M.colH + 'px');
-    st.setProperty('--G', M.G + 'px'); st.setProperty('--y0', M.y0 + 'px');
+    st.setProperty('--G', M.G + 'px'); st.setProperty('--y0', M.y0 + 'px'); st.setProperty('--foot', M.foot + 'px');
     st.setProperty('--opsz', String(Math.min(144, Math.max(6, M.fs))));
     st.setProperty('--opsz-s', String(Math.min(144, Math.max(6, M.fs * 0.7))));
     this.applyType();
@@ -561,9 +562,12 @@ export class Reader {
   /** Every frame the sheet moves. */
   private frame(p: number, v: number, glided = false) {
     if (!this.strip) return;
-    // what stands by a line goes with it: pinned notes, a book's note at its marker
+    // what stands by a line goes with it: pinned notes, a book's note at its marker, a
+    // selection and its menu
     if (ui.sideNotes) ui.sideNotes = null;
     if (ui.bookNote) ui.bookNote = null;
+    if (ui.chip) ui.chip = null;
+    unselect(this.stage);
     this.surface.place(p, v, glided, this.motion.target);
     const k = Math.round(p);
     if (k !== this.shownK) {
@@ -714,7 +718,7 @@ export class Reader {
     if (this.visited.size >= 14 && !this.ann?.list.length && !this.marks.size) {
       // (each said only where it holds: hints.ts tells touch screens from the rest)
       hint('select', 'Select a passage to highlight it (1–4) or add a note (N); V picks a paragraph from the keyboard.', 7000);
-      hint('touch-select', 'Hold on a word to select it, drag to take more; then a colour highlights it.', 7000);
+      hint('touch-select', 'Hold on a word to select it; then a colour highlights it, or Note adds a note.', 7000);
     }
   }
 

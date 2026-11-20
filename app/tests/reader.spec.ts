@@ -6,7 +6,10 @@ import { readFileSync } from 'node:fs';
 // The interaction rules that are the point of the reader (reader/input.ts), against the app.
 const cur = (p: Page) => p.evaluate(() => (window as any).__vol.reader.cur as number);
 /** Where the reader is, as the status line under the text names it (its page left out). */
-const runhead = async (p: Page) => (await p.locator('.where').textContent())?.replace(/^Page \d+ of \d+, /, '') ?? '';
+/** Where the reader is, as a screen reader hears it: "Page 12 of 324, III · …". */
+const place = (p: Page) => p.getByRole('slider', { name: 'Place in the book' }).getAttribute('aria-valuetext').then(v => v ?? '');
+/** The chapter the reader is in. */
+const runhead = async (p: Page) => (await place(p)).replace(/^Page \d+ of \d+, /, '');
 const anchor = (p: Page) => p.evaluate(() => { const r = (window as any).__vol.reader; return JSON.stringify(r.strip.anchorAt(r.cur)); });
 const settled = (p: Page) => p.waitForFunction(() => !(window as any).__vol.reader.motion.moving);
 
@@ -57,7 +60,7 @@ test('a chapter chosen in the contents: they go away and the reader travels ther
   await expect(p.locator('.contents .row[aria-current="true"]')).toContainText('III');
   await p.keyboard.press('Escape');
   // a page of the book, counted over the whole of it
-  await expect(p.locator('.where')).toHaveText(/^Page \d+ of \d+, III · /);
+  await expect.poll(() => place(p)).toMatch(/^Page \d+ of \d+, III · /);
   await p.keyboard.press(']');
   await expect.poll(() => runhead(p)).toMatch(/^IV · /);
   await settled(p);
@@ -68,13 +71,57 @@ test('a chapter chosen in the contents: they go away and the reader travels ther
   await p.keyboard.press('Escape'); await expect(p.locator('.contents')).toHaveCount(0);
 });
 
+test('the page number alone while reading; with the bar, a hairline and N of Total, all in the margin below the text', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  await p.mouse.move(640, 400);
+  const bar = p.locator('.bar');
+  await expect(bar).toHaveClass(/away/);
+  const k = await cur(p);
+  // reading: each column's number under it, nothing else
+  const nums = p.locator('.pn');
+  await expect(nums).toHaveText([String(k + 1), String(k + 2)]);
+  const geo = await p.evaluate(() => {
+    const r = (window as any).__vol.reader, M = r.M;
+    const cols = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"], .col[data-k="${r.cur + 1}"]`)].map(c => c.getBoundingClientRect());
+    const text = Math.max(...[...document.querySelectorAll(`.col[data-k="${r.cur}"] .ln, .col[data-k="${r.cur + 1}"] .ln`)].map(l => l.getBoundingClientRect().bottom));
+    return { cols: cols.map(c => c.left + c.width / 2), nums: [...document.querySelectorAll('.pn')].map(n => { const b = n.getBoundingClientRect(); return b.left + b.width / 2; }), text, H: innerHeight, colW: M.colW };
+  });
+  geo.nums.forEach((x, i) => expect(Math.abs(x - geo.cols[i])).toBeLessThan(2));
+  const line = p.getByRole('slider', { name: 'Place in the book' }), where = p.locator('.where');
+  await expect(where).not.toBeVisible();
+  expect(await line.evaluate(e => getComputedStyle(e).opacity)).toBe('0');
+  // a page turned: still only the numbers
+  await p.keyboard.press('ArrowRight'); await settled(p);
+  await expect(nums).toHaveText([String(k + 2), String(k + 3)]);
+  await expect(where).not.toBeVisible();
+  // the bar: the hairline where the numbers were, "N of Total" just below it, both between
+  // the text's last line and the window's foot
+  await p.mouse.move(640, 10);
+  await expect(bar).not.toHaveClass(/away/);
+  const N = await p.evaluate(() => (window as any).__vol.reader.strip.N);
+  await expect(where).toHaveText(`${k + 2}–${k + 3} of ${N}`);
+  await expect(nums.first()).not.toBeVisible();
+  await expect.poll(() => line.evaluate(e => getComputedStyle(e).opacity)).toBe('1');
+  const [lb, wb] = [(await line.boundingBox())!, (await where.boundingBox())!];
+  const track = lb.y + lb.height / 2;
+  expect(track).toBeGreaterThan(geo.text);
+  expect(wb.y).toBeGreaterThan(track);
+  expect(wb.y + wb.height).toBeLessThanOrEqual(geo.H);
+  // the pointer near the foot shows them too (where a mouse goes to drag the line)
+  await p.mouse.move(640, 400);
+  await expect(bar).toHaveClass(/away/);
+  await p.mouse.move(640, geo.H - 20);
+  await expect(where).toBeVisible();
+});
+
 test('a long way through the progress line: dragged, it names the page; let go, the reader goes there', async ({ page: p }) => {
   await openSample(p);
   const line = p.getByRole('slider', { name: 'Place in the book' });
   const N = await p.evaluate(() => (window as any).__vol.reader.strip.N);
   await line.fill(String(Math.floor(N / 2)));
   await expect.poll(() => cur(p)).toBeGreaterThan(N / 2 - 3);
-  await expect(p.locator('.where')).toHaveText(new RegExp(`^Page ${Math.floor(N / 2) + 1} of ${N}, `));
+  await expect.poll(() => place(p)).toMatch(new RegExp(`^Page ${Math.floor(N / 2) + 1} of ${N}, `));
 });
 
 test('a trackpad moves the sheet directly; its momentum tail is taken over and lands on a column', async ({ page: p }) => {
@@ -372,6 +419,8 @@ test('a mouse selects as in any document: the menu above, 2 highlights it, acros
   const chosen = await p.evaluate(() => getSelection()!.toString());
   expect(chosen.length).toBeGreaterThan(10);
   await expect(p.locator('.chip-pop')).toBeVisible();
+  // (copying a selection is the system's; the menu does not offer it)
+  expect(await p.locator('.chip-pop').getByRole('button', { name: 'Copy' }).count()).toBe(0);
   await p.keyboard.press('2');
   await expect(p.locator('.chip-pop')).toHaveCount(0);
   const ann = await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => ({ quote: a.quote, color: a.color })));
@@ -380,6 +429,20 @@ test('a mouse selects as in any document: the menu above, 2 highlights it, acros
   expect(ann[0].color).toBe(2);
   expect(ann[0].quote).toContain(chosen.trim());
   expect(await p.evaluate(() => getSelection()!.isCollapsed)).toBe(true);
+  // a highlight's own menu copies it with the book's reference
+  await p.locator(`.col[data-k="${k}"] mark.hl`).first().click();
+  await expect(p.locator('.chip-pop').getByRole('button', { name: 'Copy' })).toBeVisible();
+  await p.keyboard.press('Escape');
+  // the page moving takes the menu and the selection with it
+  await p.mouse.move(box.x + 4, y); await p.mouse.down();
+  await p.mouse.move(box.x + box.width * 0.5, y, { steps: 6 }); await p.mouse.up();
+  await expect(p.locator('.chip-pop')).toBeVisible();
+  await p.mouse.wheel(0, 100);
+  await expect(p.locator('.chip-pop')).toHaveCount(0);
+  expect(await p.evaluate(() => getSelection()!.isCollapsed)).toBe(true);
+  await settled(p);
+  await p.keyboard.press('ArrowLeft'); await settled(p);
+  expect(await cur(p)).toBe(k);
   // from the foot of one column to the head of the next: the text between, in order, even
   // when the earlier column was built after the later one (arriving there backwards)
   await p.evaluate(k => (window as any).__vol.reader.jump(k + 8), k); await settled(p);

@@ -30,19 +30,20 @@ async function still(p: Page) {
   });
 }
 
-/** A word in the column in view selected as the hand would: a double click, or a finger
- *  held on it. */
+/** A word in the column in view selected as the hand would: a double click, or (a touch
+ *  screen's selection being the system's own) the selection the system would make. */
 async function selectWord(p: Page, touch: boolean, line = 4) {
   const k = await p.evaluate(() => (window as any).__vol.reader.cur);
   const lns = p.locator(`.col[data-k="${k}"] .ln[data-b]`);
-  const b = (await lns.nth(Math.min(line, (await lns.count()) - 1)).boundingBox())!;
-  const [x, y] = [b.x + b.width * 0.4, b.y + b.height / 2];
-  if (!touch) { await p.mouse.dblclick(x, y); }
-  else await p.evaluate(async ({ x, y }) => {
-    const st = document.querySelector('.stage')!;
-    const ev = (type: string) => st.dispatchEvent(new PointerEvent(type, { pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true, buttons: type === 'pointerup' ? 0 : 1 }));
-    ev('pointerdown'); await new Promise(r => setTimeout(r, 650)); ev('pointerup');
-  }, { x, y });
+  const n = Math.min(line, (await lns.count()) - 1);
+  if (!touch) {
+    const b = (await lns.nth(n).boundingBox())!;
+    await p.mouse.dblclick(b.x + b.width * 0.4, b.y + b.height / 2);
+  } else await lns.nth(n).evaluate(ln => {
+    const t = [...ln.childNodes].find(c => c.nodeType === 3 && /\S+\s+\S+/.test(c.textContent!)) as Text;
+    const w = [...t.data.matchAll(/\S+/g)];
+    getSelection()!.setBaseAndExtent(t, w[0].index!, t, w[1].index! + w[1][0].length);
+  });
   await expect(p.locator('.chip-pop')).toBeVisible();
 }
 
@@ -88,8 +89,11 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
       const r = (window as any).__vol.reader;
       for (let k = 12; k < r.strip.N; k++) { r.jump(k); if (document.querySelectorAll(`.col[data-k="${k}"] .ln[data-b]`).length >= 8) return; }
     });
-    // (the head and the page line have no paper of their own: they keep off the book's lines)
+    // reading, once the bar has gone (the head and the page's number have no paper of their
+    // own: they keep off the book's lines)
     const lines = '.col .ln';
+    if (!touch) await p.mouse.move(640 * ((use as any).viewport?.width ?? 1280) / 1280, 300);
+    await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
     await check('reader', ['.bar', '.progress', '.stage'], lines);
     const st = (await p.locator('.stage').boundingBox())!;
     // (a finger's tap in the middle shows the bar once it has gone after the opening)
