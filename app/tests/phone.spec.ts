@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { test, expect, openFile, firstCol } from './fixtures';
 
 // A phone: one column as a spread, and the touch conventions (the outer fifth of the page
 // turns it, the middle shows the bar); key hints hidden.
@@ -18,6 +18,53 @@ async function open(p: Page) {
   await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
   await p.evaluate(() => (window as any).__vol.reader.jump(10)); await settled(p);
 }
+
+test('a phone: a long press selects a word, a drag takes more word by word; a note is written in a sheet', async ({ page: p }) => {
+  await open(p);
+  const k = await cur(p);
+  const lines = p.locator(`.col[data-k="${k}"] .ln[data-b]`);
+  const [a, z] = [(await lines.nth(4).boundingBox())!, (await lines.nth(5).boundingBox())!];
+  // a finger held on a word, then drawn down a line, then lifted
+  await p.evaluate(async ({ x, y, y2 }) => {
+    const st = document.querySelector('.stage')!;
+    const ev = (type: string, cy: number) => st.dispatchEvent(new PointerEvent(type, { pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: cy, bubbles: true, buttons: type === 'pointerup' ? 0 : 1 }));
+    ev('pointerdown', y);
+    await new Promise(r => setTimeout(r, 650));
+    for (let i = 1; i <= 6; i++) { ev('pointermove', y + ((y2 - y) * i) / 6); await new Promise(r => requestAnimationFrame(r)); }
+    ev('pointerup', y2);
+  }, { x: a.x + a.width * 0.4, y: a.y + a.height / 2, y2: z.y + z.height / 2 });
+  await expect(p.locator('.chip-pop')).toBeVisible();
+  expect(await cur(p)).toBe(k);
+  // whole words, from the one held to the one under the finger a line below
+  const sel = await p.evaluate(() => { const w = window as any; return w.__vol.reader.marking.selText(w.__vol.ui.chip.sel) as string; });
+  expect(sel).toMatch(/^[\p{L}“‘(]/u);
+  expect(sel.split(/\s+/).length).toBeGreaterThan(4);
+  // N: the note's sheet, the passage quoted above the field; Done keeps it
+  await p.locator('.chip-pop').getByRole('button', { name: /note/i }).tap();
+  const sheet = p.locator('.sheet');
+  await expect(sheet.locator('.q')).toContainText(sel.trim().slice(0, 12));
+  await sheet.getByRole('textbox', { name: 'Your note' }).fill('From a phone.');
+  await sheet.getByRole('button', { name: 'Done' }).tap();
+  await expect(sheet).toHaveCount(0);
+  expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.note))).toEqual(['From a phone.']);
+});
+
+test('a phone: a picture tapped opens large and stays (the tap\'s own click does not close it)', async ({ page: p }) => {
+  test.setTimeout(120000);
+  await openFile(p, '../bench/fixtures/beagle.epub', 'Beagle');
+  const k = await firstCol(p, 'figure.img');
+  await settled(p);
+  // the click a touch screen sends after the tap, waited for
+  const clicked = p.evaluate(() => new Promise<void>(r => addEventListener('click', () => r(), { capture: true, once: true })));
+  await p.locator(`.col[data-k="${k}"] figure.img img`).first().tap();
+  await clicked;
+  await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await expect(p.locator('.lb.shown')).toBeVisible();
+  expect(await p.evaluate(() => !!(window as any).__vol.ui.lightbox)).toBe(true);
+  // a tap on it puts it away
+  await p.locator('.lb').tap();
+  await expect(p.locator('.lb')).toHaveCount(0);
+});
 
 test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; no key hints', async ({ page: p }) => {
   await open(p);

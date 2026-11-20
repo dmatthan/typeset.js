@@ -91,7 +91,7 @@ export class Contents {
   buildNotebook() {
     const r = this.r, strip = r.strip;
     if (!strip) return;
-    cs.notes = r.notebook().map(e => ({ ...e, k: strip.resolve(e.at) }));
+    cs.notes = r.marking.notebook().map(e => ({ ...e, k: strip.resolve(e.at) }));
   }
 
   /** The notebook as Markdown, grouped by chapter, that can be put back on the book. */

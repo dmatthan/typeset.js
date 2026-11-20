@@ -17,6 +17,11 @@ export const ui = $state({
   sheet: null as Sheet,
   /** The contents and highlights are showing beside the text. */
   contents: false,
+  /** The notes' rail beside the text: asked for (kept), and showing (room for it). */
+  rail: false,
+  railed: false,
+  /** A highlight whose note is being written in the rail (its id). */
+  composing: '' as string,
   toast: '',
   toastOn: false,
   busy: '',
@@ -35,7 +40,8 @@ export const ui = $state({
   welcome: null as null | { by: string },
   /** A newer draft at the link the open book came by (its version): NewDraftSheet. */
   newDraft: null as null | number,
-  /** Bumps when the whole book's layout arrives (column counts become exact). */
+  /** Bumps whenever the columns are composed again: a new measure, a setting, the whole
+   *  book's layout arriving (column counts become exact). */
   layoutVersion: 0,
   /** The chip offered after a selection or on a highlight. */
   chip: null as null | { x: number; y: number; sel: Sel | null; ann: string | null },

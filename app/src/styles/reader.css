@@ -20,7 +20,7 @@
    and only composited while it moves (without this WebKitGTK repainted them every frame) */
 .curtain { position: absolute; top: 0; bottom: 0; pointer-events: none; will-change: transform; transform: translateZ(0); }
 .curtain.l { left: 0; width: var(--fl); background: linear-gradient(to left, transparent, var(--paper) 14px); }
-.curtain.r { right: 0; width: var(--fr); background: linear-gradient(to right, transparent, var(--paper) 14px); }
+.curtain.r { left: var(--fr); right: 0; background: linear-gradient(to right, transparent, var(--paper) 14px); }
 
 .ln {
   --o: var(--opsz); --w: var(--wb, 400);

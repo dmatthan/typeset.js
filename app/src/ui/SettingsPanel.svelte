@@ -291,7 +291,7 @@
   .faces button { height: 34px; padding: 0 10px; border-radius: 9px; display: flex; align-items: center; justify-content: space-between; font-size: 16px; color: var(--ink); }
   .faces button[aria-checked="true"] { background: var(--sheet); box-shadow: 0 0 0 1px var(--rule); }
   :global(html:not(.touchui)) .faces button:not([aria-checked="true"]):hover { background: var(--hover); }
-  .faces .own { font: 400 12px/1 var(--f-ui); color: var(--ink-3); }
+  .faces .own { font: 400 13px/1 var(--f-ui); color: var(--ink-3); }
   .row.sl { display: grid; grid-template-columns: 96px minmax(0, 1fr); }
   .sl input { width: 100%; margin: 0; accent-color: var(--accent); }
   :global(html:not(.touchui)) .row.nav:hover, :global(html:not(.touchui)) .row.tg:hover { background: var(--hover); }

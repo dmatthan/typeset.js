@@ -21,10 +21,18 @@ await shot('04-reader');
 const box = await p.locator('.stage').boundingBox();
 await p.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2); await shot('05-bar');
 await V(() => { window.__vol.ui.sheet = 'settings'; }); await shot('06-settings');
-for (const [i, t] of ['Layout', 'Text', 'Reading'].entries()) {
-  const r = p.locator('.panel .row.nav').nth(i); if (await r.count()) { await r.tap(); await shot('07-settings-' + i); await p.locator('.panel .back').first().tap().catch(() => {}); }
-}
+await p.locator('.panel .row.nav', { hasText: 'Style' }).tap(); await shot('07-style');
+await p.locator('.panel .back').tap();
 await V(() => { window.__vol.ui.sheet = 'help'; }); await shot('08-help');
+// a note on the first full line in view: the sheet with the passage quoted
+await V(() => {
+  const r = window.__vol.reader, ln = document.querySelectorAll(`.col[data-k="${r.cur}"] .ln[data-b]`)[3];
+  const b = r.book.sections[r.strip.itemAt(r.cur).sec].blocks[+ln.dataset.b], s0 = +ln.dataset.s;
+  const a = r.ann.add(b.key, s0, Math.min(b.t.length, s0 + 60), 2, '');
+  r.marking.refreshSection(r.strip.itemAt(r.cur).sec);
+  window.__vol.ui.noteFor = a.id; window.__vol.ui.sheet = 'note';
+});
+await shot('09-note');
 await V(() => { window.__vol.ui.sheet = 'send'; }); await shot('10-send');
 await V(() => { window.__vol.ui.sheet = null; window.__vol.contents.open(); }); await p.waitForTimeout(500); await shot('11-contents');
 await V(() => window.__vol.contents.setTab('highlights')); await shot('12-highlights');

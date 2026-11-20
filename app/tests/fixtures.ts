@@ -1,3 +1,4 @@
+import { type Page } from '@playwright/test';
 import { test as base, expect } from './base';
 
 /** The tests read a book whose text they know (The Man Who Was Thursday, the sample
@@ -10,3 +11,21 @@ export const test = base.extend({
   },
 });
 export { expect };
+
+/** A book from the fixtures opened (added to the library first when it is not there),
+ *  laid out whole. */
+export async function openFile(p: Page, file: string, title: string) {
+  await p.goto('/');
+  await p.waitForSelector('.book[data-id]');
+  const book = p.locator('.book[data-id]', { hasText: title }).first();
+  if (!(await book.count())) await p.setInputFiles('input[type=file]', file);
+  await book.waitFor({ timeout: 90000 });
+  await book.click();
+  await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
+}
+/** The first column from the fourth on that shows `sel` (a note's marker, a picture). */
+export const firstCol = (p: Page, sel: string) => p.evaluate(sel => {
+  const r = (window as any).__vol.reader, s = r.strip;
+  for (let k = 3; k < s.N; k++) { r.jump(k); if (document.querySelector(`.col[data-k="${k}"] ${sel}`)) return k; }
+  return -1;
+}, sel);

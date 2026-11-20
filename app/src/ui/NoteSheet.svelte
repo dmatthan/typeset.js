@@ -13,24 +13,24 @@
   // svelte-ignore state_referenced_locally
   const where = a ? chapTitle(reader.book!, reader.strip!.keyIndex.get(a.key)?.[0] ?? 0) : '';
 
-  function done() { if (a) reader.setNote(a.id, text.trim()); ui.sheet = null; ui.noteFor = ''; }
-  function removeAll() { if (a) reader.unhighlight(a.id); ui.sheet = null; ui.noteFor = ''; }
+  function done() { if (a) reader.marking.setNote(a.id, text.trim()); ui.sheet = null; ui.noteFor = ''; }
+  function removeAll() { if (a) reader.marking.unhighlight(a.id); ui.sheet = null; ui.noteFor = ''; }
   function keys(e: KeyboardEvent) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); done(); } }
 </script>
 
 <Sheet label="Note" onclose={done} wide>
   <div><p class="eyebrow">{where}</p><h2>Note</h2></div>
-  {#if a}<blockquote class="q h{a.color}">{a.quote}</blockquote>{/if}
-  <textarea bind:this={ta} bind:value={text} onkeydown={keys} rows="6" placeholder="Your thoughts. Markdown is fine."></textarea>
+  {#if a}<blockquote class="q">“{a.quote}”</blockquote>{/if}
+  <textarea bind:this={ta} bind:value={text} onkeydown={keys} rows="5" placeholder="Add a note" aria-label="Your note"></textarea>
   <div class="acts two">
-    <button class="btn quiet" onclick={removeAll}>Remove highlight</button>
+    <button class="btn quiet" onclick={removeAll}>Remove</button>
     <button class="btn primary" onclick={done}>Done</button>
   </div>
 </Sheet>
 
 <style>
-  .q { margin: 0; padding: 12px 14px; border-radius: var(--r-m); font: 400 17px/1.55 var(--f-book); color: var(--ink); max-height: 9em; overflow: auto; }
-  .q.h1 { background: var(--hl1); } .q.h2 { background: var(--hl2); } .q.h3 { background: var(--hl3); } .q.h4 { background: var(--hl4); }
-  textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 8em; border: 1.5px solid var(--rule); border-radius: var(--r-m); background: var(--surface); color: var(--ink); font: 500 var(--t-m)/1.55 var(--f-ui); padding: 12px 14px; outline: none; }
-  textarea:focus { border-color: var(--accent); }
+  /* the passage, quoted: the book's face, quiet, no fill or rule */
+  .q { margin: 0; font: italic 400 var(--t-m)/1.5 var(--f-book); color: var(--ink-2); max-height: 9em; overflow: auto; }
+  textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 7em; border: 0; border-radius: var(--r-m); background: var(--read); color: var(--ink); font: 400 var(--t-m)/1.5 var(--f-ui); padding: 12px 14px; outline: none; }
+  textarea:focus { box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent); }
 </style>

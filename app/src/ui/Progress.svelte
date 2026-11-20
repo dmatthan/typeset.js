@@ -22,8 +22,8 @@
 </div>
 
 <style>
-  .progress { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
-  .where { margin: 0; max-width: calc(100% - 32px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 500 12px/1.3 var(--f-ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .progress { position: absolute; left: 0; right: var(--rail, 0px); bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+  .where { margin: 0; max-width: calc(100% - 32px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 500 13px/1.3 var(--f-ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
   input { width: min(280px, 60%); height: 16px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; pointer-events: auto; opacity: 0; transition: opacity .3s ease; }
   .shown input, input:focus-visible { opacity: 1; }
   /* the line: faint, read up to where the reader is; the handle only while it is held, hovered or focused */

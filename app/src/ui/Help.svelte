@@ -30,12 +30,12 @@
       ['[  ]', 'The next chapter, or back to this one’s start (then the one before)'],
       ['Ctrl+F  /', 'Find in the book: Enter for the next match, Shift+Enter the one before, arrows walk the list, Esc ends'],
       ['N  Shift+N', 'With the find field put away: next or previous match (Esc ends the search)'],
-      ['Hold on a word', 'Selects it; drag to take more, word by word'],
-      ['then 1–4  N  C', 'Highlight in a colour, add a note, copy with reference'],
+      ['Drag across text', 'Selects it, as anywhere; a menu above it'],
+      ['then 1–4  N  C', 'Highlight in a colour, add a note (in the notes’ rail when it shows), copy with reference'],
       ['then 5–8', 'In a book sent to you: loved, confused, slow, a typo (for its writer)'],
       ['V', 'Choose a paragraph with J and K: H highlights it, N adds a note, O opens its image, footnote or link'],
       ['Click a note marker', 'The note beside it; G goes to where it is printed'],
-      [';', 'Your notes in view, each beside its line (a dot marks them; hover one to see it alone)'],
+      [';', 'The notes beside the text, each level with its line, the text in one column; Ctrl+Enter saves one being written. A narrow window shows those in view over the text (a dot marks them; hover one to see it alone)'],
       ['M, Highlights', 'Send my notes: to the writer, for a book that came by link; otherwise a small file for whoever sent it. Notes from readers arrive by themselves on books you shared by link, or drop their file on the library or the book; Highlights’ Readers’ side gathers them'],
       ['Click an image', 'Shown large; Esc puts it back'],
       ['S', 'Themes and reading settings'],
@@ -91,7 +91,7 @@
     {/each}
   </div>
   <p class="hint keys-only">Tapping the text does nothing on purpose. A trackpad or a drag moves the sheet under your hand; let go and it settles on the nearest column. A mouse wheel moves one column per notch.</p>
-  <div class="acts"><button class="btn" data-autofocus onclick={onclose}>Done <kbd>Esc</kbd></button></div>
+  <div class="acts"><button class="btn" data-autofocus onclick={onclose} title="Done (Esc)">Done</button></div>
 </Sheet>
 
 <style>

@@ -84,6 +84,11 @@
     </div>
     <div class="runhead">{ui.title}</div>
     <div class="side right">
+      {#if features.highlights && embedOpts.ui === 'full' && !ui.phone}
+      <button class="ibtn" onclick={() => reader.toggleNotes()} aria-pressed={ui.rail} aria-label="Notes beside the text" title="Notes beside the text (;)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H10l-4 4v-4H5z" /></svg>
+      </button>
+      {/if}
       {#if features.contents && embedOpts.ui === 'full'}
       <button class="ibtn" onclick={() => contents.toggle('contents')} aria-pressed={ui.contents} aria-label="Contents" title="Contents (M)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="0.9" /><circle cx="4.5" cy="12" r="0.9" /><circle cx="4.5" cy="18" r="0.9" /></svg>
@@ -103,7 +108,7 @@
     <div class="curtain r"></div>
     <Chip {reader} bind:this={chip} />
     {#if ui.bookNote && reader.book}<BookNote {reader} />{/if}
-    {#if ui.sideNotes && reader.book}<SideNotes {reader} />{/if}
+    {#if (ui.sideNotes || ui.railed) && reader.book}<SideNotes {reader} />{/if}
   </div>
   {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} />{/if}
   {#if ui.lightbox && reader.book}<Lightbox {reader} />{/if}
@@ -122,7 +127,8 @@
   .bar { position: absolute; top: env(safe-area-inset-top); left: env(safe-area-inset-left); right: env(safe-area-inset-right); z-index: 5; height: 52px; will-change: transform; transform: translateZ(0); display: grid; grid-template-columns: 1fr minmax(0, auto) 1fr; align-items: center; padding-inline: 10px; gap: 8px; color: var(--ink-3); }
   .side { display: flex; align-items: center; gap: 4px; transition: opacity .3s ease; }
   .away .side { opacity: 0; pointer-events: none; }
-  .runhead { transition: opacity .3s ease; }
+  /* (over the text, not the window, when the notes' rail is beside it) */
+  .runhead { transition: opacity .3s ease; translate: calc(var(--rail, 0px) / -2); }
   .away .runhead { opacity: .7; }
   .right { justify-content: flex-end; }
   .ibtn {

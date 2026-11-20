@@ -161,8 +161,11 @@ export class Surface {
     el.dataset.k = String(k);
     el.style.left = `${(k - this.base) * src.M.P}px`;
     el.innerHTML = src.column(k);
+    // in reading order among the others, so a selection across columns runs as the text does
+    let next: HTMLElement | null = null, nk = Infinity;
+    for (const [j, c] of this.cols) if (j > k && j < nk) { nk = j; next = c; }
     this.cols.set(k, el);
-    this.track.append(el);
+    this.track.insertBefore(el, next);
     fitColumn(el, src.M.fs);
   }
 
@@ -176,10 +179,17 @@ export class Surface {
   }
 
   /** Re-renders everything (after a relayout). */
-  reset(pos: number) {
+  /** No columns: the page's and the record of them go together, and nothing is built at
+   *  rest after (a book closing). */
+  clear() {
+    this.quiet();
     // (all at once: one change to the page, not one per column)
     this.track.replaceChildren();
     this.cols.clear();
+  }
+
+  reset(pos: number) {
+    this.clear();
     this.base = Math.round(pos);
     this.place(pos);
   }

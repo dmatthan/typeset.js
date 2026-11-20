@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { test, expect, SAMPLE } from './fixtures';
+import { test, expect, SAMPLE, openFile, firstCol } from './fixtures';
 import { inflateRawSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 
@@ -104,13 +104,14 @@ test('a mouse wheel notch is one turn', async ({ page: p }) => {
 });
 
 test('a drag moves the sheet one to one and settles on the column nearest where it let go', async ({ page: p }) => {
+  // (a mouse takes the sheet from beside the text; in the text it selects)
   await openSample(p);
   await toChapterOne(p);
   const k0 = await cur(p);
   const P = await p.evaluate(() => (window as any).__vol.reader.M.P);
   const drag = async (cols: number) => {
-    await p.mouse.move(900, 500); await p.mouse.down();
-    for (let i = 1; i <= 10; i++) { await p.mouse.move(900 - (i * P * cols) / 10, 500); await p.waitForTimeout(16); }
+    await p.mouse.move(1260, 500); await p.mouse.down();
+    for (let i = 1; i <= 10; i++) { await p.mouse.move(1260 - (i * P * cols) / 10, 500); await p.waitForTimeout(16); }
     const mid = await p.evaluate(() => (window as any).__vol.reader.motion.p);
     await p.waitForTimeout(120);                       // the hand pauses, then lets go
     await p.mouse.up();
@@ -133,8 +134,8 @@ test('with less motion, a tap moves at once and a drag let go finishes briefly r
   expect(await p.evaluate(() => (window as any).__vol.reader.motion.p)).toBe(k0 + 1);
   // a drag of 0.7 let go: carried to the next column over a few frames, not in one
   const P = await p.evaluate(() => (window as any).__vol.reader.M.P);
-  await p.mouse.move(900, 500); await p.mouse.down();
-  for (let i = 1; i <= 10; i++) { await p.mouse.move(900 - (i * P * 0.7) / 10, 500); await p.waitForTimeout(16); }
+  await p.mouse.move(1260, 500); await p.mouse.down();
+  for (let i = 1; i <= 10; i++) { await p.mouse.move(1260 - (i * P * 0.7) / 10, 500); await p.waitForTimeout(16); }
   // every frame's position from just before the hand lets go
   await p.evaluate(() => { const m = (window as any).__vol.reader.motion, out: number[] = []; (window as any).trail = out; const f = () => { out.push(m.p); if (out.length < 40) requestAnimationFrame(f); }; requestAnimationFrame(f); });
   await p.mouse.up();
@@ -175,15 +176,14 @@ test('holding a key glides and settles on a whole column', async ({ page: p }) =
   expect(pos).toBe(k1);
 });
 
-test('a long press selects the word under it; V then H highlights a paragraph', async ({ page: p }) => {
+test('a double click selects the word under it; V then H highlights a paragraph', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
   const k = await cur(p);
   const box = await p.locator(`.col[data-k="${k}"] .ln[data-b]`).nth(8).boundingBox();
-  await p.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await p.mouse.down(); await p.waitForTimeout(500); await p.mouse.up();
+  await p.mouse.dblclick(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await expect(p.locator('.chip-pop')).toBeVisible();
-  const word = await p.evaluate(() => { const r = (window as any).__vol.reader, c = (window as any).__vol.ui.chip; return r.selText(c.sel); });
+  const word = await p.evaluate(() => { const r = (window as any).__vol.reader, c = (window as any).__vol.ui.chip; return r.marking.selText(c.sel); });
   expect(word).toMatch(/^[\p{L}’'-]+[.,;:!?”’)]*$/u);         // one whole word (with its closing punctuation)
   await p.keyboard.press('Escape');
   await p.keyboard.press('v'); await p.keyboard.press('h'); await p.keyboard.press('Escape');
@@ -358,6 +358,47 @@ test('in a book sent by link, the chip offers reactions for its writer; 5 to 8 g
   expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.react ?? null))).toEqual([null]);
 });
 
+test('a mouse selects as in any document: the menu above, 2 highlights it, across columns too', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  const k = await cur(p);
+  // a drag along a line, at once (no hold): the browser's own selection, and the sheet stays
+  const ln = p.locator(`.col[data-k="${k}"] .ln[data-b]`).nth(4);
+  const box = (await ln.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await p.mouse.move(box.x + 4, y); await p.mouse.down();
+  await p.mouse.move(box.x + box.width * 0.6, y, { steps: 8 }); await p.mouse.up();
+  expect(await cur(p)).toBe(k);
+  const chosen = await p.evaluate(() => getSelection()!.toString());
+  expect(chosen.length).toBeGreaterThan(10);
+  await expect(p.locator('.chip-pop')).toBeVisible();
+  await p.keyboard.press('2');
+  await expect(p.locator('.chip-pop')).toHaveCount(0);
+  const ann = await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => ({ quote: a.quote, color: a.color })));
+  // (a highlight takes whole words: a word cut short at either end is taken whole)
+  expect(ann).toHaveLength(1);
+  expect(ann[0].color).toBe(2);
+  expect(ann[0].quote).toContain(chosen.trim());
+  expect(await p.evaluate(() => getSelection()!.isCollapsed)).toBe(true);
+  // from the foot of one column to the head of the next: the text between, in order, even
+  // when the earlier column was built after the later one (arriving there backwards)
+  await p.evaluate(k => (window as any).__vol.reader.jump(k + 8), k); await settled(p);
+  for (let i = 0; i < 8; i++) { await p.keyboard.press('ArrowLeft'); await settled(p); }
+  expect(await cur(p)).toBe(k);
+  const [last, first] = [p.locator(`.col[data-k="${k}"] .ln[data-b]`).last(), p.locator(`.col[data-k="${k + 1}"] .ln[data-b]`).first()];
+  const [a, z] = [(await last.boundingBox())!, (await first.boundingBox())!];
+  await p.mouse.move(a.x + a.width * 0.5, a.y + a.height / 2); await p.mouse.down();
+  await p.mouse.move(z.x + z.width * 0.4, z.y + z.height / 2, { steps: 10 }); await p.mouse.up();
+  const across = await p.evaluate(() => getSelection()!.toString());
+  const [tail, head] = await Promise.all([last.textContent(), first.textContent()]);
+  const i = across.indexOf(tail!.trim().slice(-6)), j = across.indexOf(head!.trim().slice(0, 6));
+  expect(i, across).toBeGreaterThanOrEqual(0);
+  expect(j, across).toBeGreaterThan(i);
+  await expect(p.locator('.chip-pop')).toBeVisible();
+  await p.keyboard.press('Escape');
+  await expect(p.locator('.chip-pop')).toHaveCount(0);
+});
+
 test('hold then drag selects; 2 highlights; N adds a note; the notebook lists and filters it', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
@@ -371,7 +412,7 @@ test('hold then drag selects; 2 highlights; N adds a note; the notebook lists an
   await p.mouse.up();
   await expect(p.locator('.chip-pop')).toBeVisible();
   // the selection grew word by word: it starts and ends on word boundaries
-  const sel = await p.evaluate(() => { const r = (window as any).__vol.reader, c = (window as any).__vol.ui.chip; return r.selText(c.sel); });
+  const sel = await p.evaluate(() => { const r = (window as any).__vol.reader, c = (window as any).__vol.ui.chip; return r.marking.selText(c.sel); });
   expect(sel).toMatch(/^[\p{L}“‘]/u);
   expect(sel).toMatch(/[\p{L}’”.,;:!?]$/u);
   await p.keyboard.press('2');
@@ -617,6 +658,8 @@ test('the library notebook lists every book\'s entries, filters, and opens a boo
 });
 
 test('notes beside their lines: a dot in the gutter, ; shows them all, hover shows one, a move puts them away', async ({ page: p }) => {
+  // a window with no room for the notes' rail: the cards lie over the text
+  await p.setViewportSize({ width: 960, height: 820 });
   await openSample(p);
   await toChapterOne(p);
   await p.keyboard.press('ArrowRight'); await settled(p);
@@ -629,7 +672,7 @@ test('notes beside their lines: a dot in the gutter, ; shows them all, hover sho
       const ln = lines[i], b = blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
       r.ann.add(b.key, s0, Math.min(b.t.length, s0 + 30), 1, note);
     }
-    r.refreshSection(sec);
+    r.marking.refreshSection(sec);
   });
   const k = await cur(p);
   const dots = p.locator(`.col[data-k="${k}"] .nd`);
@@ -640,8 +683,8 @@ test('notes beside their lines: a dot in the gutter, ; shows them all, hover sho
     return { right: col.right, dots: [...document.querySelectorAll(`.col[data-k="${k}"] .nd`)].map(d => d.getBoundingClientRect().left) };
   }, k);
   expect(geo.dots.every(x => x > geo.right)).toBe(true);
-  // ; pins both; a spread leaves no room beside it, so each lies over its column below its
-  // highlight, inside the window; a move puts them away
+  // ; pins both, each over its column below its highlight, inside the window; a move puts
+  // them away
   await p.keyboard.press(';');
   const cards = p.locator('.sn');
   await expect(cards).toHaveCount(2);
@@ -660,6 +703,123 @@ test('notes beside their lines: a dot in the gutter, ; shows them all, hover sho
   await cards.first().click();
   await expect(p.locator('.sheet')).toBeVisible();
   expect(await cur(p)).toBe(before);
+});
+
+/** The whole book laid out again (a setting, the rail) and at rest. */
+const laidOut = async (p: Page) => { await p.evaluate(() => (window as any).__vol.reader.whole); await settled(p); };
+
+/** Two noted highlights near the head of the column in view. */
+async function twoNotes(p: Page) {
+  await p.evaluate(() => {
+    const r = (window as any).__vol.reader;
+    const lines = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
+    const sec = r.strip.itemAt(r.cur).sec, blocks = r.book.sections[sec].blocks;
+    for (const [i, note] of [[2, 'First thought.'], [6, 'A second, longer thought about the passage.']] as const) {
+      const ln = lines[i], b = blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
+      r.ann.add(b.key, s0, Math.min(b.t.length, s0 + 30), 1, note);
+    }
+    r.marking.refreshSection(sec);
+  });
+}
+
+test('the notes rail: ; sets the text in one column with every note in view beside its line, kept until put away', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  expect(await p.evaluate(() => (window as any).__vol.ui.cols)).toBe(2);
+  await p.keyboard.press(';');
+  await expect.poll(() => p.evaluate(() => (window as any).__vol.ui.cols)).toBe(1);
+  await laidOut(p);
+  await expect(p.locator('.rail')).toBeVisible();
+  const cards = p.locator('.sn');
+  await expect(cards).toHaveCount(0);
+  await twoNotes(p);
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toContainText('First thought.');
+  await expect(cards.nth(1)).toContainText('A second, longer thought');
+  // each in the rail, past the text, level with its line (or below the card above it)
+  const level = () => p.evaluate(() => {
+    const r = (window as any).__vol.reader;
+    const el = document.querySelector(`.col[data-k="${r.cur}"]`)!, col = el.getBoundingClientRect();
+    const inView = el.querySelectorAll('.nd').length;
+    let below = -Infinity;
+    return { inView, cards: [...document.querySelectorAll<HTMLElement>('.sn')].map(c => {
+      const card = c.getBoundingClientRect(), dot = document.querySelector(`.col[data-k="${r.cur}"] .nd[data-a="${CSS.escape(c.dataset.a!)}"]`)?.getBoundingClientRect();
+      const ok = !!dot && card.left > col.right + r.M.lh && (Math.abs(card.top - (dot.top + dot.height / 2 - r.M.lh / 2)) < 2 || card.top >= below);
+      below = card.bottom;
+      return ok;
+    }) };
+  });
+  expect(await level()).toEqual({ inView: 2, cards: [true, true] });
+  // set again at another size, on the same page (the chapter's first): every note then in
+  // view has its card, level with its line
+  const k = await cur(p);
+  await p.evaluate(() => { const w = window as any; w.__vol.settings.size = 18; return w.__vol.reader.settingsChanged('layout'); });
+  await laidOut(p);
+  expect(await cur(p)).toBe(k);
+  await expect.poll(async () => { const l = await level(); return l.cards.length === l.inView && l.cards.every(Boolean); }).toBe(true);
+  // one's own note is edited in its card
+  await cards.nth(0).locator('.txt').click();
+  const field = cards.nth(0).locator('textarea');
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('First thought.');
+  await field.press('End'); await field.pressSequentially(' Then a second.');
+  await field.press('Control+Enter');
+  await expect(field).toHaveCount(0);
+  expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.note))).toContain('First thought. Then a second.');
+  // kept: another visit opens with it, and ; puts it away again, the spread back
+  expect(await p.evaluate(() => (window as any).__vol.kv.get('rail'))).toBe(true);
+  await p.keyboard.press(';');
+  await expect.poll(() => p.evaluate(() => (window as any).__vol.ui.cols)).toBe(2);
+  await laidOut(p);
+  await expect(p.locator('.rail')).toHaveCount(0);
+  await expect(cards).toHaveCount(0);
+  expect(await p.evaluate(() => (window as any).__vol.kv.get('rail'))).toBe(false);
+});
+
+test('a note is written beside its passage where the rail shows: N in the menu, Save or Cancel', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  await p.keyboard.press(';');
+  await expect.poll(() => p.evaluate(() => (window as any).__vol.ui.cols)).toBe(1);
+  await laidOut(p);
+  const k = await cur(p);
+  const pick = async (i: number, from = 0, to = 0.5) => {
+    const box = (await p.locator(`.col[data-k="${k}"] .ln[data-b]`).nth(i).boundingBox())!;
+    await p.mouse.move(box.x + 4 + box.width * from, box.y + box.height / 2); await p.mouse.down();
+    await p.mouse.move(box.x + box.width * to, box.y + box.height / 2, { steps: 6 }); await p.mouse.up();
+    await expect(p.locator('.chip-pop')).toBeVisible();
+    await p.keyboard.press('n');
+  };
+  await pick(3);
+  // no sheet: a card in the rail, its field ready
+  await expect(p.locator('.sheet')).toHaveCount(0);
+  const field = p.locator('.sn.open textarea');
+  await expect(field).toBeFocused();
+  await field.pressSequentially('Written in place.');
+  await p.locator('.sn.open').getByRole('button', { name: 'Save' }).click();
+  await expect(p.locator('.sn.open')).toHaveCount(0);
+  await expect(p.locator('.sn')).toContainText('Written in place.');
+  await expect(p.locator(`.col[data-k="${k}"] .nd`)).toHaveCount(1);
+  // Escape leaves the highlight without a note, and no card for it
+  await pick(9);
+  await expect(p.locator('.sn.open textarea')).toBeFocused();
+  await p.keyboard.press('Escape');
+  await expect(p.locator('.sn.open')).toHaveCount(0);
+  await expect(p.locator('.sn')).toHaveCount(1);
+  expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.note).sort())).toEqual(['', 'Written in place.']);
+  // another on the same line as a note: the card being written is level with its line,
+  // the other makes room above it
+  await pick(3, 0.6, 0.95);
+  await expect(p.locator('.sn.open textarea')).toBeFocused();
+  const [open, other, line] = await p.evaluate(() => {
+    const r = (window as any).__vol.reader, id = (window as any).__vol.ui.composing as string;
+    const box = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+    const m = box(`mark[data-a="${CSS.escape(id)}"]`);
+    return [box('.sn.open'), box('.sn:not(.open)'), m.top + m.height / 2 - r.M.lh / 2];
+  });
+  expect(Math.abs(open.top - line)).toBeLessThan(2);
+  expect(other.bottom).toBeLessThanOrEqual(open.top);
+  await p.keyboard.press('Escape');
 });
 
 test('collections: shelves that fill themselves, a named collection, A to file a book, [ ] to switch', async ({ page: p }) => {
@@ -781,7 +941,7 @@ test('notes find their words again when the text has moved; notes whose words ar
   expect(after.find((a: any) => a.id !== 'gone')).toMatchObject({ key: before.key, s: before.s, e: before.e, lost: false });
   expect(after.find((a: any) => a.id === 'gone')).toMatchObject({ lost: true });
   // the lost one is neither in the notebook nor drawn
-  const nb = await p.evaluate(() => (window as any).__vol.reader.notebook().map((e: any) => e.id));
+  const nb = await p.evaluate(() => (window as any).__vol.reader.marking.notebook().map((e: any) => e.id));
   expect(nb).not.toContain('gone');
   await expect(p.locator('mark.hl[data-a="gone"]')).toHaveCount(0);
 });
@@ -797,8 +957,8 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
     const ln = lines[3], b = blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
     const a = r.ann.add(b.key, s0, s0 + 30, 2, 'This slowed me down — too much at once.');
     r.ann.update(a.id, { react: 'slow' });
-    r.toggleMark(blocks[+lines[12].dataset.b!].key);
-    r.refreshSection(sec);
+    r.marking.toggleMark(blocks[+lines[12].dataset.b!].key);
+    r.marking.refreshSection(sec);
   });
   await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
   await p.getByRole('tab', { name: 'Highlights' }).click();
@@ -883,21 +1043,6 @@ test('a Word manuscript opens as a book: its title, chapters and footnotes', asy
   await expect(p.locator('.col .ln a.nr').first()).toBeVisible();
 });
 
-async function openFile(p: Page, file: string, title: string) {
-  await p.goto('/');
-  await p.waitForSelector('.book[data-id]');
-  const book = p.locator('.book[data-id]', { hasText: title }).first();
-  if (!(await book.count())) await p.setInputFiles('input[type=file]', file);
-  await book.waitFor({ timeout: 90000 });
-  await book.click();
-  await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
-}
-const firstCol = (p: Page, sel: string) => p.evaluate(sel => {
-  const r = (window as any).__vol.reader, s = r.strip;
-  for (let k = 3; k < s.N; k++) { r.jump(k); if (document.querySelector(`.col[data-k="${k}"] ${sel}`)) return k; }
-  return -1;
-}, sel);
-
 test('a note marker opens its note; G goes to where it is printed', async ({ page: p }) => {
   test.setTimeout(120000);
   await openFile(p, '../bench/fixtures/artofwar.epub', 'Art of War');
@@ -917,6 +1062,35 @@ test('a note marker opens its note; G goes to where it is printed', async ({ pag
   await expect(card).toHaveCount(0);
   await settled(p); await p.waitForTimeout(300);
   expect(await cur(p)).toBeGreaterThan(before + 20);   // the endnotes are at the back
+});
+
+test('a long note scrolls under the wheel; the page beneath stays, and a turn puts it away', async ({ page: p }) => {
+  test.setTimeout(120000);
+  await openFile(p, '../bench/fixtures/artofwar.epub', 'Art of War');
+  // the book's longest note, opened from its marker
+  const i = await p.evaluate(() => { const ns = (window as any).__vol.reader.book.notes as { t: string }[]; return ns.reduce((m, n, j) => (n.t.length > ns[m].t.length ? j : m), 0); });
+  const k = await firstCol(p, `a.nr[data-n="${i}"]`);
+  expect(k).toBeGreaterThan(0);
+  await settled(p);
+  await p.locator(`.col[data-k="${k}"] a.nr[data-n="${i}"]`).first().click();
+  const body = p.getByRole('dialog', { name: /^Note / }).locator('.body');
+  await expect(body).toBeVisible();
+  const before = await cur(p);
+  expect(await body.evaluate(b => b.scrollHeight > b.clientHeight + 20)).toBe(true);
+  // the wheel over the note: the note scrolls, the book does not turn
+  const bb = (await body.boundingBox())!;
+  await p.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  await p.mouse.wheel(0, 120);
+  await expect.poll(() => body.evaluate(b => b.scrollTop)).toBeGreaterThan(0);
+  // to its end and past it: still the note's (nothing passes on to the page)
+  for (let n = 0; n < 12; n++) await p.mouse.wheel(0, 240);
+  await expect.poll(() => body.evaluate(b => Math.ceil(b.scrollTop + b.clientHeight) >= b.scrollHeight)).toBe(true);
+  await settled(p);
+  expect(await cur(p)).toBe(before);
+  expect(await p.evaluate(() => (window as any).__vol.reader.motion.p)).toBe(before);
+  // a turn takes the note away with its marker
+  await p.keyboard.press('ArrowRight');
+  await expect(p.getByRole('dialog', { name: /^Note / })).toHaveCount(0);
 });
 
 test('an image opens large and goes back; the keyboard can open it too', async ({ page: p }) => {
@@ -975,9 +1149,9 @@ test('notes exported as Markdown read cleanly and go back on the book exactly; a
     r.ann.add(bl[0].key, 10, 120, 2, 'A note here');
     r.ann.add(bl[2].key, 0, 200, 1, '');
     r.ann.add(bl[4].key, 30, 90, 4, '# not a heading\n\n> nor a quote');
-    r.toggleMark(r.book.sections[4].blocks[3].key);
+    r.marking.toggleMark(r.book.sections[4].blocks[3].key);
     const m = (window as any).__vol.contents;
-    const md = m.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
+    const md = m.markdown(r.marking.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
     const ann = r.ann.list.map((a: any) => ({ key: a.key, s: a.s, e: a.e, color: a.color, note: a.note })).sort((a: any, b: any) => a.key.localeCompare(b.key) || a.s - b.s);
     return { md, ann, marks: [...r.marks], id: r.book.id, me: (window as any).__vol.kv.get('me', null).id as string };
   });
@@ -1196,7 +1370,7 @@ test('one’s own notes edited on another device: the newer edit is kept', async
   const md = await p.evaluate(() => {
     const r = (window as any).__vol.reader, b = r.book.sections[3].blocks.find((x: any) => x.t.length > 120);
     r.ann.add(b.key, 0, 40, 1, 'First thought.');
-    return (window as any).__vol.contents.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
+    return (window as any).__vol.contents.markdown(r.marking.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
   });
   // elsewhere, later: the note rewritten, its colour changed
   const later = md.replace('First thought.', 'Second thought, better.').replace(/"color":1/, '"color":3').replace(/"updated":\d+/, `"updated":${Date.now() + 60000}`);
@@ -1213,8 +1387,8 @@ test('notes Markdown damaged any which way gives a message, never an error', asy
     const r = (window as any).__vol.reader, b = r.book.sections[3].blocks.filter((x: any) => x.t.length > 120);
     r.ann.add(b[0].key, 0, 40, 1, 'A note\n\n# with a heading-like line');
     r.ann.add(b[1].key, 10, 60, 2, '');
-    r.toggleMark(b[2].key);
-    const md: string = (window as any).__vol.contents.markdown(r.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
+    r.marking.toggleMark(b[2].key);
+    const md: string = (window as any).__vol.contents.markdown(r.marking.notebook().map((e: any) => ({ ...e, k: r.strip.resolve(e.at) })));
     let seed = 7; const rnd = (n: number) => (seed = (seed * 1103515245 + 12345) >>> 0) % n;
     const results: string[] = [];
     for (let i = 0; i < 150; i++) {
@@ -1240,7 +1414,7 @@ test('a book read by an earlier importer is read again from its kept file; place
   const before = await p.evaluate(() => {
     const r = (window as any).__vol.reader, b = r.book.sections[3].blocks.filter((x: any) => x.t.length > 120);
     r.ann.add(b[0].key, 0, 40, 2, 'Kept across readings.');
-    r.toggleMark(b[1].key);
+    r.marking.toggleMark(b[1].key);
     r.flush();
     return { id: r.book.id, pos: (window as any).__vol.kv.get('pos.' + r.book.id, null), marks: [...r.marks] };
   });
@@ -1287,7 +1461,7 @@ test('notes as W3C Web Annotations: exported, read back exactly; another tool’
   expect(json.first.items[0].target.selector[0].type).toBe('TextQuoteSelector');
   await p.keyboard.press('Escape');
   // the notes gone, then taken back from the file: every one where it was
-  await p.evaluate(() => { const r = (window as any).__vol.reader; for (const a of [...r.ann.list]) r.unhighlight(a.id); });
+  await p.evaluate(() => { const r = (window as any).__vol.reader; for (const a of [...r.ann.list]) r.marking.unhighlight(a.id); });
   expect(await p.evaluate(t => (window as any).__vol.reader.receiveNotes(t), text)).toMatch(/^2 of your notes put back/);
   expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => [a.key, a.s, a.e, a.color, a.note]))).toEqual(made.ann);
   // another tool's annotation: only the words and what is around them
@@ -1498,7 +1672,7 @@ test('a book removed takes everything kept about it: place, highlights, notes, r
   await p.evaluate(async () => {
     const r = (window as any).__vol.reader, b = r.book.sections[0].blocks.find((x: any) => x.t.length > 40);
     r.ann.add(b.key, 0, 12, 1, 'Mine');
-    r.toggleMark(b.key);
+    r.marking.toggleMark(b.key);
     await r.receiveNotes(JSON.stringify({ format: 'volumen-notes/1', book: { id: r.book.id, title: r.book.title, author: '' }, from: { id: 'ann', name: 'Ann' }, sent: 5,
       notes: [{ id: 'a1', kind: 'highlight', key: b.key, s: 0, e: 12, quote: b.t.slice(0, 12), prefix: '', suffix: b.t.slice(12, 44), note: 'Hm', created: 1, updated: 1 }] }));
   });

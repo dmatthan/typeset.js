@@ -204,7 +204,7 @@
   .err { margin: 0; font: 600 var(--t-s)/1.4 var(--f-ui); color: oklch(0.55 0.17 30); }
   .notes { border-radius: var(--r-m); background: var(--wash); padding: 8px 12px; }
   .notes p { margin: 2px 0; font: 500 var(--t-s)/1.45 var(--f-ui); color: var(--ink-2); }
-  .body { display: grid; gap: 20px; }
+  .body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
   @media (min-width: 720px) { .body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } .preview { position: sticky; top: 0; } }
   .form { display: grid; gap: 18px; }
   .field { box-sizing: border-box; width: 100%; min-height: 42px; border-radius: var(--r-m); border: 1.5px solid var(--rule); background: transparent; color: var(--ink); font: 600 var(--t-m)/1 var(--f-ui); padding: 0 12px; outline: none; }
@@ -222,7 +222,8 @@
   .tog input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px oklch(0 0 0 / 0.25); transition: transform .2s; }
   .tog input:checked { background: var(--accent); }
   .tog input:checked::after { transform: translateX(18px); }
-  .clrs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  /* (as many across as fit a swatch and its name: three on a wide sheet, two on a phone) */
+  .clrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
   .clr { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 8px; border-radius: var(--r-m); border: 1.5px solid var(--rule); cursor: pointer; }
   .clr input { grid-row: span 2; appearance: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
   .clr input::-webkit-color-swatch-wrapper { padding: 0; }

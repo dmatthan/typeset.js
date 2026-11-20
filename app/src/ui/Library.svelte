@@ -289,8 +289,8 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
           <input bind:this={searchEl} type="search" bind:value={query} onkeydown={searchKey} placeholder="Search books and their text" aria-label="Search the library" spellcheck="false" autocomplete="off" />
         </label>
+        <button class="btn add-btn" onclick={add} aria-label="Add a book (O)"><span class="add-l">Add a book</span><span class="add-p" aria-hidden="true">+</span></button>
       {/if}
-      <button class="btn add-btn" onclick={add} aria-label="Add a book (O)"><span class="add-l">Add a book</span><span class="add-p" aria-hidden="true">+</span></button>
       <button class="btn quiet keys-only" onclick={() => (ui.sheet = 'help')} aria-label="Keyboard shortcuts">Keys</button>
     </div>
   </header>
@@ -300,7 +300,7 @@
   {#if view === 'books'}
     <div class="shelves" class:off={words.length > 0} role="tablist" aria-label="Shelves ( [ and ] )">
       {#each allShelves as x (x.id)}
-        <button role="tab" aria-selected={shelf === x.id} class:own={!SMART.some(m => m.id === x.id)} onclick={() => setShelf(x.id)}>{x.name}</button>
+        <button role="tab" aria-selected={shelf === x.id} class:own={!SMART.some(m => m.id === x.id)} disabled={words.length > 0} onclick={() => setShelf(x.id)}>{x.name}</button>
       {/each}
       {#if mine}
         <span class="sh-acts">
@@ -434,7 +434,8 @@
   .search svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
   .search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0; }
   .search input::placeholder { color: var(--ink-3); }
-  .shelves.off { opacity: .4; pointer-events: none; }
+  /* (a search looks in every book: the shelves wait, out of use) */
+  .shelves.off { opacity: .4; }
   .shelves { max-width: 1040px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -10px 0 30px; }
   .shelves > button { appearance: none; border: 1.5px solid var(--rule); background: none; cursor: pointer; height: 36px; padding: 0 14px; border-radius: 18px; font: 600 var(--t-s)/1 var(--f-ui); color: var(--ink-2); }
   :global(html:not(.touchui)) .shelves > button:not([aria-selected="true"]):hover { background: var(--hover); color: var(--ink); }
@@ -454,6 +455,10 @@
   .more svg { width: 18px; height: 18px; fill: currentColor; }
   :global(html:not(.touchui)) .slot:hover .more, .slot:focus-within .more { display: grid; position: relative; z-index: 1; animation: more-in .15s ease-out; }
   @keyframes more-in { from { opacity: 0; } }
+  /* a touch screen has no hover: the button always there, as Apple Books has it, at the end
+     of the line under the cover that says how far the book is read */
+  :global(.touchui) .slot > .more { align-self: end; margin: 0; place-items: end; padding: 0 2px 0 0; background: none; color: var(--ink-3); }
+  :global(.touchui) .slot .s { padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .col-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; border-radius: var(--r-s); cursor: pointer; font: 600 var(--t-m)/1.2 var(--f-ui); color: var(--ink); }
   :global(html:not(.touchui)) .col-row:hover { background: var(--hover); }
@@ -503,14 +508,15 @@
     .title { width: 100%; justify-content: space-between; gap: 12px; }
     h1 { font-size: var(--t-xl); }
     .head-acts { width: 100%; }
-    .search { flex: 1; width: auto; }
+    /* (the field may be narrower than its input would be: the + keeps its place) */
+    .search { flex: 1; width: auto; min-width: 0; }
     .add-btn .add-l { display: none; }
-    .add-btn { width: 44px; padding: 0; justify-content: center; font-size: 22px; }
+    .add-btn { flex: none; width: 44px; padding: 0; justify-content: center; font-size: 22px; }
     /* (the row fits a phone's width, and wraps rather than scrolls once there are
        collections too) */
     .shelves { margin: -4px 0 20px; gap: 6px; }
     .shelves > button { flex: none; padding: 0 12px; }
-    .books { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 14px; }
+    .books { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 18px; }
     .add .c-s { display: none; }
     .t { font-size: var(--t-s); }
     .s { font-size: var(--t-xs); }

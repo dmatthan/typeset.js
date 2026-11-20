@@ -81,7 +81,7 @@ export class Cursor {
     if (!c) return;
     const blk = r.book!.sections[c.sec].blocks[c.b], len = blk.t.length;
     const existing = r.ann!.of(blk.key)?.find(a => a.s === 0 && a.e >= len - 1);
-    const id = existing?.id ?? r.highlight({ a: [c.sec, c.b, 0], z: [c.sec, c.b, len] });
+    const id = existing?.id ?? r.marking.highlight({ a: [c.sec, c.b, 0], z: [c.sec, c.b, len] });
     if (id && note) { ui.noteFor = id; ui.sheet = 'note'; }
     this.move(0);
   }

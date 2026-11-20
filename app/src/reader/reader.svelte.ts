@@ -2,7 +2,7 @@ import { edges } from '../core/edges';
 import type { BookData, Core, LayoutParams } from '../core/types';
 import { kv, flushKV } from '../core/kv';
 import { shareAt, shareOf } from '../core/book';
-import { metrics, insets, type Look, type Metrics } from './geometry';
+import { metrics, insets, RAIL, type Look, type Metrics } from './geometry';
 import { Strip, parseLayout, F, FIELDS, type Anchor } from './strip';
 import { columnHTML, leafHTML, chapName, esc } from './render';
 import { Surface } from './surface';
@@ -10,9 +10,8 @@ import { Motion } from './motion';
 import { calibrate } from './calibrate';
 import { settings, reduceMotion, SIZES } from './settings.svelte';
 import { themes, themeById, resolve, loadFamily, fontsReady, type Resolved } from './themes.svelte';
-import { Annotations, type Reaction } from './annotations';
+import { Annotations } from './annotations';
 import { Finder } from './find.svelte';
-import { notebookOf, saveDigest } from './notebook';
 import { Feedback, notesFile, type Progress } from './feedback';
 import { takeNotes } from './intake';
 import { embedded, embedMoved, embedOpts, features } from '../core/embed';
@@ -20,7 +19,7 @@ import { shell } from '../core/shell';
 import { hint } from './hints';
 import { spokenPage } from './spoken';
 import { ui, toast } from '../state.svelte';
-import { spans, selText, type Sel } from './selection';
+import { Marking } from './marking';
 import { ReaderInput } from './input';
 import { Cursor } from './cursor';
 import { BookImages } from './images';
@@ -58,11 +57,16 @@ export class Reader {
   onNotes: (id: string, notes: () => ReturnType<Reader['myNotes']>) => void = () => {};
 
   input!: ReaderInput;
+  /** Highlights, notes, marks and the notebook they make (marking.ts). */
+  marking = new Marking(this);
   /** Marking from the keyboard (V). */
   cursor = new Cursor(this);
   images: BookImages;
 
-  constructor(core: Core) { this.core = core; this.images = new BookImages(core, () => this.book); }
+  constructor(core: Core) {
+    this.core = core; this.images = new BookImages(core, () => this.book);
+    ui.rail = kv.get<boolean>('rail', false);
+  }
 
   /* ---------- mounting ---------- */
   mount(stage: HTMLElement, track: HTMLElement) {
@@ -208,7 +212,7 @@ export class Reader {
     if (changed) {
       for (const [k] of this.surface.rendered()) this.surface.refresh(k);
       ui.annVersion++;
-      this.digestSoon();
+      this.marking.digestSoon();
     }
     return said;
   }
@@ -302,8 +306,10 @@ export class Reader {
     this.applyType();
     // the paper either side of the spread (the curtains, reader.css)
     st.setProperty('--fl', M.x0 - M.G / 2 + 'px');
-    st.setProperty('--fr', M.W - (M.x0 + M.focusW + M.G / 2) + 'px');
-    ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone;
+    st.setProperty('--fr', M.x0 + M.focusW + M.G / 2 + 'px');
+    ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone; ui.railed = this.railed();
+    // the notes' rail beside the text: what is about the text (its head, its page) centres on the text
+    st.setProperty('--rail', (ui.railed ? this.stage.clientWidth - M.W : 0) + 'px');
   }
 
   /* ---------- open, layout, close ---------- */
@@ -342,7 +348,7 @@ export class Reader {
       await this.layoutFrom(at ?? kv.get<Anchor | null>('pos.' + id, null), gen);
       if (gen !== this.gen) return;
       // a book whose notebook the library has not seen yet gets its digest now
-      if (!kv.get('nb.' + id, null)) this.digestSoon();
+      if (!kv.get('nb.' + id, null)) this.marking.digestSoon();
       this.begin();
     } catch (e) {
       ui.view = 'library';
@@ -372,11 +378,22 @@ export class Reader {
   whole: Promise<void> = Promise.resolve();
   private wholeLaid = () => {};
 
+  /** The notes' rail is beside the text: asked for, and room for it (never on a phone). */
+  railed(): boolean {
+    return ui.rail && !!this.stage && this.stage.clientWidth - RAIL >= 640;
+  }
+
+  /** The geometry for the stage as it is (less the rail, which takes one column's place). */
+  private measure(size = settings.size) {
+    const rail = this.railed();
+    return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.lookGeom(), insets(), size, rail ? 1 : settings.layout);
+  }
+
   private async layoutFrom(anchor: Anchor | null, gen: number) {
     const strip = this.strip!, book = this.book!;
     this.whole = new Promise(r => (this.wholeLaid = r));
     this.applyLook();
-    this.M = metrics(this.stage.clientWidth, this.stage.clientHeight, this.lookGeom(), insets());
+    this.M = this.measure();
     this.applyCSS();
     await this.ensureFonts();
     performance.mark('open:fonts');
@@ -406,7 +423,6 @@ export class Reader {
       const keep = this.motion.moving ? null : strip.anchorAt(this.cur);
       strip.layouts = all;
       this.recompose(keep ?? strip.anchorAt(this.cur), true);
-      ui.layoutVersion++;
       this.wholeLaid();
     }, e => toast(`Couldn’t lay out the book: ${(e as Error).message}`, 5000));
   }
@@ -425,7 +441,7 @@ export class Reader {
     idle(async () => {
       for (const size of next) {
         if (!book || this.book !== book) return;
-        const M = metrics(this.stage.clientWidth, this.stage.clientHeight, this.lookGeom(), insets(), size);
+        const M = this.measure(size);
         await calibrate(this.core, this.stage.parentElement!, { ...this.params(M), round: false, appUnits: false }).catch(() => {});
       }
     });
@@ -450,6 +466,7 @@ export class Reader {
     this.motion.jump(this.cur);
     this.surface.reset(this.cur);
     this.arrive(this.cur, quiet);
+    ui.layoutVersion++;
   }
 
   async relayout() {
@@ -458,7 +475,7 @@ export class Reader {
     const anchor = this.strip.anchorAt(this.cur);
     const old = this.M;
     this.applyLook();
-    const M = metrics(this.stage.clientWidth, this.stage.clientHeight, this.lookGeom(), insets());
+    const M = this.measure();
     const force = this.forceRelayout;
     this.forceRelayout = false;
     if (!force && old && M.W === old.W && M.H === old.H && M.fs === old.fs && M.colW === old.colW && M.rows === old.rows && M.N === old.N) return;
@@ -488,7 +505,7 @@ export class Reader {
     ui.chip = null;
     this.cursor.end();
     ui.contents = false; ui.sheet = null;
-    for (const [, el] of this.surface.rendered()) el.remove();
+    this.surface.clear();
     this.core.idle?.();
     ui.view = 'library';
     ui.libVersion++;
@@ -502,7 +519,7 @@ export class Reader {
     kv.set('far.' + id, this.furthest);
     kv.set('seen.' + id, [...this.seen]);
     kv.set('marks.' + id, [...this.marks]);
-    if (this.digestT) { clearTimeout(this.digestT); this.digestT = 0; this.saveDigest(); }
+    this.marking.flushDigest();
     const it = this.strip.itemAt(this.cur);
     // the reader's notes, for whoever keeps them elsewhere (the app: a book sent by link
     // sends them back); not while it is still opening: it has not found its place yet,
@@ -544,7 +561,9 @@ export class Reader {
   /** Every frame the sheet moves. */
   private frame(p: number, v: number, glided = false) {
     if (!this.strip) return;
+    // what stands by a line goes with it: pinned notes, a book's note at its marker
     if (ui.sideNotes) ui.sideNotes = null;
+    if (ui.bookNote) ui.bookNote = null;
     this.surface.place(p, v, glided, this.motion.target);
     const k = Math.round(p);
     if (k !== this.shownK) {
@@ -660,20 +679,16 @@ export class Reader {
     ui.lightbox = { i, rect: { x: r.left, y: r.top, w: r.width, h: r.height } };
   }
 
-  /* ---------- marks ---------- */
-  toggleMark(key: string) {
-    if (this.marks.has(key)) this.marks.delete(key);
-    else {
-      this.marks.add(key);
-      hint('mark', 'Marked. Your marks are with your highlights: M, then Highlights (or the library’s notebook, N).', 4200);
+  /** The notes beside the text: in their rail where there is room for it (the text then
+   *  in one column beside it; kept for the next time), else those in view over their
+   *  columns. */
+  toggleNotes() {
+    if (this.stage && this.stage.clientWidth - RAIL >= 640) {
+      ui.rail = !ui.rail; kv.set('rail', ui.rail);
+      ui.sideNotes = null; ui.chip = null;
+      this.settingsChanged('layout');
+      return;
     }
-    this.paintMark(key);
-    kv.set('marks.' + this.book!.id, [...this.marks]);
-    this.digestSoon();
-  }
-
-  /** Pins every note in the focus columns beside its line, or puts them away. */
-  toggleSideNotes() {
     if (ui.sideNotes?.pinned) { ui.sideNotes = null; return; }
     const ids: string[] = [];
     for (const k of this.focusCols()) for (const d of this.surface.columnEl(k)?.querySelectorAll<HTMLElement>('.nd') ?? []) ids.push(d.dataset.a!);
@@ -696,84 +711,12 @@ export class Reader {
     this.lastK = k;
     if (d > 0 && d <= this.M.N * 2) this.walked += d;
     if (this.walked >= 30) hint('contents', 'M shows the contents: every chapter, and your highlights. [ and ] go a chapter on or back.');
-    if (this.visited.size >= 14 && !this.ann?.list.length && !this.marks.size) hint('select', 'Hold on a word to select it, drag to take more; then 1–4 highlights and N adds a note. V picks a paragraph from the keyboard.', 7000);
-  }
-
-  /* ---------- the notebook ---------- */
-  /** Everything added to this book, in reading order. */
-  notebook() {
-    return notebookOf(this.book!, this.strip!.keyIndex, this.ann?.list ?? [], this.marks);
-  }
-  private digestT = 0;
-  /** The library's copy of this book's notebook, written a moment after a change. */
-  digestSoon() {
-    clearTimeout(this.digestT);
-    this.digestT = window.setTimeout(() => { this.digestT = 0; this.saveDigest(); }, 400);
-  }
-  private saveDigest() { if (this.book && this.strip) saveDigest(this.book, this.notebook()); }
-
-  paintMark(key: string) {
-    const hit = this.strip?.keyIndex.get(key);
-    if (!hit) return;
-    const on = this.marks.has(key);
-    for (const [k, el] of this.surface.rendered()) {
-      const it = this.strip!.itemAt(k);
-      if (!it || it.sec !== hit[0] || it.type !== 'sect') continue;
-      for (const ln of el.querySelectorAll(`.ln[data-b="${hit[1]}"]`)) ln.classList.toggle('mk', on);
+    if (this.visited.size >= 14 && !this.ann?.list.length && !this.marks.size) {
+      // (each said only where it holds: hints.ts tells touch screens from the rest)
+      hint('select', 'Select a passage to highlight it (1–4) or add a note (N); V picks a paragraph from the keyboard.', 7000);
+      hint('touch-select', 'Hold on a word to select it, drag to take more; then a colour highlights it.', 7000);
     }
   }
-
-  /* ---------- highlights and notes ---------- */
-  /** Re-renders every visible column of a section after its annotations changed. */
-  refreshSection(sec: number) {
-    for (const [k] of this.surface.rendered()) if (this.strip!.itemAt(k)?.sec === sec) this.surface.refresh(k);
-    ui.annVersion++;
-    this.digestSoon();
-  }
-
-  /** Highlights a selection (one annotation per block it covers). Returns the first. */
-  highlight(sel: Sel, color = 1, note = ''): string | null {
-    const book = this.book!, ann = this.ann!;
-    let first: string | null = null;
-    const touched = new Set<number>();
-    for (const { s, b, from, to } of spans(book, sel)) {
-      const blk = book.sections[s].blocks[b];
-      if (!blk.t) continue;
-      const a = ann.add(blk.key, from, to, color, first ? '' : note);
-      if (a && !first) first = a.id;
-      touched.add(s);
-    }
-    for (const s of touched) this.refreshSection(s);
-    return first;
-  }
-
-  recolor(id: string, color: number) { this.ann!.update(id, { color }); this.refreshAnn(id); }
-  /** A reaction on a highlight, or on a selection (highlighted for it); the same one
-   *  again takes it off. */
-  react(on: { ann?: string | null; sel?: Sel | null }, r: Reaction): string | null {
-    const id = on.ann ?? (on.sel ? this.highlight(on.sel, 1) : null);
-    if (!id) return null;
-    const a = this.ann!.list.find(x => x.id === id);
-    this.ann!.update(id, { react: a?.react === r ? undefined : r });
-    this.refreshAnn(id);
-    return id;
-  }
-  setNote(id: string, note: string) {
-    this.ann!.update(id, { note }); this.refreshAnn(id);
-    if (note) hint('sidenotes', 'A dot beside the line marks your note: point at it to read it, or press ; for every note in view.');
-  }
-  unhighlight(id: string) {
-    const a = this.ann!.list.find(x => x.id === id);
-    this.ann!.remove(id);
-    if (a) this.refreshSection(this.strip!.keyIndex.get(a.key)?.[0] ?? -1);
-  }
-  private refreshAnn(id: string) {
-    const a = this.ann!.list.find(x => x.id === id);
-    if (a) this.refreshSection(this.strip!.keyIndex.get(a.key)?.[0] ?? -1);
-  }
-
-  /** The quote of a selection, for copying. */
-  selText(sel: Sel): string { return selText(this.book!, sel); }
 
 
 }

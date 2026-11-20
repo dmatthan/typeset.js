@@ -96,10 +96,10 @@
                 {#if it.kind === 'ann'}
                   <button onclick={() => editNote(it.id)}>{it.note ? 'Edit note' : 'Add note'}</button>
                   <button onclick={() => contents.copy(contents.citeEntry(it))}>Copy</button>
-                  <button onclick={() => { reader.unhighlight(it.id); contents.buildNotebook(); }}>Remove</button>
+                  <button onclick={() => { reader.marking.unhighlight(it.id); contents.buildNotebook(); }}>Remove</button>
                 {:else}
                   <button onclick={() => contents.copy(contents.cite(it.id))}>Copy</button>
-                  <button onclick={() => { reader.toggleMark(it.id); contents.buildNotebook(); }}>Unmark</button>
+                  <button onclick={() => { reader.marking.toggleMark(it.id); contents.buildNotebook(); }}>Unmark</button>
                 {/if}
               </div>
             </article>
@@ -142,6 +142,7 @@
   .row.read .t { color: var(--ink-3); }
   .row[aria-current="true"] { background: var(--wash); }
   .row[aria-current="true"] .t { color: var(--accent); font-weight: 600; }
+  .row[aria-current="true"] .p { color: var(--ink-2); }
   :global(html:not(.touchui)) .row:hover, :global(html:not(.touchui)) .close:hover { background: var(--hover); }
   .notes { display: flex; flex-direction: column; gap: 10px; padding-top: 2px; }
   .seg { margin: 0 10px; }

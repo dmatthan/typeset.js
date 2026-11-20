@@ -12,6 +12,8 @@
   --ink: oklch(0.23 0.008 70);
   --ink-2: oklch(0.42 0.008 70);
   --ink-3: oklch(0.52 0.008 70);   /* 4.8:1 on the ground, 5.2:1 on paper (WCAG AA) */
+  /* the selection's menu: a dark pill in either scheme, a step lighter than dark paper */
+  --pill: oklch(0.26 0.006 70);
   --rule: oklch(0.88 0.006 75);
   --accent: oklch(0.5 0.11 255);
   --accent-ink: oklch(0.99 0.003 80);
@@ -50,7 +52,8 @@
     --surface: oklch(0.215 0.006 70);
     --ink: oklch(0.88 0.012 84);
     --ink-2: oklch(0.74 0.011 84);
-    --ink-3: oklch(0.6 0.01 84);
+    --ink-3: oklch(0.64 0.01 84);   /* 5.0:1 on a sheet, 5.2:1 on the surface (WCAG AA) */
+    --pill: oklch(0.36 0.006 70);
     --rule: oklch(0.32 0.006 70);
     --accent: oklch(0.76 0.1 262);
     --accent-ink: oklch(0.18 0.03 262);
@@ -74,7 +77,8 @@
   --surface: oklch(0.215 0.006 70);
   --ink: oklch(0.88 0.012 84);
   --ink-2: oklch(0.74 0.011 84);
-  --ink-3: oklch(0.6 0.01 84);
+  --ink-3: oklch(0.64 0.01 84);   /* 5.0:1 on a sheet, 5.2:1 on the surface (WCAG AA) */
+  --pill: oklch(0.36 0.006 70);
   --rule: oklch(0.32 0.006 70);
   --accent: oklch(0.76 0.1 262);
   --accent-ink: oklch(0.18 0.03 262);
@@ -156,7 +160,7 @@ html:not(.touchui) .btn.primary:hover { filter: brightness(1.06); }
 .btn.quiet { background: transparent; color: var(--ink-2); }
 html:not(.touchui) .btn.quiet:hover { background: var(--hover); }
 .btn[disabled] { opacity: .4; cursor: default; }
-kbd { font: 600 12px/1 var(--f-ui); padding: 3px 6px; border-radius: 6px; border: 1px solid currentColor; opacity: .7; }
+kbd { font: 600 13px/1 var(--f-ui); padding: 3px 6px; border-radius: 6px; border: 1px solid currentColor; opacity: .7; }
 
 /* On a touch screen key hints are noise: hidden, with what names keys (`.keys-only`).
    A phone-sized window, a coarse pointer, or a device that has been touched (`.touchui`,
@@ -171,6 +175,10 @@ html:not(.touchui) .touch-only { display: none !important; }
 .touchui input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), .touchui textarea, .touchui select { font-size: max(16px, 1em) !important; }
 /* what shows on hover shows anyway */
 .touchui .hover-reveal { opacity: 1 !important; display: grid !important; }
+/* a finger's target: 44 px at least either way (Apple's guidance), however small the control
+   is drawn on a desktop; a link in a sentence stays a word (tests/audit.ts checks each view) */
+.touchui :is(button, select, [role=tab], [role=radio], [role=switch], input:not([type=checkbox]):not([type=radio]):not([type=hidden])):not(p > *) { min-height: 44px !important; }
+.touchui :is(button, [role=tab], [role=radio], [role=switch]):not(p > *) { min-width: 44px !important; }
 
 /* the app could not start (main.ts) */
 .failed { margin: 0; padding: 40px 24px; max-width: 46ch; font: 500 var(--t-m)/1.5 var(--f-ui); color: var(--ink-2); }

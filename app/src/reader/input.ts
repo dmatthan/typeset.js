@@ -26,6 +26,21 @@ export class ReaderInput {
 
   constructor(private r: Reader) { this.bind(); }
 
+  /** The pointer last pressed on the page ('mouse', 'touch', 'pen'). */
+  private pointer = '';
+
+  /** What the browser's selection covers in the book, and where its menu goes (above its
+   *  middle, in the stage's coordinates); null when nothing of the book is selected. */
+  private selected() {
+    const s = getSelection(), strip = this.r.strip;
+    if (!s || s.isCollapsed || !s.rangeCount || !strip) return null;
+    const r0 = s.getRangeAt(0);
+    const a = pointAt(strip, r0.startContainer, r0.startOffset), z = pointAt(strip, r0.endContainer, r0.endOffset);
+    if (!a || !z || (a[0] === z[0] && a[1] === z[1] && a[2] === z[2])) return null;
+    const box = r0.getBoundingClientRect(), st = this.r.stage.getBoundingClientRect();
+    return { x: box.left + box.width / 2 - st.left, y: box.top - st.top, sel: { a, z }, ann: null };
+  }
+
   private zoneAt(clientX: number): 'prev' | 'next' | 'focus' {
     const M = this.r.M, x = clientX - this.r.stage.getBoundingClientRect().left;
     const l = M.x0 - M.G / 2, r = M.x0 + M.focusW + M.G / 2;
@@ -60,8 +75,8 @@ export class ReaderInput {
       this.keyHoldT = window.setTimeout(() => { if (this.keyHeld === k && !ui.sheet && !ui.contents) this.r.motion.cruise(d); }, CRUISE_AFTER);
       return true;
     }
-    // ; shows every note in view beside its line, and puts them away again
-    if (k === ';') { this.r.toggleSideNotes(); return true; }
+    // ; the notes beside the text (their rail, or those in view over it), and away again
+    if (k === ';') { this.r.toggleNotes(); return true; }
     if (k === 'Escape' && ui.sideNotes) { ui.sideNotes = null; return true; }
     // a search goes on with its field put away: N steps through it, Esc ends it
     if (this.r.finder.open) {
@@ -85,7 +100,18 @@ export class ReaderInput {
    *  reader lands it. Which is which is read from the input's shape, not its size:
    *  webviews report a notch anywhere from 40 to 160 px (WebKitGTK: 153), high-resolution
    *  wheels send fractions of a notch, and trackpads send smoothly varying amounts. */
+  /** Something over the page that scrolls itself (a long note, a note being written): the
+   *  wheel there is its own, to its end and past it, never a turn of the page beneath. */
+  private scrolls(t: EventTarget | null): boolean {
+    for (let e = t as Element | null; e && e !== this.r.stage; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && e.scrollHeight > e.clientHeight) return true;
+    }
+    return false;
+  }
+
   private onWheel(e: WheelEvent) {
+    if (this.scrolls(e.target)) return;
     e.preventDefault();
     if (!this.r.strip || ui.contents || ui.sheet) return;
     // (a trackpad's pinch: the page does not zoom, and nothing else answers it)
@@ -168,8 +194,14 @@ export class ReaderInput {
       const ctl = (e.target as Element).closest?.('textarea, button, input, label, a:not(.nr):not(.xr):not(.ur)');
       if (ctl && this.zoneAt(e.clientX) === 'focus') return;
       if (ctl) e.preventDefault();
+      const zone = this.zoneAt(e.clientX);
+      // a mouse in the text selects it as in any document: the browser's own selection,
+      // and the menu when the button is let go; it never moves the sheet there (the keys,
+      // the wheel and the sides do)
+      const native = e.pointerType === 'mouse' && zone === 'focus';
+      this.pointer = e.pointerType;
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+      if (!native) try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
       // a second finger ends what the first began: two-finger gestures are the system's
       if (PTR.size === 2) {
         cancelPress();
@@ -178,10 +210,10 @@ export class ReaderInput {
         return;
       }
       if (PTR.size > 2) return;
-      const zone = this.zoneAt(e.clientX);
-      // the stage captures the pointer, so remember what was under the press itself
-      GS = { x0: e.clientX, y0: e.clientY, xl: e.clientX, zone, moved: false, dragging: false, down: e.target, touch: e.pointerType === 'touch' };
+      // (the stage captures any pointer but a mouse in the text: remember what was under the press)
+      GS = { x0: e.clientX, y0: e.clientY, xl: e.clientX, zone, moved: false, dragging: false, down: e.target, touch: e.pointerType === 'touch', native };
       ui.chip = null;
+      if (native) return;
       if (zone === 'focus') {
         // held still for a moment, the press selects the word under it; moving then extends
         // the selection word by word (moving at once moves the sheet instead)
@@ -203,6 +235,7 @@ export class ReaderInput {
     stage.addEventListener('pointermove', e => {
       if (!PTR.has(e.pointerId) || !GS) return;
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (GS.native) return;
       const dx = e.clientX - GS.x0, dy = e.clientY - GS.y0;
       if (GS.selecting) {
         const c = caretAt(e.clientX, e.clientY);
@@ -223,6 +256,11 @@ export class ReaderInput {
       PTR.delete(e.pointerId);
       if (!GS) return;
       const g = GS; cancelPress(); GS = null;
+      // the browser's selection, made with the mouse: the menu above it
+      if (g.native) {
+        const sel = this.selected();
+        if (sel) { if (features.highlights) ui.chip = sel; return; }
+      }
       if (g.selecting) {
         this.r.stage.parentElement!.classList.remove('selecting');
         const r0 = getSelection()?.rangeCount ? getSelection()!.getRangeAt(0) : null;
@@ -251,7 +289,8 @@ export class ReaderInput {
         const fig = tgt.closest('figure.img') as HTMLElement | null;
         if (fig) { this.r.openImage(+fig.dataset.i!, fig); return; }
         const nd = tgt.closest('.nd') as HTMLElement | null;
-        if (nd) { ui.chip = null; ui.sideNotes = { ids: [nd.dataset.a!], pinned: true }; return; }
+        // (with the rail, every note in view has its card already)
+        if (nd) { ui.chip = null; if (!ui.railed) ui.sideNotes = { ids: [nd.dataset.a!], pinned: true }; return; }
       }
       // a highlight opens its chip; find hits (h5, h6) are not annotations
       const mark = (g.down as Element)?.closest?.('mark.hl:not(.h5):not(.h6)') as HTMLElement | null;
@@ -279,7 +318,7 @@ export class ReaderInput {
     // on either (or on the card); a pinned note stays until put away
     let hoverT = 0;
     stage.addEventListener('pointerover', e => {
-      if (e.pointerType !== 'mouse' || GS || ui.chip) return;
+      if (e.pointerType !== 'mouse' || GS || ui.chip || ui.railed) return;
       const t = (e.target as Element).closest?.('.nd, mark.hl[data-a], .fb[data-f], .sn') as HTMLElement | null;
       if (!t) return;
       clearTimeout(hoverT);
@@ -297,10 +336,15 @@ export class ReaderInput {
       clearTimeout(hoverT);
       hoverT = window.setTimeout(() => { if (ui.sideNotes && !ui.sideNotes.pinned) ui.sideNotes = null; }, 280);
     });
-    stage.addEventListener('selectstart', e => { if (!this.r.stage.parentElement!.classList.contains('selecting')) e.preventDefault(); });
-    // the browser's own drag-selection would replace the word-by-word selection; selection
-    // here is entirely the reader's (controls in leaves keep their default)
-    stage.addEventListener('mousedown', e => { if (!(e.target as Element).closest?.('textarea, input, button, a, label')) { e.preventDefault(); this.r.stage.focus({ preventScroll: true }); } });
+    // the browser selects only for a mouse in the text; a finger's selection is the reader's
+    // own, word by word (selecting), and nothing else selects
+    stage.addEventListener('selectstart', e => { if (this.pointer !== 'mouse' && !this.r.stage.parentElement!.classList.contains('selecting')) e.preventDefault(); });
+    stage.addEventListener('mousedown', e => {
+      const t = e.target as Element;
+      if (t.closest?.('textarea, input, button, a, label')) return;
+      this.r.stage.focus({ preventScroll: true });
+      if (!(t.closest?.('.ln') && this.zoneAt(e.clientX) === 'focus')) e.preventDefault();
+    });
     stage.addEventListener('contextmenu', e => { if (!(e.target as Element).closest?.('textarea')) e.preventDefault(); });
     stage.addEventListener('scroll', () => { stage.scrollLeft = 0; stage.scrollTop = 0; });
 

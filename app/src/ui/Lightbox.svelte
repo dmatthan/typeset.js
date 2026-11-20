@@ -27,6 +27,9 @@
   const tw = iw * k, th = ih * k, tx = (vw - tw) / 2, ty = (vh - capH - th) / 2;
   const from = $derived(`translate(${lb.rect.x - tx}px, ${lb.rect.y - ty}px) scale(${lb.rect.w / tw}, ${lb.rect.h / th})`);
 
+  /** A press begun on the picture: only that puts it away (a touch screen's click for the
+   *  tap that opened it comes after, onto the picture, and must not close it again). */
+  let pressed = false;
   function close() {
     if (leaving) return;
     leaving = true; shown = false;
@@ -48,7 +51,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="lb" class:shown class:rich class:reduced={reduceMotion()} role="dialog" aria-label={rich ? 'Figure' : alt || 'Image'} tabindex="-1" onclick={close}>
+<div class="lb" class:shown class:rich class:reduced={reduceMotion()} role="dialog" aria-label={rich ? 'Figure' : alt || 'Image'} tabindex="-1" onpointerdown={() => (pressed = true)} onclick={() => { if (pressed) close(); pressed = false; }}>
   <div class="scrim"></div>
   {#if rich}<div class="card" style="left:{tx - 20}px;top:{ty - 20}px;width:{tw + 40}px;height:{th + 40}px"></div>{/if}
   <img {src} alt={alt} style="left:{tx}px;top:{ty}px;width:{tw}px;height:{th}px;transform:{shown ? 'none' : from}" />
