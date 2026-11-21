@@ -11,7 +11,6 @@
   import { shell, isTauri } from '../core/shell';
   import { seedSample, type webCore } from '../core/web';
   import { flushKV, kv } from '../core/kv';
-  import { setHints } from '../reader/hints';
   import { reading } from './reading.svelte';
   import { readerKey, typing, type Keyed } from './keys';
   import Library from './Library.svelte';
@@ -35,11 +34,10 @@
   shell.watchClose();
   // tests drive the reader directly in development builds
   if (import.meta.env.DEV) {
-    (window as any).__vol = { reader, contents, ui, kv, settings, themes, setOption, resetOptions, themeById, fitStats, resetFitStats, residual, setHints };
+    (window as any).__vol = { reader, contents, ui, kv, settings, themes, setOption, resetOptions, themeById, fitStats, resetFitStats, residual };
     if (isTauri) (async () => {
       const { invoke } = await import('@tauri-apps/api/core');
       if (!(await invoke<boolean>('selftest_mode'))) return;
-      setHints(false);
       const t = await import('../selftest');
       const arg = await invoke<string>('selftest_arg');
       const log = (s: string) => invoke<void>('dev_log', { msg: s });

@@ -1,4 +1,6 @@
 <script module lang="ts">
+  /** The menu for a selection or a highlight: its colours, a note, and (a highlight's)
+   *  copy with the reference and remove; placed clear of what it is for. */
   /** Where the menu goes, in the stage's coordinates, kept inside it. A mouse's: above what
    *  it is for (below, under the bar's band), its middle over the selection's. A finger's
    *  selection has the system's menu beside it (Copy, Look Up), above it or below it as the

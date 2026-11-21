@@ -1,3 +1,5 @@
+/** The app's start: the engine for its platform, the stored state, then the shell (the app,
+ *  or a book on another site's page). */
 import { mount } from 'svelte';
 import './styles/tokens.css';
 import './styles/reader.css';

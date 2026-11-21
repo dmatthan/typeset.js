@@ -1,7 +1,7 @@
 /** The keys of a book being read, the same wherever the reader is shown (the app, another
  *  site's page), less what that page has turned off (`features`). Each shell handles the
  *  keys only it has (the library, quitting) around these. Every key is listed in Help. */
-import { features, fullscreenBy, tellPage } from '../core/embed';
+import { features, fullscreenBy, tellPage, type Features } from '../core/embed';
 import { shell } from '../core/shell';
 import type { Contents } from '../reader/contents.svelte';
 import type { Reader } from '../reader/reader.svelte';
@@ -45,35 +45,43 @@ async function cycleLayout(reader: Reader) {
   toast(settings.layout === 'auto' ? `Auto: ${name}` : ui.colsReduced ? `${NAMES[(settings.layout as number) - 1]} need a wider window: ${name}` : name[0].toUpperCase() + name.slice(1));
 }
 
+/** The reader's own keys (beyond those of turning and choosing, the page's: input.ts),
+ *  what each does and the feature it needs. A letter in either case. */
+const KEYS: Partial<Record<string, { need?: keyof Features; run: (k: Keyed) => void }>> = {
+  m: { need: 'contents', run: k => k.contents.open() },
+  b: { need: 'highlights', run: k => k.reader.toggleBookmark() },
+  ']': { run: k => k.contents.chapter(1) },
+  '[': { run: k => k.contents.chapter(-1) },
+  s: { need: 'settings', run: () => (ui.sheet = 'settings') },
+  '?': { run: () => (ui.sheet = 'help') },
+  '/': { need: 'find', run: openFind },
+  v: { need: 'highlights', run: k => k.reader.cursor.start() },
+  c: { need: 'settings', run: k => cycleLayout(k.reader) },
+};
+
 /** A key while a book is read: true if it was the reader's (its default is then
- *  prevented). */
+ *  prevented). In order: a field's keys are its own (Escape leaves it); full screen; an
+ *  open sheet, the contents and the selection's menu take their own; then the page's
+ *  (turning, choosing a paragraph); then the reader's (`KEYS`). */
 export function readerKey(e: KeyboardEvent, k: Keyed): boolean {
-  const { reader, contents } = k;
   if (e.metaKey || e.altKey) return false;
   if (e.ctrlKey) {
-    if ((e.key === 'f' || e.key === 'F') && ui.view === 'reader') { openFind(k); return true; }
-    return false;
+    const find = (e.key === 'f' || e.key === 'F') && ui.view === 'reader';
+    if (find) openFind(k);
+    return find;
   }
   if (typing(e.target)) {
-    if (e.key === 'Escape') { (e.target as HTMLElement).blur(); reader.stage?.focus({ preventScroll: true }); return true; }
-    return false;
+    if (e.key !== 'Escape') return false;
+    (e.target as HTMLElement).blur(); k.reader.stage?.focus({ preventScroll: true });
+    return true;
   }
   if (e.key === 'F11' || (e.key === 'f' && !ui.sheet)) { toggleFull(); return true; }
-  // the open sheet, the contents and the chip handle their own keys
   if (ui.sheet || ui.view !== 'reader') return false;
-  if (ui.contents) return contents.key(e);
+  if (ui.contents) return k.contents.key(e);
   if (ui.chip) return !!k.chip?.key(e);
-  if (reader.input.key(e)) return true;
-  switch (e.key) {
-    case 'm': case 'M': if (!features.contents) return false; contents.open(); return true;
-    case 'b': case 'B': if (!features.highlights) return false; reader.toggleBookmark(); return true;
-    case ']': contents.chapter(1); return true;
-    case '[': contents.chapter(-1); return true;
-    case 's': case 'S': if (!features.settings) return false; ui.sheet = 'settings'; return true;
-    case '?': ui.sheet = 'help'; return true;
-    case '/': if (!features.find) return false; openFind(k); return true;
-    case 'v': case 'V': if (!features.highlights) return false; reader.cursor.start(); return true;
-    case 'c': case 'C': if (!features.settings) return false; cycleLayout(reader); return true;
-  }
-  return false;
+  if (k.reader.input.key(e)) return true;
+  const key = KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (!key || (key.need && !features[key.need])) return false;
+  key.run(k);
+  return true;
 }

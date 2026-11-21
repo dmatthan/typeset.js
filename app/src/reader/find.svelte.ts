@@ -1,3 +1,4 @@
+/** Find in book: the query, its hits and the one in view, marked on the page. */
 import type { Reader } from './reader.svelte';
 import type { Annotation } from './annotations';
 import { chapName } from './render';

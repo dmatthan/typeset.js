@@ -1,6 +1,6 @@
-import { devices, type Frame, type Page } from '@playwright/test';
+import { devices, type Page } from '@playwright/test';
 import { test, expect } from './base';
-import { layout } from './audit';
+import { layout, still } from './audit';
 
 /* The kit: the reader alone, put in a folder of an ordinary site
  * (served here by Python's http.server, nothing of ours), placed on its pages by
@@ -109,9 +109,6 @@ async function kitSite(p: Page) {
   });
 }
 const heardOf = (p: Page, type: string) => p.evaluate(t => (window as any).heard.filter((h: any) => h[0] === t).map((h: any) => h[1]), type);
-/** Nothing moving in the frame: every finite animation finished (a menu fading in is not
- *  yet shown, to the layout's rules). */
-const still = (fr: Frame) => fr.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))));
 /** The reader's bar brought up as a reader would: the pointer to its band, or (a finger)
  *  a tap in the middle of the page while it is away (a tap while it shows puts it away). */
 async function barUp(p: Page, touch = false) {
@@ -306,8 +303,8 @@ test('Help lists the keys of what the page offers, and only those', async ({ pag
   await p.keyboard.press('?');
   const help = f.getByRole('dialog');
   await expect(help).toBeVisible();
-  await expect(help).toContainText('One column');
-  for (const gone of ['Contents and highlights', 'Find in the book', 'Columns in view', 'Highlight in a colour', 'Choose a paragraph', 'The notes beside the text']) await expect(help).not.toContainText(gone);
+  await expect(help).toContainText('Next or previous column');
+  for (const gone of ['Contents', 'Find in the book', 'Columns', 'Highlight', 'Select a paragraph', 'Notes beside the text']) await expect(help).not.toContainText(gone);
   // and the keys themselves do nothing (C changes the columns, a setting)
   await p.keyboard.press('Escape');
   const cols = () => f.locator('.col').evaluateAll(c => c.length);
@@ -395,6 +392,49 @@ test.describe('a phone, whose frames have no full screen', () => {
     expect(await p.evaluate(() => [getComputedStyle(document.documentElement).overflow, scrollY])).toEqual(['visible', 120]);
     await expect.poll(() => heardOf(p, 'full')).toEqual([{ on: true }, { on: false }]);
   });
+});
+
+test('a book opened from the page\'s own button: the reader over the whole window, Back (or the browser\'s) gives the page back as it was', async ({ page: p }) => {
+  await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><volumen-open src="/books/meditations.epub" chapters="3"><button id="go">Read chapter three</button></volumen-open><p style="height: 1400px">After.</p>');
+  await p.evaluate(() => scrollTo(0, 120));
+  const vp = p.viewportSize()!, book = p.locator('volumen-book'), f = p.frameLocator('volumen-book iframe');
+  await expect(book).toHaveCount(0);
+  await p.locator('#go').click();
+  // over the whole window, the page held still behind it
+  await ready(p);
+  await expect.poll(async () => { const b = (await book.boundingBox())!; return [b.x, b.y, b.width, b.height].map(Math.round); }).toEqual([0, 0, vp.width, vp.height]);
+  expect(await p.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden');
+  // the reader's Back: the page as it was, the button that opened the book focused
+  await f.getByRole('button', { name: 'Back' }).click();
+  await expect(book).toHaveCount(0);
+  expect(await p.evaluate(() => [scrollY, getComputedStyle(document.documentElement).overflow, document.activeElement?.id])).toEqual([120, 'visible', 'go']);
+  expect(p.url()).toMatch(/\/t\/page\.html$/);
+  // the browser's back (a phone's back gesture) closes it too, and goes no further
+  await p.locator('#go').click();
+  await expect.poll(() => heardOf(p, 'ready')).toHaveLength(2);
+  await expect(book).toHaveCount(1);
+  await p.goBack();
+  await expect(book).toHaveCount(0);
+  expect(p.url()).toMatch(/\/t\/page\.html$/);
+});
+
+test('a book\'s cover that opens it (the element with nothing in it), and open() for a page\'s own code', async ({ page: p }) => {
+  await hostPage(p, '<volumen-open src="/books/meditations.epub" title="Meditations"></volumen-open>');
+  const cover = p.getByRole('button', { name: 'Read Meditations' });
+  await expect(cover).toBeVisible();
+  // the EPUB's own cover, read from the file
+  await expect.poll(() => cover.evaluate(b => getComputedStyle(b.querySelector('.c')!).backgroundImage)).toMatch(/^url\(/);
+  await cover.click();
+  await ready(p);
+  await expect(p.locator('volumen-book')).toHaveCount(1);
+  await p.goBack();
+  await expect(p.locator('volumen-book')).toHaveCount(0);
+  // the same from a page's script: a handle to close it by
+  await p.evaluate(async () => { const { open } = await import('/volumen/volumen.js' as string); (window as any).h = open({ src: '/books/meditations.epub', chapters: '3' }); });
+  await expect(p.locator('volumen-book')).toHaveCount(1);
+  await expect.poll(() => heardOf(p, 'ready')).toHaveLength(2);
+  await p.evaluate(() => (window as any).h.close());
+  await expect(p.locator('volumen-book')).toHaveCount(0);
 });
 
 // The embed's own views, held to the layout's rules (tests/audit.ts) as the app's are

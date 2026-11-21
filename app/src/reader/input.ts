@@ -10,22 +10,33 @@
 import { features } from '../core/embed';
 import { ui } from '../state.svelte';
 import { kv } from '../core/kv';
-import { hint } from './hints';
 import { pointAt } from './selection';
+import { Wheel } from './wheel';
 import type { Reader } from './reader.svelte';
+import type { Cursor } from './cursor';
+
+/** The keys that turn: which way, and whether the whole set in view (else one column).
+ *  (Space too: the whole set, Shift for back.) */
+const TURNS: Partial<Record<string, readonly [1 | -1, boolean]>> = {
+  ArrowRight: [1, false], ArrowDown: [1, false], l: [1, false], j: [1, false], PageDown: [1, true],
+  ArrowLeft: [-1, false], ArrowUp: [-1, false], h: [-1, false], k: [-1, false], PageUp: [-1, true],
+};
+/** Choosing a paragraph from the keyboard (V, cursor.ts): its keys. */
+const CURSOR: Partial<Record<string, (c: Cursor) => void>> = {
+  j: c => c.move(1), ArrowDown: c => c.move(1), k: c => c.move(-1), ArrowUp: c => c.move(-1),
+  x: c => c.highlight(false), h: c => c.highlight(false), Enter: c => c.highlight(false), ' ': c => c.highlight(false),
+  n: c => c.highlight(true), o: c => c.open(), Escape: c => c.end(), v: c => c.end(),
+};
+/** The turns that end a choice and turn the page. */
+const ENDS_CHOICE = new Set(['l', 'ArrowRight', 'ArrowLeft']);
 
 /** Interaction constants: these are the point of the reader. */
 const CRUISE_AFTER = 260;       // ms a key or press is held before the tap flows into a cruise
-const WHEEL_QUIET = 90;         // ms without wheel input that end a trackpad gesture
-const WHEEL_LOCK = 200;         // ms of quiet before input is read again after a takeover
 const HOLD = 450;               // ms a finger rests before it is no longer a tap (the system's selecting)
 const SETTLED = 300;            // ms a finger's selection is still before the menu comes (handles move it)
 
 export class ReaderInput {
   private keyHeld: string | null = null; private keyHoldT = 0;
-  private wheel: { kind: 'notch' | 'direct' | 'locked'; last: number; mags: number[]; t0: number; endT: number; acc: number; log: [number, number][]; from: number } | null = null;
-  /** Turns by a press beside the page (for the hint that keys do it too). */
-  taps = 0;
 
   constructor(private r: Reader) { this.bind(); }
 
@@ -57,39 +68,40 @@ export class ReaderInput {
   key(e: KeyboardEvent): boolean {
     if (!this.r.strip) return false;
     const k = e.key;
+    // choosing a paragraph from the keyboard (V): its keys; a turn ends it and turns; any
+    // other key is held back while it lasts
     if (this.r.cursor.active) {
-      if (k === 'j' || k === 'ArrowDown') { this.r.cursor.move(1); return true; }
-      if (k === 'k' || k === 'ArrowUp') { this.r.cursor.move(-1); return true; }
-      if (k === 'x' || k === 'h' || k === 'Enter' || k === ' ') { this.r.cursor.highlight(false); return true; }
-      if (k === 'n') { this.r.cursor.highlight(true); return true; }
-      if (k === 'o') { this.r.cursor.open(); return true; }
-      if (k === 'Escape' || k === 'v') { this.r.cursor.end(); return true; }
-      if (k === 'l' || k === 'ArrowRight' || k === 'h' || k === 'ArrowLeft') this.r.cursor.end();
-      else return true;
+      const act = CURSOR[k];
+      if (act) { act(this.r.cursor); return true; }
+      if (!ENDS_CHOICE.has(k)) return true;
+      this.r.cursor.end();
     }
-    // Space and the page keys turn the whole set in view; arrows (and vim keys) move one
-    // column, and held they glide so the reader chooses how far
-    const page = k === ' ' || k === 'PageDown' || k === 'PageUp';
-    const next = k === 'ArrowRight' || k === 'ArrowDown' || k === 'PageDown' || k === 'l' || k === 'j' || (k === ' ' && !e.shiftKey);
-    const prev = k === 'ArrowLeft' || k === 'ArrowUp' || k === 'PageUp' || k === 'h' || k === 'k' || (k === ' ' && e.shiftKey);
-    if (next || prev) {
-      if (e.repeat) return true;                 // key repeat never turns; holding cruises
-      const d = next ? 1 : -1;
-      this.keyHeld = k;
-      this.r.step(d, page ? undefined : 1);
-      clearTimeout(this.keyHoldT);
-      this.keyHoldT = window.setTimeout(() => { if (this.keyHeld === k && !ui.sheet && !ui.contents) this.r.motion.cruise(d); }, CRUISE_AFTER);
-      return true;
-    }
-    // ; the notes beside the text (their rail, or those in view over it), and away again
-    if (k === ';' && features.highlights) { this.r.toggleNotes(); return true; }
-    if (k === 'Escape' && ui.sideNotes) { ui.sideNotes = null; return true; }
-    // a search goes on with its field put away: N steps through it, Esc ends it
-    if (this.r.finder.open) {
-      if ((k === 'n' || k === 'N') && this.r.finder.hits.length) { k === 'n' ? this.r.finder.next() : this.r.finder.prev(); return true; }
-      if (k === 'Escape') { this.r.finder.hide(); return true; }
-    }
-    return false;
+    const turn = k === ' ' ? ([e.shiftKey ? -1 : 1, true] as const) : TURNS[k];
+    if (turn) { this.turnBy(e, turn[0], turn[1]); return true; }
+    return this.other(k);
+  }
+
+  /** A key that turns: the whole set in view (`whole`) or a column; held, it glides so the
+   *  reader chooses how far (key repeat never turns: holding cruises). */
+  private turnBy(e: KeyboardEvent, d: 1 | -1, whole: boolean) {
+    if (e.repeat) return;
+    const k = e.key;
+    this.keyHeld = k;
+    this.r.step(d, whole ? undefined : 1);
+    clearTimeout(this.keyHoldT);
+    this.keyHoldT = window.setTimeout(() => { if (this.keyHeld === k && !ui.sheet && !ui.contents) this.r.motion.cruise(d); }, CRUISE_AFTER);
+  }
+
+  /** The rest: ; the notes beside the text (and away again); Escape puts away the notes in
+   *  view, or ends a search whose field is put away, which N steps through meanwhile. */
+  private other(k: string): boolean {
+    const f = this.r.finder;
+    if (k === ';' && features.highlights) this.r.toggleNotes();
+    else if (k === 'Escape' && ui.sideNotes) ui.sideNotes = null;
+    else if (f.open && (k === 'n' || k === 'N') && f.hits.length) k === 'n' ? f.next() : f.prev();
+    else if (f.open && k === 'Escape') f.hide();
+    else return false;
+    return true;
   }
 
   keyUp(e: KeyboardEvent) {
@@ -101,11 +113,34 @@ export class ReaderInput {
 
   blur() { this.keyHeld = null; clearTimeout(this.keyHoldT); this.r.motion.release(); }
 
-  /** Wheel input. A mouse wheel's notches each move one column; a trackpad moves the
-   *  sheet directly until the fingers lift or the system's momentum begins, then the
-   *  reader lands it. Which is which is read from the input's shape, not its size:
-   *  webviews report a notch anywhere from 40 to 160 px (WebKitGTK: 153), high-resolution
-   *  wheels send fractions of a notch, and trackpads send smoothly varying amounts. */
+  /** What a press in the text opens, by what it was on. */
+  private targets: [string, (el: HTMLElement) => void][] = [
+    ['a.nr', el => this.r.openNote(+el.dataset.n!, el)],
+    ['a.xr', el => this.r.followRef(el.dataset.b!)],
+    ['a.ur', el => this.r.openLink(el.dataset.u!)],
+    ['figure.img', el => this.r.openImage(+el.dataset.i!, el)],
+    // (with the rail, every note in view has its card already)
+    ['.nd', el => { ui.chip = null; if (!ui.railed) ui.sideNotes = { ids: [el.dataset.a!], pinned: true }; }],
+  ];
+  private opens(t: EventTarget | null): boolean {
+    for (const [sel, run] of this.targets) {
+      const el = (t as Element | null)?.closest?.(sel) as HTMLElement | null;
+      if (el) { run(el); return true; }
+    }
+    return false;
+  }
+  /** A highlight pressed: its menu, keeping clear of the whole highlight in that column (not
+   *  only the line pressed); a finger's goes in a band, as a selection's does. Find's hits
+   *  (h5, h6) are not highlights. */
+  private highlightMenu(t: EventTarget | null, x: number, finger: boolean): boolean {
+    const mark = (t as Element | null)?.closest?.('mark.hl:not(.h5):not(.h6)') as HTMLElement | null;
+    if (!mark) return false;
+    const stage = this.r.stage, r = stage.getBoundingClientRect(), col = mark.closest('.col') ?? stage;
+    const ms = [...col.querySelectorAll(`mark[data-a="${CSS.escape(mark.dataset.a!)}"]`)].map(m => m.getBoundingClientRect());
+    ui.chip = { x: x - r.left, y: Math.min(...ms.map(m => m.top)) - r.top, b: Math.max(...ms.map(m => m.bottom)) - r.top, finger, sel: null, ann: mark.dataset.a! };
+    return true;
+  }
+
   /** Something over the page that scrolls itself (a long note, a note being written): the
    *  wheel there is its own, to its end and past it, never a turn of the page beneath. */
   private scrolls(t: EventTarget | null): boolean {
@@ -116,69 +151,17 @@ export class ReaderInput {
     return false;
   }
 
+  /** Wheel input: a mouse wheel's notches and a trackpad's swipes, told apart (wheel.ts). */
+  private wheel = new Wheel(d => this.r.motion.notch(d), log => kv.set('diag.input', log));
   private onWheel(e: WheelEvent) {
     if (this.scrolls(e.target)) return;
     e.preventDefault();
     if (!this.r.strip || ui.contents || ui.sheet) return;
     // (a trackpad's pinch: the page does not zoom, and nothing else answers it)
     if (e.ctrlKey) return;
-    const now = performance.now();
-    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-    const v = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * unit;
-    if (!v) return;
-    let g = this.wheel;
-    if (g && now - g.last > (g.kind === 'locked' ? WHEEL_LOCK : WHEEL_QUIET * 2)) { this.endWheel(g); g = null; }
-    if (!g) {
-      const discrete = e.deltaMode !== 0 || (Math.abs(v) >= 20 && Number.isInteger(v)) || (this.wheelQ > 0 && Math.abs(Math.abs(v) - this.wheelQ) < 0.01);
-      g = this.wheel = { kind: discrete ? 'notch' : 'direct', last: now, mags: [], t0: now, endT: 0, acc: 0, log: [], from: this.r.motion.p };
-      if (discrete && Math.abs(v) >= 20) this.wheelQ = Math.abs(v);
-    }
-    g.last = now;
-    if (g.log.length < 40) g.log.push([Math.round(now - g.t0), +v.toFixed(2)]);
-    if (g.kind === 'locked') return;
-    if (g.kind === 'direct') {
-      g.mags.push(Math.abs(v));
-      if (g.mags.length > 4) g.mags.shift();
-      const m = g.mags;
-      // a high-resolution wheel turned slowly: the same small step, again and again
-      if (m.length >= 3 && m.slice(-3).every(x => Math.abs(x - m[m.length - 1]) < 0.01) && m[m.length - 1] >= 2) {
-        // the first steps moved the sheet directly: they count towards the first notch
-        // instead, and the sheet goes back to where the wheel found it
-        g.kind = 'notch';
-        clearTimeout(g.endT);
-        if (!this.wheelQ) this.wheelQ = m[m.length - 1] * 8;
-        g.acc = g.log.slice(0, -1).reduce((a, [, d]) => a + d, 0) / this.wheelQ;
-        this.r.motion.toward(Math.round(g.from));
-      }
-    }
-    if (g.kind === 'notch') {
-      // partial notches add up; a notch's worth turns at the half, so the wheel answers at once
-      const q = this.wheelQ || Math.abs(v);
-      g.acc += v / q;
-      // (the remainder after a turn may sit at exactly −½: only more than that turns back)
-      if (Math.abs(g.acc) >= 0.5) do {
-        const d = Math.sign(g.acc);
-        this.r.motion.notch(d);
-        g.acc -= d;
-      } while (Math.abs(g.acc) > 0.5);
-      return;
-    }
-    // momentum detection: magnitudes that keep falling after the hand has moved
-    const m = g.mags;
-    const decaying = m.length === 4 && m[1] < m[0] * 0.9 && m[2] < m[1] * 0.9 && m[3] < m[2] * 0.9 && now - g.t0 > 140;
-    this.r.motion.directBy(v / this.r.M.P);
-    clearTimeout(g.endT);
-    if (decaying) { g.kind = 'locked'; this.r.motion.directEnd(true, true); return; }
-    g.endT = window.setTimeout(() => { if (this.wheel === g && g.kind === 'direct') { g.kind = 'locked'; this.r.motion.directEnd(false, true); } }, WHEEL_QUIET);
-  }
-  /** The size of one notch of the wheel last seen, px. */
-  private wheelQ = 0;
-  /** Recent wheel gestures, kept for diagnosis (kv `diag.input`). */
-  private wheelLog: unknown[] = [];
-  private endWheel(g: NonNullable<ReaderInput['wheel']>) {
-    this.wheelLog.push({ at: new Date().toISOString().slice(11, 19), kind: g.kind, q: this.wheelQ, from: +g.from.toFixed(2), to: this.r.motion.target, events: g.log });
-    if (this.wheelLog.length > 30) this.wheelLog.shift();
-    kv.set('diag.input', this.wheelLog);
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1, across = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+    const legacy = (across ? (e as WheelEvent & { wheelDeltaX?: number }).wheelDeltaX : (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY) ?? 0;
+    this.wheel.feed({ delta: (across ? e.deltaX : e.deltaY) * unit, mode: e.deltaMode, legacy, t: performance.now() });
   }
 
   private bind() {
@@ -268,31 +251,9 @@ export class ReaderInput {
       if (g.touch && g.zone === 'focus' && (performance.now() - g.t0 > HOLD || this.selecting())) return;
       const dy = e.clientY - g.y0;
       if (g.moved) { if (Math.abs(dy) > 44) this.r.step(dy < 0 ? 1 : -1); return; }
-      // explicit targets in the focus column: a note marker, a reference, an image
-      const tgt = g.down as Element | null;
-      if (g.zone === 'focus' && tgt?.closest) {
-        const nr = tgt.closest('a.nr') as HTMLElement | null;
-        if (nr) { this.r.openNote(+nr.dataset.n!, nr); return; }
-        const xr = tgt.closest('a.xr') as HTMLElement | null;
-        if (xr) { this.r.followRef(xr.dataset.b!); return; }
-        const ur = tgt.closest('a.ur') as HTMLElement | null;
-        if (ur) { this.r.openLink(ur.dataset.u!); return; }
-        const fig = tgt.closest('figure.img') as HTMLElement | null;
-        if (fig) { this.r.openImage(+fig.dataset.i!, fig); return; }
-        const nd = tgt.closest('.nd') as HTMLElement | null;
-        // (with the rail, every note in view has its card already)
-        if (nd) { ui.chip = null; if (!ui.railed) ui.sideNotes = { ids: [nd.dataset.a!], pinned: true }; return; }
-      }
-      // a highlight opens its chip; find hits (h5, h6) are not annotations
-      const mark = (g.down as Element)?.closest?.('mark.hl:not(.h5):not(.h6)') as HTMLElement | null;
-      // (the menu keeps clear of the whole highlight in that column, not only the line
-      // pressed; a finger's goes in a band, as a selection's does)
-      if (g.zone === 'focus' && mark) {
-        const r = stage.getBoundingClientRect(), col = mark.closest('.col') ?? stage;
-        const ms = [...col.querySelectorAll(`mark[data-a="${CSS.escape(mark.dataset.a!)}"]`)].map(m => m.getBoundingClientRect());
-        ui.chip = { x: e.clientX - r.left, y: Math.min(...ms.map(m => m.top)) - r.top, b: Math.max(...ms.map(m => m.bottom)) - r.top, finger: g.touch, sel: null, ann: mark.dataset.a! };
-        return;
-      }
+      // in the text: what was pressed opens (a note's marker, a reference, a link, a
+      // picture, a note's dot), or a highlight its menu
+      if (g.zone === 'focus' && (this.opens(g.down) || this.highlightMenu(g.down, e.clientX, g.touch))) return;
       // a finger, as phone readers expect: the outer fifth of the page turns it, the middle
       // shows or hides the bar (a mouse keeps the rule that tapping the text does nothing)
       if (g.touch && g.zone === 'focus') {
@@ -304,7 +265,6 @@ export class ReaderInput {
       }
       if (g.zone === 'next') this.r.step(1);
       else if (g.zone === 'prev') this.r.step(-1);
-      if (!g.touch && (g.zone === 'next' || g.zone === 'prev') && ++this.taps >= 4) hint('keys-turn', 'Space turns the page from the keyboard, → one column (held, it glides), ← back.');
     };
     // (heard wherever it lands: a press begun on the page may end off it, over the bar or a
     // menu, or on lines rebuilt under the finger)

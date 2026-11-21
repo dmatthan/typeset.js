@@ -10,12 +10,15 @@ import type { Core, LibEntry } from './types';
 import { kv, flushKV } from './kv';
 
 const MAGIC = new TextEncoder().encode('VOLBK1');
+/** What belongs to this device, not to the library: the key a writer's passkey gave here,
+ *  and the input log. Not backed up, and not taken from a backup. */
+const OWN = (k: string) => k === 'vault.key' || k.startsWith('diag.');
 
 interface Manifest { v: 1; made: number; state: Record<string, unknown>; books: { entry: LibEntry; name: string; size: number }[] }
 
 export async function backup(core: Core): Promise<{ blob: Blob; books: number; missing: string[] }> {
   const state: Record<string, unknown> = {};
-  for (const k of kv.keys('')) state[k] = kv.get(k, null);
+  for (const k of kv.keys('')) if (!OWN(k)) state[k] = kv.get(k, null);
   const books: Manifest['books'] = [];
   const parts: Uint8Array[] = [];
   const missing: string[] = [];
@@ -55,7 +58,7 @@ export async function restore(core: Core, file: Blob): Promise<{ books: number; 
     if (have.has(b.entry.id)) continue;
     try { await core.importFile(bytes, b.name); back++; } catch { failed.push(b.entry.title); }
   }
-  for (const [k, v] of Object.entries(m.state ?? {})) if (v !== null) kv.set(k, v);
+  for (const [k, v] of Object.entries(m.state ?? {})) if (v !== null && !OWN(k)) kv.set(k, v);
   await flushKV();
   return { books: back, failed };
 }

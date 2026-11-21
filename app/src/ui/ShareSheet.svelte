@@ -1,4 +1,9 @@
 <script lang="ts">
+  /** Shares a book as a link (core/share.ts): the book sealed with a key of its own, which
+   *  only the link holds. With the service (this app served from the web, service/), a
+   *  signed-in writer puts the sealed book there and readers' notes come back through it;
+   *  without it (the desktop app, the dev server), the writer saves the sealed file and
+   *  puts it where readers can fetch it. */
   import { tick } from 'svelte';
   import Sheet from './Sheet.svelte';
   import { copyText } from '../core/clipboard';
@@ -10,11 +15,6 @@
   import type { Core, LibEntry } from '../core/types';
   import { me } from '../core/identity';
 
-  /** Shares a book as a link (core/share.ts): the book sealed with a key of its own, which
-   *  only the link holds. With the service (this app served from the web, service/), a
-   *  signed-in writer puts the sealed book there and readers' notes come back through it;
-   *  without it (the desktop app, the dev server), the writer saves the sealed file and
-   *  puts it where readers can fetch it. */
   let { core, book, onclose }: { core: Core; book: LibEntry; onclose: () => void } = $props();
 
   let svc: ServiceConfig | null | undefined = $state(undefined);
@@ -79,7 +79,7 @@
     const v = await sendDraft(book.id, src);
     shared = sharedOf(book.id);
     sync();
-    toast(`Sent: your readers get this draft (draft ${v}) the next time they open the book, their notes carried over.`, 6000);
+    toast(`Draft ${v} sent.`);
   });
   const keep = () => act(async () => { await renew(book.id); shared = sharedOf(book.id); sync(); toast(`The link works until ${day(shared!.expires)}.`, 4000); });
   const doWithdraw = () => act(async () => {
@@ -87,7 +87,7 @@
     await withdraw(book.id);
     shared = null; confirmWithdraw = false;
     sync();
-    toast('Withdrawn: the link no longer opens the book.', 4200);
+    toast('Link withdrawn.');
   });
   const check = () => act(async () => {
     const all = await collectNotes();
@@ -106,7 +106,7 @@
     busy = true;
     try {
       const src = await core.source(book.id);
-      if (!src) { toast('This book’s file was not kept: add it again, then share it.', 5200); return; }
+      if (!src) { toast('The book’s file is missing. Add it again to share it.', 5200); return; }
       const s = await seal(src.bytes, src.name, me().name || undefined);
       const name = book.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.vbook';
       if (await shell.saveBytes(name, s.sealed)) key = s.key;
@@ -118,20 +118,20 @@
   <div>
     <p class="eyebrow">Share as a link</p>
     <h2>{book.title}</h2>
-    <p class="where">The book is sealed with a key of its own, which only the link holds: whoever has the link can read it; nobody else can, the service that keeps it included.</p>
+    <p class="where">Only people with the link can read it.</p>
   </div>
   {#if !canSeal()}
-    <p class="hint">Sealing needs a secure page: the app over https, or the desktop app.</p>
+    <p class="hint">Sharing needs https, or the desktop app.</p>
   {:else if svc === undefined}
     <p class="hint">…</p>
   {:else if svc}
     {#if !svc.writer}
-      <p class="where">Writers sign in with the passkey they made when they were invited. Invitations come as a link.</p>
+      <p class="where">Sign in with the passkey from your invitation.</p>
       {#if !canPasskey()}<p class="hint">This browser cannot use passkeys.</p>{/if}
       <div class="check" bind:this={checkEl}></div>
       <div class="acts"><button class="btn primary" disabled={busy || !canPasskey()} onclick={doSignIn}>{busy ? 'Signing in…' : 'Sign in with my passkey'}</button></div>
     {:else if !shared}
-      <p class="where">Readers open the link here, read, and send their highlights and notes back to you: they arrive on your copy, beside the text. The link lasts 90 days, and you can withdraw it at any time.</p>
+      <p class="where">Readers’ highlights and notes come back to you. The link lasts 90 days.</p>
       <div class="acts"><button class="btn primary" disabled={busy} onclick={makeLink}>{busy ? 'Sealing and sending…' : 'Make the link'}</button></div>
     {:else}
       <div class="steps">
@@ -139,7 +139,7 @@
         <button class="btn primary" bind:this={copyBtn} onclick={() => copy(link)}>Copy the link</button>
       </div>
       {#if behind}
-        <p class="where">This link still carries an earlier draft. Send this one, and readers get it the next time they open the book, their notes carried over.</p>
+        <p class="where">The link has an earlier draft.</p>
         <div class="acts"><button class="btn primary" disabled={busy} onclick={sendThis}>Send this draft to your readers</button></div>
       {/if}
       <p class="where">{readers === null ? '' : readers === 0 ? 'No notes from readers yet. ' : `Notes from ${readers} reader${readers === 1 ? '' : 's'}. `}Works until {day(shared.expires)}.</p>

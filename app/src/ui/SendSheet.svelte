@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** Sends this reader's notes on the book to whoever sent it: a notes file, saved (and
+   *  then attached to an email or a message). The name goes with them. */
   import Sheet from './Sheet.svelte';
   import { type Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
@@ -7,8 +9,6 @@
   import { service, joinedOf, sendNotes, personToken } from '../core/service';
   import { kv } from '../core/kv';
 
-  /** Sends this reader's notes on the book to whoever sent it: a notes file, saved (and
-   *  then attached to an email or a message). The name goes with them. */
   let { reader }: { reader: Reader } = $props();
   let name = $state(me().name);
   // whether how far they read goes too: yes unless they say not
@@ -48,7 +48,7 @@
       const token = joinedOf(reader.book!.id)?.pass ? undefined : await personToken(check!, c.turnstile, 'notes');
       await sendNotes(reader.book!.id, reader.myNotes(), token);
       setAuto();
-      toast(auto ? 'Sent. New notes go to the writer by themselves when you leave the book.' : 'Sent. The writer sees your notes beside their text.', 5200);
+      toast('Sent.');
       close();
     } catch (e) { why = (e as Error).message; }
     finally { busy = false; }
@@ -77,7 +77,7 @@
       }
     }
     if (await shell.saveText(fileName, text, 'vnotes')) {
-      toast('Saved. Send the file to whoever sent you the book; they open it in their library.', 5200);
+      toast('Notes saved.');
       close();
     }
   }

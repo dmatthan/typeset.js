@@ -1,4 +1,8 @@
 <script lang="ts">
+  /** Type and appearance, one small panel rising from the menu at the foot (a sheet on a
+   *  phone): the size, the themes and the appearance first; everything else about the type
+   *  one step in (Style), each a change from the theme's design that resets on its own.
+   *  Nothing here blurs. */
   import { copyText } from '../core/clipboard';
   import { onMount, tick } from 'svelte';
   import { touchUI } from './touch';
@@ -9,10 +13,6 @@
   import { editor } from './editor.svelte';
   import { shell } from '../core/shell';
 
-  /** Type and appearance, one small panel under the Aa button (a sheet on a phone): the
-   *  size, the themes and the appearance first; everything else about the type one step
-   *  in (Style), each a change from the theme's design that resets on its own. Nothing
-   *  here blurs. */
   let { reader, page: startPage = 'main' }: { reader: Reader; page?: Page } = $props();
   type Page = 'main' | 'style';
   // svelte-ignore state_referenced_locally
@@ -89,32 +89,33 @@
   const APPEAR: Settings['appearance'][] = ['auto', 'light', 'dark'];
   const LAYOUTS: Layout[] = ['auto', 1, 2, 3];
 
+  /** The panel's keys, each what it does (every one listed in Help). Case matters: T and
+   *  Shift+T go opposite ways. */
+  const KEYS: Partial<Record<string, () => void>> = {
+    Escape: () => (page !== 'main' ? go('main') : close()),
+    s: close, S: close,
+    '-': () => setSize(-1), _: () => setSize(-1), '=': () => setSize(1), '+': () => setSize(1),
+    t: () => cycleTheme(1), T: () => cycleTheme(-1),
+    p: () => set('appearance', APPEAR[(APPEAR.indexOf(settings.appearance) + 1) % 3]),
+    '1': () => set('layout', 1), '2': () => set('layout', 2), '3': () => set('layout', 3), a: () => set('layout', 'auto'),
+    c: () => go(page === 'style' ? 'main' : 'style'),
+    b: () => opt('boldText', !o.boldText), j: () => opt('justify', !o.justify), y: () => opt('hyphenate', !o.hyphenate),
+    n: newTheme,
+  };
+  /** Back to the panel's first page, from one further in. */
+  const BACK = new Set(['Backspace', 'ArrowLeft', 'h']);
+
   function key(e: KeyboardEvent) {
     if (e.ctrlKey || e.metaKey || e.altKey || ui.sheet !== 'settings') return;
     const k = e.key;
     // (a field's keys are its own, and a slider's arrows move it)
     const typing = (e.target as Element).closest?.('input[type=text], input[type=range], input:not([type]), textarea, [contenteditable]');
-    if (typing && e.key !== 'Escape') return;
-    let done = true;
-    if (k === 'Escape') { if (page !== 'main') go('main'); else close(); }
-    else if ((k === 'Backspace' || k === 'ArrowLeft' || k === 'h') && page !== 'main') go('main');
-    else if (k === 's' || k === 'S') close();
-    else if (k === '-' || k === '_') setSize(-1);
-    else if (k === '=' || k === '+') setSize(1);
-    else if (k === 't') cycleTheme(1);
-    else if (k === 'T') cycleTheme(-1);
-    else if (k === 'p') set('appearance', APPEAR[(APPEAR.indexOf(settings.appearance) + 1) % 3]);
-    else if (k === '1' || k === '2' || k === '3') set('layout', +k as Layout);
-    else if (k === 'a') set('layout', 'auto');
-    else if (k === 'c') go(page === 'style' ? 'main' : 'style');
-    else if (k === 'b') opt('boldText', !o.boldText);
-    else if (k === 'j') opt('justify', !o.justify);
-    else if (k === 'y') opt('hyphenate', !o.hyphenate);
-    else if (k === '0' && page === 'style') { resetOptions(theme); relayout(); }
-    else if (k === 'n') newTheme();
-    else if (k === 'Tab') { trap(e); done = false; }
-    else done = false;
-    if (done) { e.preventDefault(); e.stopImmediatePropagation(); }
+    if (typing && k !== 'Escape') return;
+    if (k === 'Tab') { trap(e); return; }
+    const run = BACK.has(k) && page !== 'main' ? () => go('main') : k === '0' && page === 'style' ? () => { resetOptions(theme); relayout(); } : KEYS[k];
+    if (!run) return;
+    run();
+    e.preventDefault(); e.stopImmediatePropagation();
   }
   function trap(e: KeyboardEvent) {
     const f = [...panel.querySelectorAll<HTMLElement>('button:not([disabled]), input')];
@@ -262,7 +263,7 @@
   :global(html:not(.touchui)) .back:hover { background: var(--hover); }
   :global(.touchui) .back { width: 40px; height: 40px; }
   .txt { font: 500 var(--t-s)/1 var(--f-ui); color: var(--accent); padding: 6px 4px; border-radius: 6px; }
-  .txt.danger { color: oklch(0.58 0.16 28); }
+  .txt.danger { color: var(--danger); }
 
   .pill { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--read); border-radius: 12px; padding: 3px; gap: 3px; }
   .pill button { height: 38px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2); }

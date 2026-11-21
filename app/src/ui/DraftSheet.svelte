@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** A book just added that looks like a new draft of one in the library (reader/
+   *  draft.ts): carry everything over to it, and keep or remove the earlier draft. */
   import { count } from '../core/say';
   import Sheet from './Sheet.svelte';
   import { ui, toast } from '../state.svelte';
@@ -6,8 +8,6 @@
   import { carryOver } from '../reader/draft';
   import type { Core, LibEntry } from '../core/types';
 
-  /** A book just added that looks like a new draft of one in the library (reader/
-   *  draft.ts): carry everything over to it, and keep or remove the earlier draft. */
   let { core, from, to, remove, onclose }: { core: Core; from: LibEntry; to: LibEntry; remove: (b: LibEntry) => Promise<void>; onclose: () => void } = $props();
   let busy = $state(false);
   // svelte-ignore state_referenced_locally

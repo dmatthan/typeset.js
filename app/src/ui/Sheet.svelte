@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** A sheet: a dialog over the page (from the foot on a phone), focus kept in it, Escape
+   *  or a press beside it closing it. */
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
 

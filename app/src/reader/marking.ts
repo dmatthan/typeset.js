@@ -5,7 +5,6 @@
 import { kv } from '../core/kv';
 import { ui } from '../state.svelte';
 import type { Reaction } from './annotations';
-import { hint } from './hints';
 import { notebookOf, saveDigest } from './notebook';
 import type { Reader } from './reader.svelte';
 import { spans, selText, type Sel } from './selection';
@@ -16,10 +15,7 @@ export class Marking {
   /* ---------- marks ---------- */
   toggleMark(key: string) {
     if (this.r.marks.has(key)) this.r.marks.delete(key);
-    else {
-      this.r.marks.add(key);
-      hint('mark', 'Marked. Your marks are with your highlights: M, then Highlights (or the library’s notebook, N).', 4200);
-    }
+    else this.r.marks.add(key);
     this.paintMark(key);
     kv.set('marks.' + this.r.book!.id, [...this.r.marks]);
     this.digestSoon();
@@ -91,7 +87,6 @@ export class Marking {
   }
   setNote(id: string, note: string) {
     this.r.ann!.update(id, { note }); this.refreshAnn(id);
-    if (note) hint('sidenotes', 'A dot beside the line marks your note: point at it to read it, or press ; for every note in view.');
   }
   unhighlight(id: string) {
     const a = this.r.ann!.list.find(x => x.id === id);

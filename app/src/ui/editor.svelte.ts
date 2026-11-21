@@ -1,6 +1,6 @@
+/** The theme being made or edited in the theme sheet. */
 import { optionsOf, STOCK, type Theme } from '../reader/themes.svelte';
 
-/** The theme being made or edited in the theme sheet. */
 class Editor {
   draft = $state<Theme | null>(null);
   isNew = $state(true);

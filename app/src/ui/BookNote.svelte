@@ -1,11 +1,11 @@
 <script lang="ts">
+  /** A book's footnote or endnote, beside its marker, in the book's own type. Esc or a
+   *  click elsewhere closes it; G or Enter goes to where the note is printed. */
   import { onMount } from 'svelte';
   import { type Reader } from '../reader/reader.svelte';
   import { ui } from '../state.svelte';
   import { noteHTML } from '../reader/render';
 
-  /** A book's footnote or endnote, beside its marker, in the book's own type. Esc or a
-   *  click elsewhere closes it; G or Enter goes to where the note is printed. */
   let { reader }: { reader: Reader } = $props();
   let card: HTMLElement;
   const n = $derived(ui.bookNote!);

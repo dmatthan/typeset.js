@@ -112,7 +112,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   // the first time: who sent it, and how notes are made and sent; Enter, and reading
   const welcome = r.getByRole('dialog', { name: 'A book sent to you' });
   await expect(welcome).toContainText('Sent to you by Dana Writer', { timeout: 20000 });
-  await expect(welcome).toContainText('Send my notes');
+  await expect(welcome).toContainText('go back to Dana Writer when you send them');
   await r.keyboard.press('Enter');
   await expect(welcome).toHaveCount(0);
   await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 20000 });
@@ -185,7 +185,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   // withdrawn: the link no longer opens the book
   await w.getByRole('button', { name: 'Withdraw the link…' }).click();
   await w.getByRole('button', { name: 'Withdraw: press again' }).click();
-  await expect(w.locator('.toast')).toContainText('Withdrawn');
+  await expect(w.locator('.toast')).toContainText('Link withdrawn');
   expect((await r.request.get(`/api/books/${id}`)).status()).toBe(404);
   expect(blocked).toEqual([]);
   // the daily sweep runs
@@ -238,7 +238,7 @@ test('a writer’s shares follow their passkey to another device (its PRF secret
   // opening, and the vault no longer brings the book back
   const id = /#b=([\w-]+)/.exec(link)![1];
   await book.click({ button: 'right' });
-  await w.getByRole('button', { name: /^Remove book/ }).click();
+  await w.getByRole('button', { name: /^Remove from library/ }).click();
   const sheet = w.getByRole('dialog', { name: 'Remove a book' });
   await expect(sheet).toContainText('Its link stops working');
   await sheet.getByRole('button', { name: /^Remove/ }).click();
@@ -329,9 +329,9 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   await expect(w.locator('.toast')).toContainText('the share link');
   await w.locator('.book[data-id]', { hasText: 'The Lantern Keeper' }).click({ button: 'right' });
   await w.getByRole('button', { name: 'Share as a link…' }).click();
-  await expect(w.getByText('This link still carries an earlier draft')).toBeVisible();
+  await expect(w.getByText('The link has an earlier draft')).toBeVisible();
   await w.getByRole('button', { name: 'Send this draft to your readers' }).click();
-  await expect(w.locator('.toast')).toContainText('your readers get this draft (draft 2)');
+  await expect(w.locator('.toast')).toContainText('Draft 2 sent');
   expect(await w.getByLabel('The link').inputValue()).toBe(link);
 
   // the reader opens the book again: offered the new draft, their highlight carried

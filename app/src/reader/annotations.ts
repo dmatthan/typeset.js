@@ -1,3 +1,5 @@
+/** One's own highlights and notes on a book: kept, found again when the text has moved, and
+ *  the reactions a manuscript's reader gives a passage. */
 import type { BookData, Core } from '../core/types';
 import { kv } from '../core/kv';
 import { readingOrder, shareOf, type KeyIndex } from '../core/book';

@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** A theme made or edited: its type and its palettes, or one read from a file or from an
+   *  AI chat's answer to a brief. */
   import { copyText } from '../core/clipboard';
   import Sheet from './Sheet.svelte';
   import type { Reader } from '../reader/reader.svelte';
@@ -86,7 +88,7 @@
   }
   async function copyBrief() {
     const text = aiBrief(installed);
-    if (await copyText(text)) toast('Brief copied: paste it into an AI chat, then paste its answer here');
+    if (await copyText(text)) toast('Brief copied.');
     else { pasted = text; importing = true; toast('Copy the brief from the box'); }
   }
 </script>

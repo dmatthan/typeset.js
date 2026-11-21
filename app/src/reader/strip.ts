@@ -1,3 +1,5 @@
+/** The strip: every column of the book in order, from its sections' layouts (estimated
+ *  until laid out), and anchors that find a place again after any relayout. */
 import type { BookData } from '../core/types';
 import { keyIndexOf, type KeyIndex } from '../core/book';
 

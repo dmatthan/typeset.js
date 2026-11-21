@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
-  import type { Reader } from '../reader/reader.svelte';
-
   /** Find in book: a field over the top band, the count, previous and next, and while
    *  typing the results beneath, grouped by chapter. Enter steps through the hits;
    *  arrows walk the list; Esc ends the search and clears its marks. */
+  import { onMount, tick } from 'svelte';
+  import type { Reader } from '../reader/reader.svelte';
+
   let { reader }: { reader: Reader } = $props();
   // svelte-ignore state_referenced_locally
   const f = reader.finder;

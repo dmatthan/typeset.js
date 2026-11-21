@@ -65,13 +65,15 @@ the rest itself.
 
 The kit is the reader alone, for any site: `Volumen-kit.zip` from a release, unpacked into
 a folder (here `/volumen/`), or built with `VOLUMEN_KIT=1 npx vite build` in `app/`
-(`app/dist-kit`). Two elements place it on a page:
+(`app/dist-kit`). Three elements place it on a page:
 
 ```html
 <script type="module" src="/volumen/volumen.js"></script>
 
 <volumen-book src="/books/book.epub" chapters="3" theme="linen"
   end-href="/shop" end-label="Buy the book"></volumen-book>
+
+<volumen-open src="/books/book.epub"><button>Read the book</button></volumen-open>
 
 <volumen-library src="/books.json"></volumen-library>
 ```
@@ -101,6 +103,18 @@ until the reader leaves it (an ancestor with a `transform` would hold it in its 
 takes `book.goTo({ chapter: 3 })` or `book.goTo({ at: 0.5 })`, and `book.setTheme(theme)`: a
 theme's name, or a theme as Volumen exports one (`{ "format": "volumen-theme/1", … }`).
 
+`<volumen-open>` opens a book over the whole window from what it holds: the page's own
+button, a picture, any element (it takes `<volumen-book>`'s attributes). Holding nothing,
+it shows the book's cover: an EPUB's own, read from the file, or `cover="/cover.jpg"`;
+`title` names it. The reader has Back, which, as the browser's back does, gives the page
+back as it was. It sends `volumen-open` and `volumen-close`; the reader's own events come
+from the `<volumen-book>` it opens (`element.book`). From a page's own script:
+
+```js
+import { open } from '/volumen/volumen.js';
+const reading = open({ src: '/books/book.epub', chapters: '3' });   // reading.close()
+```
+
 `<volumen-library>` makes a shelf from `[{ "title", "author", "src", "cover" }]`; without
 `cover`, an EPUB's own cover is read from the file by range requests. See `examples/`.
 
@@ -118,13 +132,18 @@ server must then send `Access-Control-Allow-Origin`.
 
 ## Working on it
 
+How the parts fit, at a glance: [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ```sh
 git config core.hooksPath scripts/hooks   # once: the checks below before every commit
 scripts/lint.sh                           # the fast checks: layers, file sizes, copied
-                                          # code, unused code, types, clippy
+                                          # code, unused code, types, tangled functions,
+                                          # modules that say what they are, clippy
+node scripts/map.mjs                      # every module, in its own words
 scripts/check.sh                          # everything: lint, crates, Playwright, the press
 npm --prefix app test                     # the browser tests (Chromium; the app, its
                                           # production build, the service, the kit)
+npm --prefix app run test:engines         # the reader in Firefox and Safari's engine
 node scripts/sizes.mjs                    # what a page with the kit downloads, against a budget
 ```
 

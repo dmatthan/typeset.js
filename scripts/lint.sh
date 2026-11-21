@@ -20,6 +20,10 @@ step "no copied code (jscpd)";                          npx --prefix app jscpd -
 if touched "${1:-}" '^app/'; then
   step "app: types";                                    npm --prefix app run -s check >/dev/null
   step "app: nothing unused (knip)";                    (cd app && npx knip --no-progress)
+  # no function more tangled than 30 branches (scripts/complexity.mjs lists the most)
+  step "app: no tangled function";                      node scripts/complexity.mjs 30 | tail -1
+  # every module says what it is, first thing (scripts/map.mjs prints them all: the map)
+  step "app: every module says what it is";             node scripts/map.mjs --check >/dev/null
 fi
 if touched "${1:-}" '^service/'; then
   step "service: types";                                npm --prefix service run -s check

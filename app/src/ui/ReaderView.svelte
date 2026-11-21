@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** The reader's view: the page, its controls (the bar, the foot, the menu), and the
+   *  panels and sheets it opens. */
   import { droppedFiles } from './files';
   import { embedded, embedOpts, features, fullscreenBy, wayBack } from '../core/embed';
   import { toggleFull } from './keys';

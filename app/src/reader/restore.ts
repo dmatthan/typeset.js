@@ -1,3 +1,4 @@
+/** One's own notes put back on a book from a notes file. */
 import type { BookData, Core } from '../core/types';
 import { kv } from '../core/kv';
 import { keyIndexOf } from '../core/book';

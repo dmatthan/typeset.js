@@ -1,3 +1,5 @@
+/** The surface: the columns in view on the page, a few built ahead of the motion, and the
+ *  track that moves them. */
 import { fitColumn } from './verify';
 
 /** How far ahead of the motion columns must exist, seconds: the compositor draws the move

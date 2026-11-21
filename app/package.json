@@ -10,7 +10,8 @@
     "test": "playwright test --project=chromium --project=build --project=service --project=kit",
     "test:slow": "CPU=4 playwright test --project=chromium --project=build --project=kit",
     "test:firefox": "playwright test --project=firefox",
-    "test:webkit": "playwright test --project=webkit"
+    "test:webkit": "playwright test --project=webkit",
+    "test:engines": "playwright test --project=firefox --project=webkit"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

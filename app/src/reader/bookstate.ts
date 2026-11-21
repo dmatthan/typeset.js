@@ -1,3 +1,4 @@
+/** What is kept about each book, and forgetting it when the book goes. */
 import { kv } from '../core/kv';
 
 /** What is kept about each book, as `<prefix><book id>`: the place and how far one got,

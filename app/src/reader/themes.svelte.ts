@@ -1,3 +1,5 @@
+/** Themes: the bundled ones and the reader's own, resolved for an appearance into type and
+ *  palette, and saved, exported and read back. */
 import { kv } from '../core/kv';
 import type { Core, FamilyLoad } from '../core/types';
 import { BUNDLED, BUNDLED_SMCP } from '../core/fonts';

@@ -1,4 +1,7 @@
 <script lang="ts">
+  /** Every book's notebook at once: highlights, notes, marked paragraphs and chapter
+   *  lines, grouped by book, the one written in last first. One field filters them all, folded as
+   *  find folds (case, accents, curly quotes). An entry opens its book at its place. */
   import { copyText } from '../core/clipboard';
   import { onMount, tick } from 'svelte';
   import type { LibEntry } from '../core/types';
@@ -8,9 +11,6 @@
   import { notesMarkdown } from '../reader/notesmd';
   import { shell } from '../core/shell';
 
-  /** Every book's notebook at once: highlights, notes, marked paragraphs and chapter
-   *  lines, grouped by book, the one written in last first. One field filters them all, folded as
-   *  find folds (case, accents, curly quotes). An entry opens its book at its place. */
   let { books, reader }: { books: LibEntry[]; reader: Reader } = $props();
   let field: HTMLInputElement;
   let listEl: HTMLElement;
@@ -90,7 +90,7 @@
   </div>
   <div class="nb-list" bind:this={listEl}>
     {#if !total}
-      <p class="empty">Nothing here yet. While reading, hold a moment and drag to select a passage, then press 1–4 to highlight it or N to add a note; V chooses a whole paragraph from the keyboard. Everything you add, in every book, collects here.</p>
+      <p class="empty">No highlights yet.</p>
     {:else if !shown.count}
       <p class="empty">Nothing matches “{query}”.</p>
     {/if}

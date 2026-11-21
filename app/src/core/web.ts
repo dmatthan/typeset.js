@@ -1,3 +1,5 @@
+/** The engine in a browser tab: its WASM build in a Web Worker, started when first needed;
+ *  the library, its covers and images read from IndexedDB without it. */
 import { at } from './root';
 import type { BookData, BookHits, Core, FamilyLoad, LayoutParams, LibEntry, Placed } from './types';
 import * as db from './db';

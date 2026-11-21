@@ -479,20 +479,42 @@ test('a long way through the progress line: dragged, it names the page; let go, 
   await expect.poll(() => place(p)).toMatch(new RegExp(`^Page ${Math.floor(N / 2) + 1} of ${N}, `));
 });
 
-test('a trackpad moves the sheet directly; its momentum tail is taken over and lands on a column', async ({ page: p }) => {
+test('a trackpad: a swipe turns one page, however long it and its momentum run; a new swipe turns the next', async ({ page: p }) => {
   await openSample(p);
-  await toChapterOne(p);
+  await p.evaluate(() => (window as any).__vol.reader.jump(20));
+  const rest = async () => { await p.waitForTimeout(80); await settled(p); await p.waitForTimeout(300); return cur(p); };
+  // wheel events as a trackpad sends them, 16 ms apart (`legacy`: the engine's wheelDelta
+  // along with them, as Safari's and Chrome's on a Mac have it, three times the delta)
+  const swipe = (deltas: number[], legacy = false) => p.evaluate(async ([deltas, legacy]) => {
+    const st = (window as any).__vol.reader.stage as HTMLElement;
+    for (const d of deltas) {
+      const e = new WheelEvent('wheel', { deltaY: d, deltaMode: 0, bubbles: true, cancelable: true });
+      if (legacy) Object.defineProperty(e, 'wheelDeltaY', { value: -3 * d });
+      st.dispatchEvent(e); await new Promise(r => setTimeout(r, 16));
+    }
+  }, [deltas, legacy] as [number[], boolean]);
+  // momentum as it comes: falling slowly, a value often twice, for a second and more (a
+  // flick's runs to thousands of pixels: several columns, followed one to one)
+  const tail = (from: number, n: number) => Array.from({ length: n }, (_, i) => Math.max(1, +(from * 0.97 ** Math.floor(i / 2)).toFixed(1)));
   const k0 = await cur(p);
-  await p.mouse.move(640, 400);
-  for (const d of [12.5, 20.5, 30.5, 26.5]) { await p.mouse.wheel(0, d); await p.waitForTimeout(16); }
-  // mid-gesture the sheet sits between columns, following the fingers
-  const mid = await p.evaluate(() => (window as any).__vol.reader.motion.p);
-  expect(mid - k0).toBeGreaterThan(0.05);
-  expect(mid - k0).toBeLessThan(0.5);
-  for (const d of [40.5, 30.5, 22.5, 15.5, 10.5, 6.5, 4.5, 2.5, 1.5]) { await p.mouse.wheel(0, d); await p.waitForTimeout(16); }
-  await expect.poll(() => cur(p)).toBe(k0 + 1);
-  await settled(p);
-  expect(await cur(p)).toBe(k0 + 1);
+  // a Mac's swipe and a second of its momentum: one page
+  await swipe([1.5, 4.2, 9.8, 18.4, 27.1, 33.6, ...tail(31, 60)], true);
+  expect(await rest()).toBe(k0 + 1);
+  // a laptop's, in whole steps of 20 px and more (Chrome on Linux): one page, not one an event
+  await swipe([3, 8, 15, 24, 33, 41, 47, 50, ...tail(50, 70).map(Math.round)]);
+  expect(await rest()).toBe(k0 + 2);
+  // the fingers pushing again in the momentum of the last: the next page
+  await swipe([2, 7, 16, 28, 36, ...tail(34, 14), 4, 11, 24, 37, 41, ...tail(38, 30)], true);
+  expect(await rest()).toBe(k0 + 4);
+  // back the other way
+  await swipe([-2, -9, -21, -34, -30, ...tail(-26, 20)], true);
+  expect(await rest()).toBe(k0 + 3);
+  // a brush: nothing
+  await swipe([1.2, 2.1, 1.4]);
+  expect(await rest()).toBe(k0 + 3);
+  // one that begins as a wheel's notch would (a whole 120): its next events say otherwise
+  await swipe([120, 96, 140, 131, ...tail(120, 50).map(Math.round)]);
+  expect(await rest()).toBe(k0 + 4);
 });
 
 test('past either end a drag meets a band: the sheet goes a little way and no further, and follows the hand back', async ({ page: p }) => {
@@ -641,6 +663,15 @@ test('dark paper, help, reset', async ({ page: p }) => {
   await p.keyboard.press('Escape');
   await p.keyboard.press('?');
   await expect(p.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible();
+  // each row its keys, drawn as keys, and a few words: nothing to read through
+  const rows = await p.locator('.sheet .row').evaluateAll(rs => rs.map(r => ({
+    keys: [...r.querySelectorAll('.keys > *')].every(k => k.matches('kbd, .or, .to')),
+    caps: r.querySelectorAll('.keys kbd').length,
+    words: (r.querySelector('.what')?.textContent ?? '').trim().split(/\s+/).length,
+  })));
+  expect(rows.length).toBeGreaterThan(20);
+  expect(rows.filter(r => !r.keys || !r.caps || r.words > 5)).toEqual([]);
+  await expect(p.locator('.sheet p')).toHaveCount(0);
 });
 
 test('plain-text import', async ({ page: p }) => {
@@ -1019,8 +1050,8 @@ test('the wheel: every notch counts, partial notches add up, a short push does n
   await openSample(p);
   await p.evaluate(() => (window as any).__vol.reader.jump(20));
   // (times here are the input's own: a quiet spell is what ends a wheel gesture and lets the
-  // next be read, WHEEL_QUIET and WHEEL_LOCK in input.ts; the gaps between spins make them
-  // separate gestures, as a hand's would)
+  // next be read, `QUIET` in wheel.ts; the gaps between spins make them separate gestures,
+  // as a hand's would)
   const rest = async () => { await p.waitForTimeout(80); await settled(p); await p.waitForTimeout(250); return cur(p); };
   // wheel events as a webview delivers them, spaced in time
   const wheel = (deltas: number[], gap: number) => p.evaluate(async ([deltas, gap]) => {
@@ -1068,6 +1099,21 @@ test('find in book: count, marks, Enter travels, the list, Esc clears', async ({
   await p.keyboard.press('Escape');
   await expect(p.locator('.find')).toHaveCount(0);
   await expect(p.locator('.ln mark.h5, .ln mark.h6')).toHaveCount(0);
+});
+
+test('a book\'s sheet in the library: the book, its collections, its actions as one list, Done', async ({ page: p }) => {
+  await p.goto('/'); await p.evaluate(() => localStorage.clear()); await p.goto('/');
+  await p.locator('.book[data-id]').first().waitFor();
+  await p.locator('.more').first().click();
+  const sheet = p.locator('.sheet');
+  await expect(sheet.getByRole('heading', { level: 2 })).toHaveText('The Man Who Was Thursday');
+  await expect(sheet.getByRole('group', { name: 'Collections' })).toBeVisible();
+  // its actions: one list, each a row with its glyph, removing last; Done alone at the foot
+  const acts = sheet.getByRole('group', { name: 'Actions' }).getByRole('button');
+  await expect(acts.first()).toHaveText('Share as a link…');
+  await expect(acts.last()).toHaveText('Remove from library…');
+  expect(await acts.evaluateAll(bs => bs.every(b => !!b.querySelector('svg')))).toBe(true);
+  await expect(sheet.locator('.acts button')).toHaveText(['Done']);
 });
 
 test('the library notebook lists every book\'s entries, filters, and opens a book at one', async ({ page: p }) => {
@@ -1436,19 +1482,17 @@ test('library search: titles and authors at once, the text of every book beneath
   await expect(p.locator('.sheet')).toHaveCount(0);
 });
 
-test('hints teach a faster way once, at the moment it helps', async ({ page: p }) => {
+test('nothing teaches: no hint comes, whatever the reader does (the interface speaks for itself)', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
-  await p.evaluate(() => (window as any).__vol.setHints(true));
-  // turning by clicking beside the text, four times: the keys are offered, once
+  // (hints, where there are any, are off under automation: on, as a reader has them)
+  await p.evaluate(() => (window as any).__vol.setHints?.(true));
+  // turning by clicking beside the text, many times; a mark made; the book opened again
   const box = (await p.locator('.stage').boundingBox())!;
-  for (let i = 0; i < 4; i++) { await p.mouse.click(box.x + box.width - 40, box.y + box.height / 2); await settled(p); }
-  await expect(p.locator('.toast')).toContainText('Space turns the page');
-  expect(await p.evaluate(() => JSON.parse(localStorage.getItem('volumen.hints') || '[]'))).toEqual(['keys-turn']);
-  // not again, even after the pause between hints
-  await p.evaluate(() => (window as any).__vol.setHints(true));
-  for (let i = 0; i < 4; i++) { await p.mouse.click(box.x + 40, box.y + box.height / 2); await settled(p); }
-  expect(await p.evaluate(() => JSON.parse(localStorage.getItem('volumen.hints') || '[]'))).toEqual(['keys-turn']);
+  for (let i = 0; i < 6; i++) { await p.mouse.click(box.x + box.width - 40, box.y + box.height / 2); await settled(p); }
+  await p.keyboard.press('v'); await p.keyboard.press('m'); await p.keyboard.press('Escape');
+  await expect(p.locator('.toast.show')).toHaveCount(0);
+  expect(await p.evaluate(() => localStorage.getItem('volumen.hints'))).toBeNull();
 });
 
 test('notes find their words again when the text has moved; notes whose words are gone are kept out of sight', async ({ page: p }) => {
@@ -1842,7 +1886,7 @@ test('a link out of the book opens in a new tab, from a tap or the keyboard; onl
   await again.close();
   // and an address that is neither is refused, said plainly
   expect(await p.evaluate(() => (window as any).__vol.reader.openLink('javascript:alert(1)'))).toBeUndefined();
-  await expect(p.locator('.toast')).toContainText('nowhere a book may send you');
+  await expect(p.locator('.toast')).toContainText('This link can’t be opened');
 });
 
 test('rich blocks are measured where nothing runs or fetches, never in the page', async ({ page: p }) => {
@@ -1896,7 +1940,7 @@ test('a reader\'s note resolved: it leaves the page and the rail, kept settled a
   await expect(card).toContainText('Yesterday');
   await card.getByRole('button', { name: 'Resolve' }).click();
   // (said where it went)
-  await expect(p.locator('.toast.show')).toContainText('among the readers’ notes');
+  await expect(p.locator('.toast.show')).toContainText('Resolved');
   // off the page: no underline, no dot, no card
   await expect(card).toHaveCount(0);
   await expect(p.locator('.col .fb')).toHaveCount(0);
@@ -2020,6 +2064,33 @@ test('a book read by an earlier importer is read again from its kept file; place
   expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.note))).toEqual(['Kept across readings.']);
 });
 
+test('hyphenation whose patterns failed to come is tried again: the next layout hyphenates', async ({ page: p }) => {
+  let failed = 0;
+  await p.route('**/hyph/*.bin', r => (failed++ ? r.continue() : r.fulfill({ status: 503, body: 'down' })));
+  await openSample(p);
+  await toChapterOne(p);
+  expect(failed).toBeGreaterThan(0);
+  // laid out again (another size): this time the patterns come, and words are broken
+  await p.evaluate(() => { const w = window as any; w.__vol.settings.size = 22; return w.__vol.reader.settingsChanged('layout'); });
+  await expect.poll(() => p.evaluate(() => document.querySelectorAll('.col .ln.hy').length), { timeout: 15000 }).toBeGreaterThan(0);
+});
+
+test('a notes file that would put markup on the page is drawn as text: its ids escaped, its colours kept to the four', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  await p.evaluate(async () => {
+    const r = (window as any).__vol.reader, f = r.myNotes();
+    const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
+    const sec = r.strip.itemAt(r.cur).sec, b = r.book.sections[sec].blocks[+lns[3].dataset.b!], s0 = +lns[3].dataset.s!;
+    // one's own notes, as a crafted file would have them
+    f.notes = [{ id: 'x"><img src=x onerror="window.__pwned=1">', kind: 'highlight', key: b.key, s: s0, e: s0 + 20, quote: b.t.slice(s0, s0 + 20), prefix: '', suffix: '', color: '5" onmouseover="window.__pwned=2', note: 'n', created: 1, updated: 1 }];
+    await r.receiveNotes([JSON.stringify(f)]);
+  });
+  await expect(p.locator('.col mark.hl').first()).toBeVisible();
+  expect(await p.evaluate(() => [(window as any).__pwned ?? 0, document.querySelectorAll('.track img[src="x"], .track [onmouseover]').length])).toEqual([0, 0]);
+  expect(await p.locator('.col mark.hl').first().getAttribute('class')).toMatch(/^hl h[1-4]\b/);
+});
+
 test('notes as W3C Web Annotations: exported, read back exactly; another tool’s placed by their words', async ({ page: p }) => {
   await openSample(p);
   const made = await p.evaluate(() => {
@@ -2087,6 +2158,7 @@ test('the whole library backed up and restored into a browser with nothing in it
     v.settings.size = 22;
     v.kv.set('settings', { size: 22 });
     v.kv.set('me', { id: 'reader-one', name: 'Ann' });
+    v.kv.set('vault.key', 'this-device');
   });
   await p.keyboard.press('q');
   await p.setInputFiles('input[type=file]', '../bench/fixtures/tables.epub');
@@ -2094,21 +2166,29 @@ test('the whole library backed up and restored into a browser with nothing in it
   const me = await p.evaluate(() => (window as any).__vol.kv.get('me', null).id);
   const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Back up the library…' }).click()]);
   expect(dl.suggestedFilename()).toMatch(/^Volumen library .*\.vbackup$/);
-  const file = await (await dl.createReadStream()).toArray().then(c => Buffer.concat(c));
+  let file = await (await dl.createReadStream()).toArray().then(c => Buffer.concat(c));
+  // what belongs to this device's sign-in is not in it; and one that says otherwise is not believed
+  const len = file.readUInt32BE(6), m = JSON.parse(file.subarray(10, 10 + len).toString());
+  expect(m.state['vault.key']).toBeUndefined();
+  m.state['vault.key'] = 'theirs';
+  const head = Buffer.from(JSON.stringify(m)), n = Buffer.alloc(4);
+  n.writeUInt32BE(head.length);
+  file = Buffer.concat([file.subarray(0, 6), n, head, file.subarray(10 + len)]);
   // another browser, nothing in it but the sample
   const ctx = await browser.newContext();
   await ctx.route('**/sample.epub', r => r.fulfill({ path: SAMPLE, contentType: 'application/epub+zip' }));
   const q = await ctx.newPage();
   await q.goto('/');
   await q.locator('.book[data-id]').first().waitFor();
+  await q.evaluate(() => (window as any).__vol.kv.set('vault.key', 'mine'));
   // (restored, the app starts again: the page's next load)
   const reloaded = q.waitForEvent('load', { timeout: 30_000 });
   await q.setInputFiles('input[type=file]', { name: 'Volumen library.vbackup', mimeType: 'application/octet-stream', buffer: file });
   await expect(q.locator('.toast')).toContainText('Restored: 1 book added');
   await reloaded;
   await expect(q.locator('.book[data-id]')).toHaveCount(2);
-  const back = await q.evaluate(() => { const kv = (window as any).__vol.kv; const k = kv.keys('ann.')[0]; return { me: kv.get('me', null)?.id, size: kv.get('settings', {}).size, note: k && kv.get(k, [])[0]?.note }; });
-  expect(back).toEqual({ me, size: 22, note: 'Backed up with the book.' });
+  const back = await q.evaluate(() => { const kv = (window as any).__vol.kv; const k = kv.keys('ann.')[0]; return { me: kv.get('me', null)?.id, size: kv.get('settings', {}).size, note: k && kv.get(k, [])[0]?.note, vault: kv.get('vault.key', null) }; });
+  expect(back).toEqual({ me, size: 22, note: 'Backed up with the book.', vault: 'mine' });
   await ctx.close();
 });
 

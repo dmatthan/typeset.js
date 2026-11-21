@@ -3,14 +3,12 @@ import type { Core, LibEntry } from '../core/types';
 import { kv } from '../core/kv';
 import { backup, restore, isBackup } from '../core/backup';
 import { isTauri, shell } from '../core/shell';
-import { isSafari, isInstalled } from '../core/env';
 import { embedded } from '../core/embed';
 import { syncShares, hasVault, sharedOf, service, withdraw, fetchNotes } from '../core/service';
 import { ui, toast } from '../state.svelte';
 import { forgetBookState } from '../reader/bookstate';
 import { earlierDraft } from '../reader/draft';
 import { parseNotes, receive } from '../reader/feedback';
-import { hint } from '../reader/hints';
 import { takeNotes as takeNotesIn } from '../reader/intake';
 import { isNotesMarkdown } from '../reader/notesmd';
 import { isWebAnno } from '../reader/webanno';
@@ -108,20 +106,13 @@ export async function removeBook(core: Core, id: string) {
 }
 
 /** The library kept for good: a browser may clear a site's storage when it is short of
- *  room, and Safari clears it after some days unvisited unless the site is installed.
- *  Asked once a book of one's own is added (Firefox asks the person; Chrome and Safari
- *  decide by themselves); where it is not granted in Safari, said once how to keep it. */
+ *  room (Safari after some days unvisited, unless the site is installed). Asked once a
+ *  book of one's own is added (Firefox asks the person; Chrome and Safari decide). */
 let keepAsked = false;
 export async function keepLibrary() {
   if (keepAsked || isTauri || embedded || !navigator.storage?.persist) return;
   keepAsked = true;
-  if (await navigator.storage.persisted().catch(() => false)) return;
-  if (await navigator.storage.persist().catch(() => false)) return;
-  if (!isSafari || isInstalled()) return;
-  const touch = document.documentElement.classList.contains('touchui');
-  setTimeout(() => hint(touch ? 'touch-keep' : 'keep', touch
-    ? 'Safari may clear this library if Volumen is not opened for a week or so. To keep it: Share, then Add to Home Screen; or back it up, at the foot of the library.'
-    : 'Safari may clear this library if Volumen is not opened for a week or so. To keep it: File, then Add to Dock; or back it up, at the foot of the library.', 9000), 4000);
+  if (!(await navigator.storage.persisted().catch(() => false))) await navigator.storage.persist().catch(() => false);
 }
 
 /** Readers' notes on books shared through the service, fetched when the library shows

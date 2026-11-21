@@ -1,13 +1,13 @@
 <script lang="ts">
+  /** An image shown large. It grows from where it sits on the page to the middle of the
+   *  window over a darkened, vignetted page, and goes back the same way. Only transform and
+   *  opacity animate (the compositor's work); nothing is blurred live. */
   import { onMount } from 'svelte';
   import { type Reader } from '../reader/reader.svelte';
   import { ui } from '../state.svelte';
   import { reduceMotion } from '../reader/settings.svelte';
   import { RICH } from '../reader/rich';
 
-  /** An image shown large. It grows from where it sits on the page to the middle of the
-   *  window over a darkened, vignetted page, and goes back the same way. Only transform and
-   *  opacity animate (the compositor's work); nothing is blurred live. */
   let { reader }: { reader: Reader } = $props();
   const lb = $derived(ui.lightbox!);
   // svelte-ignore state_referenced_locally

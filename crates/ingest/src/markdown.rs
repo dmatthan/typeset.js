@@ -159,10 +159,15 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
     assemble(bytes, name, Doc { meta, paras, notes })
 }
 
-/// A YAML-like front matter block: `title:`, `author:`, `lang:`; the rest of the text.
+/// A YAML-like front matter block: `title:`, `author:`, `lang:`; the rest of the text. Only
+/// a block of fields is one: a manuscript may open with a rule, and have another further on.
 fn front_matter<'a>(src: &'a str, meta: &mut Meta) -> &'a str {
     let Some(rest) = src.strip_prefix("---\n") else { return src };
     let Some(end) = rest.find("\n---") else { return src };
+    let field = |l: &str| l.split_once(':').is_some_and(|(k, _)| !k.is_empty() && k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-'));
+    if !rest[..end].lines().all(|l| l.trim().is_empty() || field(l)) {
+        return src;
+    }
     for line in rest[..end].lines() {
         if let Some((k, v)) = line.split_once(':') {
             let v = v.trim().trim_matches(['"', '\'']).to_string();

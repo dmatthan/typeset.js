@@ -151,6 +151,17 @@ export async function layout(p: Page | Frame, roots: string[], touch: boolean, c
   }, { roots, touch, clear });
 }
 
+/** Nothing moving, so that what the rules see is what stays: the reader at rest (where
+ *  there is one: the app's own pages), and, two frames on (an animation about to start has
+ *  started: a sheet's fade, from nothing), every finite animation and transition finished. */
+export async function still(p: Page | Frame) {
+  await p.waitForFunction(() => !(window as any).__vol?.reader?.motion?.moving);
+  await p.evaluate(async () => {
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})));
+  });
+}
+
 /** Accessibility (axe-core: WCAG 2.1 A and AA, and best practice) of the page as it is. */
 export async function access(p: Page): Promise<string[]> {
   const r = await new AxeBuilder({ page: p }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']).analyze();

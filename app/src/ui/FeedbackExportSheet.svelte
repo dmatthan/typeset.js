@@ -1,4 +1,7 @@
 <script lang="ts">
+  /** Readers' feedback out to where the writer works (reader/feedbackExport.ts): into
+   *  their own file (Word comments, or CriticMarkup in Markdown), into another version of
+   *  it, or as a report or a spreadsheet. */
   import { count } from '../core/say';
   import Sheet from './Sheet.svelte';
   import { type Reader } from '../reader/reader.svelte';
@@ -6,9 +9,6 @@
   import { shell } from '../core/shell';
   import { wordComments, feedbackMarkdown, feedbackCsv, criticMarkup } from '../reader/feedbackExport';
 
-  /** Readers' feedback out to where the writer works (reader/feedbackExport.ts): into
-   *  their own file (Word comments, or CriticMarkup in Markdown), into another version of
-   *  it, or as a report or a spreadsheet. */
   let { reader }: { reader: Reader } = $props();
   // svelte-ignore state_referenced_locally
   const book = reader.book!, fb = reader.fb!;

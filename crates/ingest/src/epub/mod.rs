@@ -243,10 +243,11 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
                 }
             }
     }
-    // keep only entries that point into the spine, in spine order, first one per target
-    let spine_pos: HashMap<&str, usize> = spine.iter().enumerate().map(|(i, s)| (s.as_str(), i)).collect();
+    // keep only entries that point into the spine, the first one per target (the sections
+    // come in the spine's order, each file's entries with it)
+    let in_spine: HashSet<&str> = spine.iter().map(String::as_str).collect();
     let mut seen = HashSet::new();
-    toc.retain(|t| spine_pos.contains_key(t.file.as_str()) && seen.insert((t.file.clone(), t.frag.clone())));
+    toc.retain(|t| in_spine.contains(t.file.as_str()) && seen.insert((t.file.clone(), t.frag.clone())));
 
     let mut ex = Extractor::default();
     let toc_by_file: HashMap<&str, Vec<&TocEntry>> = toc.iter().fold(HashMap::new(), |mut m, t| {

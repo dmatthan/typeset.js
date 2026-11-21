@@ -1,8 +1,8 @@
+/** The native engine in the desktop shell (src-tauri). Layout tables arrive as raw
+ *  bytes, not JSON. */
 import { invoke } from '@tauri-apps/api/core';
 import type { BookData, Core, FamilyLoad, LayoutParams, LibEntry } from './types';
 
-/** The native engine in the desktop shell (src-tauri). Layout tables arrive as raw
- *  bytes, not JSON. */
 export function tauriCore(): Core {
   return {
     importFile: (bytes, name) => invoke<LibEntry>('import_bytes', bytes, { headers: { 'x-name': encodeURIComponent(name) } }),

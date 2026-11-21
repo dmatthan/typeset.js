@@ -1,3 +1,5 @@
+/** The library's collections: those that fill themselves (Reading, Finished, Not started)
+ *  and the reader's own. */
 import { kv } from '../core/kv';
 import type { LibEntry } from '../core/types';
 

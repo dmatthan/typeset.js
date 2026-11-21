@@ -24,6 +24,9 @@
 <volumen-book id="book" src="/books/meditations.epub" chapters="3" theme="linen" paper="page"
   end-href="/shop" end-label="Buy the book"></volumen-book>
 
+<!-- the whole book, over the window, from the site's own button -->
+<p><volumen-open src="/books/meditations.epub" title="Meditations"><button>Read the whole book</button></volumen-open></p>
+
 <script>
   // what the reader says (for a page that wants to know): open, where it is, the end, or
   // why it could not open the book. Once ready, the page may move it: book.goTo({ chapter: 1 })

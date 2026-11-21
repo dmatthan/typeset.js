@@ -1,3 +1,5 @@
+/** What the engine deals in (`Core`, both shells' one interface): books as the importer
+ *  makes them, layouts, the library's entries, notes' anchors. */
 /** What the importer makes of a file, as a number: `vol_ingest::VERSION` (scripts/rules.mjs
  *  checks they agree).
  *  Books read by an earlier one are read again from their kept file (reader/reread.ts). */

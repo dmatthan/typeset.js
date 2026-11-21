@@ -1,3 +1,5 @@
+/** The reader's settings (size, columns, theme, appearance, motion), kept as what differs
+ *  from the defaults. */
 import { kv } from '../core/kv';
 
 export type Appearance = 'auto' | 'light' | 'dark';

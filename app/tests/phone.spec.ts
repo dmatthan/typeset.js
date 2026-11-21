@@ -207,8 +207,9 @@ test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; 
 
 test('a phone: back closes the contents, then the book; the bar comes back from its band; nothing pans', async ({ page: p }) => {
   await open(p);
-  await p.evaluate(() => (window as any).__vol.setHints(true));
-  // the gestures are told once, as reading begins (here: reopened below)
+  // (hints, where there are any, are off under automation: on, as a reader has them; none
+  // comes as the book is reopened below)
+  await p.evaluate(() => (window as any).__vol.setHints?.(true));
   // the page cannot be moved sideways
   expect(await p.evaluate(() => { window.scrollTo(300, 0); return [window.scrollX, document.documentElement.scrollWidth <= innerWidth]; })).toEqual([0, true]);
   // the bar, away: a tap in its band brings it
@@ -228,9 +229,11 @@ test('a phone: back closes the contents, then the book; the bar comes back from 
   await p.goBack();
   await expect(p.locator('.shelf')).toBeVisible();
   await expect(p.locator('.reader')).toBeHidden();
-  // reopened: the touch hint, no key hint
+  // reopened: no hint, no key shown (a hint came 0.9 s in: nothing is waited for but time)
   await p.locator('.book[data-id]').first().tap();
-  await expect(p.locator('.toast')).toContainText('Tap near the edges', { timeout: 5000 });
+  await expect(p.locator('.reader')).toBeVisible();
+  await p.waitForTimeout(2500);
+  await expect(p.locator('.toast.show')).toHaveCount(0);
   await expect(p.locator('kbd').first()).toBeHidden();
 });
 
@@ -257,7 +260,7 @@ test('a phone: settings are a sheet from the bottom edge; help shows gestures; a
   await p.evaluate(() => { (window as any).__vol.ui.sheet = 'settings'; });
   await panel.getByRole('button', { name: 'Gestures' }).tap();
   await expect(p.locator('.sheet h2')).toHaveText('Gestures');
-  await expect(p.locator('.sheet')).toContainText('Tap near an edge');
+  await expect(p.locator('.sheet')).toContainText('Tap an edge');
 });
 
 test('a phone: the colour around the page follows it; nothing scrolls the frame; the menu keeps clear of the screen edges', async ({ page: p }) => {

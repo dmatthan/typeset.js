@@ -1,4 +1,5 @@
 <script lang="ts">
+  /** A note written in a sheet (a phone's, or where the notes' rail does not show). */
   import Sheet from './Sheet.svelte';
   import { type Reader } from '../reader/reader.svelte';
   import { ui } from '../state.svelte';

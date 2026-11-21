@@ -320,21 +320,21 @@ export class Motion {
   /** Fingers lifted: glide to a boundary in the direction of travel. `flicked` means the
    *  system's momentum began, which says the hand threw the sheet: it goes on to the next
    *  boundary that way. */
-  directEnd(flicked = false, wheel = false) {
+  directEnd() {
     if (this.mode !== 'direct') return;
     // a hand that paused before letting go has no velocity left
     const lastT = this.samples.length ? this.samples[this.samples.length - 1][0] : 0;
     const v = performance.now() - lastT > 60 ? 0 : this.v;
     this.v = v;
     // the hand chose the distance: settle on one of the two columns either side of where
-    // it let go. A throw goes on that way. A deliberate push of less than a column (a
-    // trackpad's, or a drag still moving that way when let go) goes on to the next column
-    // rather than falling back; a drag the hand held still lands on the nearer one.
+    // it let go. A throw goes on that way. A deliberate push of less than a column (a drag
+    // still moving that way when let go) goes on to the next column rather than falling
+    // back; a drag the hand held still lands on the nearer one.
     const proj = this.p + v * 0.12;
     const moved = this.p - this.directFrom;
     let target: number;
-    if ((flicked && Math.abs(v) > 0.1) || Math.abs(v) > 0.6) target = v > 0 ? Math.ceil(this.p + 0.02) : Math.floor(this.p - 0.02);
-    else if (Math.abs(moved) >= INTENT && Math.abs(moved) < 1 && (wheel ? Math.sign(v || moved) === Math.sign(moved) : Math.abs(v) > 0.05 && Math.sign(v) === Math.sign(moved))) target = moved > 0 ? Math.ceil(this.p) : Math.floor(this.p);
+    if (Math.abs(v) > 0.6) target = v > 0 ? Math.ceil(this.p + 0.02) : Math.floor(this.p - 0.02);
+    else if (Math.abs(moved) >= INTENT && Math.abs(moved) < 1 && Math.abs(v) > 0.05 && Math.sign(v) === Math.sign(moved)) target = moved > 0 ? Math.ceil(this.p) : Math.floor(this.p);
     else target = Math.round(proj);
     target = Math.max(Math.floor(this.p), Math.min(Math.ceil(this.p), target));
     this.landOn(target);

@@ -77,7 +77,7 @@
     {:else if cs.tab === 'bookmarks'}
       <!-- the pages marked to come back to, in the book's order -->
       <div class="list bms">
-        {#if !marked.length}<p class="empty">No bookmarks yet. B, or the bookmark at the top, marks the page you are on.</p>{/if}
+        {#if !marked.length}<p class="empty">No bookmarks yet.</p>{/if}
         {#each marked as b (b.id)}
           <div class="bmk">
             <button class="go" onclick={() => contents.go(b.k)}>
@@ -104,7 +104,7 @@
           <FeedbackList {reader} {filter} go={(key, s) => contents.go(reader.strip!.resolve({ key, off: s }))} />
         {:else}
           {#if !cs.notes.length}
-            <p class="empty">Nothing yet. Select a passage while reading to highlight it or add a note.</p>
+            <p class="empty">No highlights yet.</p>
           {:else if !shown.length}
             <p class="empty">Nothing matches “{filter}”.</p>
           {/if}

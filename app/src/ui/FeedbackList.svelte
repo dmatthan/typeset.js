@@ -1,12 +1,12 @@
 <script lang="ts">
+  /** Other readers' notes on this book, gathered by passage: the words, then every
+   *  reader's say on them, in reading order. A reader's chip shows or hides their notes
+   *  everywhere (here, in the text, in the gutter). */
   import type { Reader } from '../reader/reader.svelte';
   import { ui } from '../state.svelte';
   import { fold } from '../reader/notebook';
   import { REACTION_LABEL } from '../reader/annotations';
 
-  /** Other readers' notes on this book, gathered by passage: the words, then every
-   *  reader's say on them, in reading order. A reader's chip shows or hides their notes
-   *  everywhere (here, in the text, in the gutter). */
   let { reader, filter, go }: { reader: Reader; filter: string; go: (key: string, s: number) => void } = $props();
   // svelte-ignore state_referenced_locally
   const fb = reader.fb!;

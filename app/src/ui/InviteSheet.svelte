@@ -1,12 +1,12 @@
 <script lang="ts">
+  /** An invitation to share books (from its link): the writer's name, a check that a
+   *  person is here (Turnstile), and a passkey made on this device, which signs them in
+   *  from then on. The invitation is used up by it. */
   import Sheet from './Sheet.svelte';
   import { ui, toast } from '../state.svelte';
   import { service, register, personToken, canPasskey, syncShares } from '../core/service';
   import type { Core } from '../core/types';
 
-  /** An invitation to share books (from its link): the writer's name, a check that a
-   *  person is here (Turnstile), and a passkey made on this device, which signs them in
-   *  from then on. The invitation is used up by it. */
   let { core }: { core: Core } = $props();
   let name = $state(''), busy = $state(false), why = $state('');
   let check: HTMLElement | undefined = $state();
@@ -38,16 +38,16 @@
   <div>
     <p class="eyebrow">An invitation</p>
     <h2>Share your books with readers</h2>
-    <p class="where">You have been invited to share books from Volumen: each as a link your readers open here, with their notes coming back to you. Sealed on this device: nobody else, the service included, can read your books or their notes.</p>
+    <p class="where">Share books as links. Readers’ notes come back to you, and only you and they can read them.</p>
   </div>
   {#if !canPasskey()}
-    <p class="hint">This browser cannot make a passkey. Open the invitation in Safari, Chrome, Edge or Firefox on a phone or computer with a screen lock.</p>
+    <p class="hint">This browser can’t make a passkey. Try another browser, on a device with a screen lock.</p>
   {:else}
     <label class="name">
       <span>Your name, as your readers will know you</span>
       <input type="text" bind:value={name} placeholder="Your name" maxlength="60" data-autofocus onkeydown={e => { if (e.key === 'Enter') { e.preventDefault(); accept(); } }} />
     </label>
-    <p class="where">You sign in with a passkey: this device's screen lock (Face ID, a fingerprint, a PIN) instead of a password. Your phone or computer keeps it, and can share it with your other devices.</p>
+    <p class="where">You’ll sign in with a passkey: Face ID, a fingerprint or your PIN.</p>
     <div class="check" bind:this={check}></div>
     {#if why}<p class="why" role="alert">{why}</p>{/if}
   {/if}

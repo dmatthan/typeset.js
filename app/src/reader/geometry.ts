@@ -1,3 +1,5 @@
+/** The reading geometry: from a window's size and a theme, the columns, their measure, rows
+ *  and margins. */
 import { embedded, embedOpts } from '../core/embed';
 import { settings, type Layout } from './settings.svelte';
 import { ui } from '../state.svelte';

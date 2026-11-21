@@ -1,3 +1,5 @@
+/** The reader: opens a book, lays it out, puts it on the page and moves it, and holds what
+ *  is open with it (notes, bookmarks, readers' notes). */
 import { edges } from '../core/edges';
 import type { BookData, Core, LayoutParams } from '../core/types';
 import { kv, flushKV } from '../core/kv';
@@ -19,7 +21,6 @@ import { geomVars, paletteVars, PALETTE, setVars, typeVars } from './paint';
 import { takeNotes } from './intake';
 import { embedded, embedMoved, embedOpts, features } from '../core/embed';
 import { shell } from '../core/shell';
-import { hint } from './hints';
 import { spokenPage } from './spoken';
 import { ui, toast } from '../state.svelte';
 import { Marking } from './marking';
@@ -43,8 +44,6 @@ export class Reader {
   bookmarks: Bookmark[] = $state([]);
   ann: Annotations | null = null;
   seen = new Set<string>();
-  /** Columns seen since the book was opened (for the hints). */
-  visited = new Set<number>();
   /** The furthest this reader has read in the book, as a share of it (kept: `far.<id>`). */
   furthest = 0;
   reading = false;
@@ -350,15 +349,14 @@ export class Reader {
       this.marks = new Set(kv.get<string[]>('marks.' + id, []));
       this.bookmarks = loadBookmarks(id);
       this.seen = new Set(kv.get<string[]>('seen.' + id, []));
-      this.visited = new Set();
       this.furthest = kv.get<number>('far.' + id, 0);
       this.reading = false;
-      this.input.taps = 0; this.walked = 0; this.lastK = -1;
       this.strip = new Strip(book);
       this.ann = new Annotations(book, this.strip.keyIndex);
       this.fb = new Feedback(book, this.strip.keyIndex);
       // notes made on another version of the text find their words again (one's own, and
-      // other readers' that arrived since)
+      // other readers' that arrived since); if the engine cannot, they keep the places they
+      // had, and the book opens
       await Promise.all([this.ann.place(this.core), this.fb.place(this.core)]).catch(() => {});
       if (gen !== this.gen) return;
       ui.title = book.title;
@@ -576,15 +574,10 @@ export class Reader {
     kv.set('state.' + id, { where: it && it.sec >= 0 && it.type !== 'colophon' ? chapName(this.book, Math.min(it.sec, this.book.sections.length - 1)) : it?.type === 'colophon' ? 'At the end' : 'At the beginning', done: it?.type === 'colophon' });
   }
 
-  /** Reading begins: the keys go to the page, and the hints for a new reader come. */
+  /** Reading begins: the keys go to the page. */
   private begin() {
-    this.visited = new Set([this.cur]);
     this.reading = true;
     this.stage.focus({ preventScroll: true });
-    const opens = kv.get<number>('opens', 0) + 1;
-    kv.set('opens', opens);
-    if (opens >= 2) setTimeout(() => hint('settings', 'S opens themes, size and spacing; C changes how many columns you see.'), 2500);
-    this.touchHint();
   }
 
   /* ---------- position and movement ---------- */
@@ -639,8 +632,6 @@ export class Reader {
     this.shownK = k;
     ui.runhead = this.headFor(k); ui.page = k + 1; ui.pages = strip.N;
     const focus = this.focusCols();
-    for (const c of focus) this.visited.add(c);
-    this.teach(k);
     clearTimeout(this.dwellT); this.dwellT = window.setTimeout(() => focus.forEach(c => this.markSeen(c)), 1600);
     this.furthest = Math.max(this.furthest, this.viewEnd());
     clearTimeout(this.saveT); this.saveT = window.setTimeout(() => { if (!this.book) return; kv.set('pos.' + this.book.id, strip.anchorAt(this.cur)); kv.set('far.' + this.book.id, this.furthest); }, 400);
@@ -711,7 +702,7 @@ export class Reader {
    *  reader has said its links are not to be followed. */
   openLink(url: string) {
     if (!features.links) return;
-    shell.openLink(url).then(ok => { if (!ok) toast('That link goes nowhere a book may send you.'); });
+    shell.openLink(url).then(ok => { if (!ok) toast('This link can’t be opened.'); });
   }
   /** Travels to the block a reference names. */
   followRef(key: string) {
@@ -752,33 +743,10 @@ export class Reader {
     if (ui.sideNotes?.pinned) { ui.sideNotes = null; return; }
     const ids: string[] = [];
     for (const k of this.focusCols()) for (const d of this.surface.columnEl(k)?.querySelectorAll<HTMLElement>('.nd') ?? []) ids.push(d.dataset.a!);
-    if (!ids.length) { toast('No notes in view. Notes you add show a dot beside their line.'); return; }
+    if (!ids.length) { toast('No notes on this page.'); return; }
     ui.chip = null;
     ui.sideNotes = { ids, pinned: true };
   }
-
-  /* ---------- hints ---------- */
-  /** On a touch screen, the gestures, once, as reading begins. */
-  private touchHint() {
-    setTimeout(() => hint('touch-start', 'Tap near the edges to turn the page, the middle for the menu.', 7000), 900);
-  }
-  private walked = 0;
-  private lastK = -1;
-  /** Hints that come with reading: the contents after a long walk column by column, selection
-   *  once a reader has read a while and marked nothing. */
-  private teach(k: number) {
-    const d = this.lastK < 0 ? 0 : Math.abs(k - this.lastK);
-    this.lastK = k;
-    if (d > 0 && d <= this.M.N * 2) this.walked += d;
-    if (this.walked >= 30) hint('contents', 'M shows the contents: every chapter, and your highlights. [ and ] go a chapter on or back.');
-    if (this.visited.size >= 14 && !this.ann?.list.length && !this.marks.size) {
-      // (each said only where it holds: hints.ts tells touch screens from the rest)
-      hint('select', 'Select a passage to highlight it (1–4) or add a note (N); V picks a paragraph from the keyboard.', 7000);
-      hint('touch-select', 'Hold on a word to select it; then a colour highlights it, or Note adds a note.', 7000);
-    }
-  }
-
-
 }
 
 export { esc };

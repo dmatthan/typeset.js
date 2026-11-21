@@ -608,6 +608,8 @@ pub(super) fn inline(e: ElementRef, b: &mut TextBuilder, st: u8, cx: &mut Inl) {
                         b.newline();
                         continue;
                     }
+                    // (emphasis in italic type is set roman, as a typesetter would: a title
+                    // in an italic passage still stands out)
                     "em" | "i" | "cite" | "dfn" | "var" => st ^ style::ITALIC,
                     "strong" | "b" => st | style::BOLD,
                     "sup" => st | style::SUP,

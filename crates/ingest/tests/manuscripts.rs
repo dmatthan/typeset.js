@@ -46,3 +46,17 @@ fn markdown_keeps_its_links_to_the_web_and_mail_and_nothing_else() {
     // the others' words stay, as words
     assert!(p.text.contains("a script and a page."), "{}", p.text);
 }
+
+#[test]
+fn markdown_front_matter_is_only_a_block_of_fields_and_a_rule_between_parts_is_not_one() {
+    // a manuscript that opens with a rule, and has another further down: nothing between is lost
+    let md = "---\n# One\n\nThe first words.\n\n---\n\nThe second part.\n";
+    let b = vol_ingest::any(md.as_bytes(), "post.md").unwrap();
+    let text: Vec<&str> = b.sections.iter().flat_map(|s| s.blocks.iter().map(|b| b.text.as_str())).collect();
+    assert!(text.contains(&"The first words.") && text.contains(&"The second part."), "{text:?}");
+    // fields still give the title and author, and are not read as text
+    let md = "---\ntitle: The Harbour\nauthor: A. Writer\n---\n\n# One\n\nWords.\n";
+    let b = vol_ingest::any(md.as_bytes(), "post.md").unwrap();
+    assert_eq!((b.meta.title.as_str(), b.meta.author.as_str()), ("The Harbour", "A. Writer"));
+    assert!(b.sections.iter().all(|s| s.blocks.iter().all(|b| !b.text.contains("title:"))));
+}

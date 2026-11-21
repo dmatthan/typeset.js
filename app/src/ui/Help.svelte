@@ -1,112 +1,134 @@
 <script lang="ts">
+  /** The keys (on a touch screen, the gestures), each row its keys drawn as keys and what
+   *  they do in a few words. Only what is here: a book on another site's page lists only
+   *  what the page offers, and none of the app's (the library, quitting). */
   import { embedded, features, type Features } from '../core/embed';
   import Sheet from './Sheet.svelte';
   import { touchUI } from './touch';
   let { onclose }: { onclose: () => void } = $props();
   const touch = touchUI();
-  /** A row, and what it needs to mean anything here: a feature the page may turn off, or
-   *  the app (the library, sharing, quitting: none of it in a book on another site's page). */
+  /** What a row needs to mean anything: a feature the page may turn off, or the app. */
   type Need = keyof Features | 'app';
-  type Group = [string, [string, string, Need?][], Need?];
-  /** On a touch screen: the gestures (the keys mean nothing there). */
+  /** A row: its keys (alternatives parted by " | ", keys pressed together by a space, a
+   *  range as "1–4"), or on a touch screen a gesture; what it does; what it needs. */
+  type Row = [string, string, Need?];
+  type Group = [string, Row[], Need?];
   const gestures: Group[] = [
     ['Reading', [
-      ['Tap near an edge', 'The next page at the right, the one before at the left'],
-      ['Swipe', 'Moves the page under your finger; let go and it settles on a page'],
-      ['Tap the middle', 'The controls: back and a bookmark at the top; at the foot where you are, a line to drag through the book, and ⋯ for the contents, finding in the book and these settings. Tap again to put them away'],
-      ['Hold on a word', 'Selects it, as anywhere on the phone (its handles take more); then a colour highlights it, or Note', 'highlights'],
-      ['Tap a note marker', 'The note beside its line'],
-      ['Tap an image', 'Shown large'],
-      ['Back', 'The system’s back gesture closes what is open, then the book', 'app'],
+      ['Tap an edge', 'Next or previous page'],
+      ['Swipe', 'Turn the page'],
+      ['Tap the middle', 'Controls'],
+      ['Hold a word', 'Select', 'highlights'],
+      ['Tap a note marker', 'The note'],
+      ['Tap a picture', 'Larger'],
     ]],
     ['Library', [
-      ['Tap a book', 'Open it'],
-      ['⋯ on a cover', 'Its collections; remove it'],
-      ['+', 'Add a book: EPUB, Word, Markdown or plain text'],
+      ['Tap a book', 'Open'],
+      ['⋯ on a cover', 'More'],
+      ['+', 'Add a book'],
     ], 'app'],
   ];
   const keyGroups: Group[] = [
     ['Reading', [
-      ['Space  Shift+Space', 'Turn the whole set in view'],
-      ['→  ←  (L J  H K)', 'One column'],
-      ['Hold → or ←', 'Glide; let go and it lands on the next column'],
-      ['C', 'Columns in view: Auto, one, two, three', 'settings'],
-      ['M', 'Contents, bookmarks and highlights', 'contents'],
-      ['B', 'Bookmark the page, or take its bookmark away', 'highlights'],
-      ['[  ]', 'The next chapter, or back to this one’s start (then the one before)'],
-      ['Ctrl+F  /', 'Find in the book: Enter for the next match, Shift+Enter the one before, arrows walk the list, Esc ends', 'find'],
-      ['N  Shift+N', 'With the find field put away: next or previous match (Esc ends the search)', 'find'],
-      ['Drag across text', 'Selects it, as anywhere; a menu above it', 'highlights'],
-      ['then 1–4  N', 'Highlight in a colour, or add a note (in the notes’ rail when it shows)', 'highlights'],
-      ['Click a highlight', 'Its colour, its note; C copies it with the book’s reference, X removes it', 'highlights'],
-      ['then 5–8', 'In a book sent to you: loved, confused, slow, a typo (for its writer)', 'app'],
-      ['V', 'Choose a paragraph with J and K: H highlights it, N adds a note, O opens its image, footnote or link', 'highlights'],
-      ['Click a note marker', 'The note beside it; G goes to where it is printed'],
-      [';', 'The notes beside the text, each level with its line, the text in one column; Ctrl+Enter saves one being written. A narrow window shows those in view over the text (a dot marks them; hover one to see it alone)', 'highlights'],
-      ['M, Highlights', 'Send my notes: to the writer, for a book that came by link; otherwise a small file for whoever sent it. Notes from readers arrive by themselves on books you shared by link, or drop their file on the library or the book; Highlights’ Readers’ side gathers them', 'app'],
-      ['Click an image', 'Shown large; Esc puts it back'],
-      ['S', 'Themes and reading settings', 'settings'],
+      ['Space | ⇧ Space', 'Next or previous page'],
+      ['→ | ←', 'Next or previous column'],
+      ['] | [', 'Next or previous chapter'],
+      ['M', 'Contents', 'contents'],
+      ['B', 'Bookmark', 'highlights'],
+      ['/ | Ctrl F', 'Find in the book', 'find'],
+      [';', 'Notes beside the text', 'highlights'],
+      ['S', 'Type and appearance', 'settings'],
+      ['C', 'Columns', 'settings'],
       ['F', 'Full screen'],
       ['Q', 'Close the book', 'app'],
     ]],
-    ['Contents', [
-      ['Tab', 'Move through the chapters, the tabs and their buttons'],
-      ['M  Esc', 'Put them away'],
-    ], 'contents'],
+    ['Highlights', [
+      ['1–4', 'Highlight in a colour'],
+      ['N', 'Add a note'],
+      ['C', 'Copy with reference'],
+      ['X', 'Remove'],
+      ['V', 'Select a paragraph'],
+      ['5–8', 'React, for the writer', 'app'],
+    ], 'highlights'],
+    ['Find', [
+      ['Enter | ⇧ Enter', 'Next or previous match'],
+      ['Esc', 'End the search'],
+    ], 'find'],
     ['Type and appearance', [
-      ['T  Shift+T', 'Next or previous theme'],
-      ['−  +', 'Size'],
-      ['P', 'Appearance: match the device, light, dark'],
-      ['C', 'Style: the font, spacing, margins, columns'],
-      ['B  J  Y', 'Bold text, justified text, hyphenation'],
-      ['1  2  3  A', 'Columns, or as many as fit'],
-      ['0', 'In Style: back to the theme’s design'],
-      ['N', 'A new theme from this one'],
+      ['− | +', 'Smaller or larger type'],
+      ['T | ⇧ T', 'Next or previous theme'],
+      ['P', 'Light or dark'],
+      ['C', 'Style'],
+      ['B | J | Y', 'Bold, justify, hyphenate'],
+      ['1 | 2 | 3 | A', 'Columns'],
+      ['0', 'Reset the style'],
+      ['N', 'New theme'],
     ], 'settings'],
     ['Library', [
-      ['Arrows  H J K L', 'Move between books'],
-      ['/', 'Search: titles and authors at once, and every book’s text beneath; ↓ to the results, Enter opens a book at a match'],
-      ['[  ]', 'Previous or next shelf: All, Reading, Finished, Not started, your collections'],
-      ['A', 'The focused book’s collections (1–9 put it in or take it out); right-click does the same'],
-      ['N', 'Notebook: every book’s highlights, notes and lines; / filters, Enter opens the book there'],
+      ['↑ | ↓ | ← | →', 'Move between books'],
+      ['/', 'Search'],
+      ['] | [', 'Next or previous shelf'],
+      ['A', 'Collections'],
+      ['N', 'Notebook'],
       ['Enter', 'Open'],
       ['O', 'Add a book'],
-      ['X', 'Remove a book'],
+      ['X', 'Remove'],
     ], 'app'],
     ['Anywhere', [
-      ['?', 'This list'],
-      ['Esc', 'Close a sheet, leave a text field'],
-      ['Ctrl+Q', 'Quit', 'app'],
+      ['?', 'Keyboard shortcuts'],
+      ['Esc', 'Close'],
+      ['Ctrl Q', 'Quit', 'app'],
     ]],
   ];
   const here = (n?: Need) => !n || (n === 'app' ? !embedded : features[n]);
   const shown = (touch ? gestures : keyGroups).filter(([, , n]) => here(n)).map(([name, rows]) => [name, rows.filter(([, , n]) => here(n))] as const);
+  /** A row's keys as drawn: each alternative its keys, a range its two ends. */
+  const alternatives = (keys: string) => keys.split(' | ').map(a => a.split(' ').map(k => (k.length > 1 && k.includes('–') ? k.split('–') : [k])));
 </script>
 
 <Sheet label={touch ? 'Gestures' : 'Keyboard shortcuts'} {onclose} wide>
-  {#if touch}
-    <h2>Gestures</h2>
-  {:else}
-    <h2>Keyboard shortcuts</h2>
-  {/if}
+  <h2>{touch ? 'Gestures' : 'Keyboard shortcuts'}</h2>
   <div class="cols">
-    {#each shown as [name, keys]}
+    {#each shown as [name, rows]}
       <section>
         <h3>{name}</h3>
         <dl>
-          {#each keys as [k, d]}<dt>{k}</dt><dd>{d}</dd>{/each}
+          {#each rows as [keys, what]}
+            <div class="row">
+              <dt class="keys">
+                {#if touch}<span class="g">{keys}</span>
+                {:else}
+                  {#each alternatives(keys) as alt, i}
+                    {#if i}<span class="or" aria-label="or">/</span>{/if}
+                    {#each alt as k}{#if k.length === 2}<kbd>{k[0]}</kbd><span class="to" aria-label="to">–</span><kbd>{k[1]}</kbd>{:else}<kbd>{k[0]}</kbd>{/if}{/each}
+                  {/each}
+                {/if}
+              </dt>
+              <dd class="what">{what}</dd>
+            </div>
+          {/each}
         </dl>
       </section>
     {/each}
   </div>
-  <p class="hint keys-only">A click on the text does nothing on purpose; a drag across it selects. A trackpad, or a drag beside the text, moves the sheet under your hand; let go and it settles on the nearest column. A mouse wheel moves one column per notch.</p>
   <div class="acts"><button class="btn" data-autofocus onclick={onclose} title="Done (Esc)">Done</button></div>
 </Sheet>
 
 <style>
-  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px 32px; }
-  h3 { margin: 0 0 8px; font: 650 var(--t-m)/1.3 var(--f-ui); color: var(--ink); }
-  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: baseline; }
-  dt { font: 650 var(--t-s)/1.3 var(--f-ui); color: var(--ink); white-space: pre; font-feature-settings: "tnum"; }
-  dd { margin: 0; font: 500 var(--t-s)/1.4 var(--f-ui); color: var(--ink-2); }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px 36px; }
+  h3 { margin: 0 0 6px; font: 600 var(--t-s)/1.3 var(--f-ui); color: var(--ink-3); }
+  /* (the keys' column as wide as the widest keys of its group: no keys broken over lines) */
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; column-gap: 16px; }
+  .row { display: contents; }
+  .keys { display: flex; align-items: center; gap: 3px; margin: 0; min-height: 30px; }
+  dd { align-self: center; }
+  dd { margin: 0; font: 400 var(--t-s)/1.35 var(--f-ui); color: var(--ink); }
+  /* a key: a small cap, as a keyboard has it */
+  kbd {
+    box-sizing: border-box; min-width: 24px; height: 24px; padding: 0 6px; display: inline-grid; place-items: center;
+    border-radius: 6px; border: 1px solid var(--rule); box-shadow: 0 1px 0 var(--rule); background: var(--surface);
+    font: 500 13px/1 var(--f-ui); color: var(--ink); opacity: 1;
+  }
+  .or, .to { font: 400 13px/1 var(--f-ui); color: var(--ink-3); padding: 0 1px; }
+  .g { font: 500 var(--t-s)/1.35 var(--f-ui); color: var(--ink); }
 </style>

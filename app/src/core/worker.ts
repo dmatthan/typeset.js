@@ -1,6 +1,6 @@
+/** The web build's engine, in a Web Worker: the WASM engine, asked by message. Books'
+ *  bytes live in IndexedDB here, so the page never holds or parses a whole book. */
 /// <reference lib="webworker" />
-// The engine for the web build. Book blobs live in IndexedDB here, so the main thread
-// never holds or parses a whole book.
 import init, { Engine, LibrarySearch, catchPanics, lastPanic, faultForTest, importerVersion, annotateDocx, epubOf } from './pkg/vol_wasm.js';
 import wasmUrl from './pkg/vol_wasm_bg.wasm?url';
 import type { BookHits, FamilyLoad, LibEntry, Summary } from './types';
@@ -35,7 +35,8 @@ function family(name: string): Promise<void> {
   }
   return p;
 }
-/** A book's hyphenation patterns, fetched the first time a layout of it asks. */
+/** A book's hyphenation patterns, fetched the first time a layout of it asks; if they do
+ *  not come, that layout goes without and the next asks again. */
 const hyph = new Map<string, Promise<void>>();
 function patterns(id: string): Promise<void> {
   const code = eng.patternsWanted(id);
@@ -43,7 +44,10 @@ function patterns(id: string): Promise<void> {
   let p = hyph.get(code);
   if (!p) {
     fetched.add(at(`hyph/${code}.bin`));
-    p = fetch(at(`hyph/${code}.bin`), { cache: 'force-cache' }).then(r => r.arrayBuffer()).then(b => eng.addPatterns(code, new Uint8Array(b))).catch(() => {});
+    p = fetch(at(`hyph/${code}.bin`), { cache: 'force-cache' })
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+      .then(b => eng.addPatterns(code, new Uint8Array(b)))
+      .catch(() => { hyph.delete(code); });
     hyph.set(code, p);
   }
   return p;

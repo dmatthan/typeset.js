@@ -1,3 +1,5 @@
+/** A book read again by a newer importer: its notes, marks and place carried over to the
+ *  new reading. */
 import type { BookData, Core, LibEntry, NoteAnchor } from '../core/types';
 import { IMPORTER_VERSION } from '../core/types';
 import { kv } from '../core/kv';

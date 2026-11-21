@@ -1,4 +1,12 @@
 <script lang="ts">
+  /** Notes beside their lines. With the rail (ui.railed: a wide window, asked for), every
+   *  note in the columns in view, each level with its line in the rail beside the text,
+   *  one's own edited in place; a note being written (ui.composing) has a card of its own
+   *  there. Without it, the notes asked for (a dot pointed at, `;`) over the column, below
+   *  their highlight. Cards never overlap, and keep within the stage and off the bar (and,
+   *  with the rail, its foot). The rail begins under the bar, which stays over it, whole:
+   *  its controls are the window's. Its foot says how many notes the book has, goes to
+   *  the one before or after the page, and puts the rail away. */
   import { onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { embedOpts } from '../core/embed';
@@ -8,14 +16,6 @@
   import { type Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
 
-  /** Notes beside their lines. With the rail (ui.railed: a wide window, asked for), every
-   *  note in the columns in view, each level with its line in the rail beside the text,
-   *  one's own edited in place; a note being written (ui.composing) has a card of its own
-   *  there. Without it, the notes asked for (a dot pointed at, `;`) over the column, below
-   *  their highlight. Cards never overlap, and keep within the stage and off the bar (and,
-   *  with the rail, its foot). The rail begins under the bar, which stays over it, whole:
-   *  its controls are the window's. Its foot says how many notes the book has, goes to
-   *  the one before or after the page, and puts the rail away. */
   let { reader }: { reader: Reader } = $props();
   const GAP = 10, EDGE = 12;
 
@@ -134,7 +134,7 @@
   function resolve(id: string) {
     reader.fb?.resolve(id);
     reader.redraw();
-    toast('Resolved: kept among the readers’ notes, in Highlights.', 3600);
+    toast('Resolved.');
   }
   const initial = (c: Card) => (c.reader ? c.reader : me().name || 'You').trim().charAt(0).toUpperCase();
 
@@ -150,7 +150,7 @@
   {@const M = reader.M}
   <div class="rail" style:left="{M.W}px" style:top="{band}px" aria-hidden="true"></div>
   {#if !cards.length}
-    <p class="rail-empty" style:left="{M.W + 20}px" style:top="{M.y0}px">{cols.length ? 'No notes on this page.' : 'Notes you write show here, beside their lines.'}</p>
+    <p class="rail-empty" style:left="{M.W + 20}px" style:top="{M.y0}px">{cols.length ? 'No notes on this page.' : 'No notes yet.'}</p>
   {/if}
   <div class="rail-foot" style:left="{M.W + 1}px" role="group" aria-label="The book's notes">
     <button onclick={() => prev !== null && reader.travelTo(prev)} disabled={prev === null} aria-label="Previous note" title="Previous note">

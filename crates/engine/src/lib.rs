@@ -1,4 +1,5 @@
-//! One engine for both shells: books and fonts in memory, layouts cached per setting.
+//! One engine for both shells: books and fonts in memory, each book's layouts kept for the
+//! setting it was last laid out at (one: a WASM engine's memory never shrinks).
 //! The Tauri shell calls it natively; the web build calls it through WASM.
 
 pub mod find;

@@ -1,4 +1,7 @@
 <script lang="ts">
+  /** The writer has sent a newer draft to the link this book came by: read it, with
+   *  this reader's notes carried over, or later. Asked when the book opens, never while
+   *  it is being read. */
   import { count } from '../core/say';
   import Sheet from './Sheet.svelte';
   import { type Reader } from '../reader/reader.svelte';
@@ -6,9 +9,6 @@
   import { takeNewDraft } from '../reader/draft';
   import { removeBook } from './library';
 
-  /** The writer has sent a newer draft to the link this book came by: read it, with
-   *  this reader's notes carried over, or later. Asked when the book opens, never while
-   *  it is being read. */
   let { reader }: { reader: Reader } = $props();
   let busy = $state(false);
   // svelte-ignore state_referenced_locally
@@ -34,7 +34,7 @@
   <div>
     <p class="eyebrow">A new draft</p>
     <h2>{reader.book?.title}</h2>
-    <p class="where">The writer has sent a newer draft of this book. Your highlights and notes come with you, found again by their words; any whose words are gone are kept.</p>
+    <p class="where">A newer draft is ready. Your highlights and notes come with you.</p>
   </div>
   <div class="acts two">
     <button class="btn" disabled={busy} onclick={later}>Later</button>

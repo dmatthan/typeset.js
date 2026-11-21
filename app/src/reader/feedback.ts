@@ -1,3 +1,5 @@
+/** Notes that travel: the notes file (a reader's notes on a book), and other readers' notes
+ *  received on a book (`Feedback`). */
 import { kv } from '../core/kv';
 import { me, type Me } from '../core/identity';
 import { readingOrder, shareOf, type KeyIndex } from '../core/book';
@@ -103,7 +105,13 @@ function checked(v: any): NotesFile | string {
   const ok = (n: any) => n && typeof n.key === 'string' && typeof n.quote === 'string' && Number.isFinite(n.s) && Number.isFinite(n.e) && ['highlight', 'mark', 'bookmark'].includes(n.kind);
   const share = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);
   const pr = v.progress && typeof v.progress === 'object' ? { at: share(v.progress.at), furthest: share(v.progress.furthest), where: String(v.progress.where ?? '').slice(0, 80), done: v.progress.done === true } : undefined;
-  return { ...v, from: { id: String(v.from.id), name: String(v.from.name || 'A reader').slice(0, 60) }, notes: v.notes.filter(ok).map((n: FileNote) => (n.react === undefined || isReaction(n.react) ? n : { ...n, react: undefined })), progress: pr };
+  // (each note's own fields as they should be, else left out: the file is another's
+  // making, and its notes go into the page)
+  const note = (n: FileNote): FileNote => ({
+    ...n, id: String(n.id ?? '').slice(0, 80), color: Number.isInteger(n.color) && n.color! >= 1 && n.color! <= 4 ? n.color : undefined,
+    note: typeof n.note === 'string' ? n.note : undefined, react: isReaction(n.react) ? n.react : undefined,
+  });
+  return { ...v, from: { id: String(v.from.id), name: String(v.from.name || 'A reader').slice(0, 60) }, notes: v.notes.filter(ok).map(note), progress: pr };
 }
 
 /* ---------- other readers' notes on a book ---------- */

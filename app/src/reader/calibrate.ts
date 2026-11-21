@@ -1,3 +1,5 @@
+/** How this webview sets type (glyph advances rounded or not, kerning across word spaces),
+ *  measured against the press, so that the press measures as the page draws. */
 import type { Core, LayoutParams } from '../core/types';
 
 // Does this webview position glyphs on whole pixels? The press can model either; we ask

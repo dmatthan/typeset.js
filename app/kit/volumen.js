@@ -1,4 +1,4 @@
-// Volumen on any page: <volumen-book> and <volumen-library>.
+// Volumen on any page: <volumen-book>, <volumen-open> and <volumen-library>.
 //
 //   <script type="module" src="/volumen/volumen.js"></script>
 //   <volumen-book src="/books/sample.epub"></volumen-book>
@@ -30,6 +30,16 @@
 // Methods, once ready: goTo({ chapter }) or goTo({ at }) (0 to 1); setTheme(name, or a
 // theme as Volumen exports one: { format: "volumen-theme/1", … }).
 //
+// <volumen-open src="/books/sample.epub">…</volumen-open>: what it holds (the page's own
+//   button, a picture, any element) opens the book over the whole window; holding
+//   nothing, it shows the book's cover (an EPUB's own, read from the file; "cover" names
+//   another, "title" the book). The reader opens with Back, which, as the browser's back
+//   does, gives the page back as it was. Attributes as <volumen-book>'s. Events:
+//   "volumen-open", "volumen-close"; the reader's own come from the <volumen-book> it
+//   opens (its "book", while open).
+// open({ src, chapters, theme, … }): the same from a page's own script (import it from
+//   this file); returns { book, close() }.
+//
 // <volumen-library src="/books.json">: a shelf from a list of books,
 //   [{ "title", "author", "src", "cover" }], each opened in place. A book with no cover
 //   named shows its EPUB's own, read from the file as its tile comes into view (a few
@@ -50,6 +60,7 @@ const css = `
   :host { display: block; position: relative; width: 100%; height: 70vh; min-height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent); }
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
   :host([full]) iframe { position: fixed; z-index: 2147483647; }
+  :host([open]) { position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; z-index: 2147483647 !important; }
 `;
 
 class VolumenBook extends HTMLElement {
@@ -200,6 +211,10 @@ async function epubCover(src) {
   return img && URL.createObjectURL(new Blob([img], { type: item.getAttribute('media-type') || 'image/jpeg' }));
 }
 
+/** A book's cover as a shelf or a <volumen-open> shows it: its picture, or its title on a
+ *  plain board. */
+const COVER = `.c { box-sizing: border-box; width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; background: color-mix(in oklab, currentColor 7%, transparent) center / cover no-repeat; box-shadow: 0 1px 2px rgb(0 0 0 / .18); display: grid; place-items: center; padding: 14px; text-align: center; font-size: 1.05em; line-height: 1.25; font-family: Georgia, serif; text-wrap: balance; }`;
+
 class VolumenLibrary extends HTMLElement {
   constructor() {
     super();
@@ -235,7 +250,7 @@ class VolumenLibrary extends HTMLElement {
       .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 28px 20px; padding: 0; margin: 0; list-style: none; }
       button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; gap: 8px; align-content: start; }
       button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 4px; }
-      .c { box-sizing: border-box; width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; background: color-mix(in oklab, currentColor 7%, transparent) center / cover no-repeat; box-shadow: 0 1px 2px rgb(0 0 0 / .18); display: grid; place-items: center; padding: 14px; text-align: center; font-size: 1.05em; line-height: 1.25; font-family: Georgia, serif; text-wrap: balance; }
+      ${COVER}
       .t { font-weight: 600; line-height: 1.3; }
       .a { opacity: .7; font-size: .9em; }
     </style><ul class="shelf"></ul>`;
@@ -275,5 +290,80 @@ class VolumenLibrary extends HTMLElement {
   }
 }
 
+/** A book opened over the whole window, from `attrs` as <volumen-book> takes them (named as
+ *  written or in camelCase: `endHref`), with Back (the reader's, or the browser's: a
+ *  history entry is added for it) giving the page back as it was: its scroll, and the
+ *  focus where it was. Returns the <volumen-book> and how to close it. */
+export function open(attrs = {}, onclose) {
+  const book = document.createElement('volumen-book');
+  for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) book.setAttribute(k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()), v === true ? '' : String(v));
+  book.setAttribute('back', '');
+  book.setAttribute('open', '');
+  const s = document.documentElement.style, was = { overflow: s.overflow, x: scrollX, y: scrollY, focus: document.activeElement };
+  s.overflow = 'hidden';
+  document.body.append(book);
+  history.pushState({ volumen: 'open' }, '');
+  requestAnimationFrame(() => book.frame.focus());
+  let done = false;
+  const close = byHistory => {
+    if (done) return;
+    done = true;
+    removeEventListener('popstate', back);
+    book.remove();
+    s.overflow = was.overflow;
+    scrollTo(was.x, was.y);
+    was.focus?.focus?.({ preventScroll: true });
+    // (closed by the reader's Back or the page: the entry it added goes too)
+    if (!byHistory && history.state?.volumen === 'open') history.back();
+    onclose?.();
+  };
+  const back = () => close(true);
+  addEventListener('popstate', back);
+  book.addEventListener('volumen-back', e => { e.preventDefault(); close(false); });
+  return { book, close: () => close(false) };
+}
+
+class VolumenOpen extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' }).innerHTML = `<style>
+      :host { display: inline-block; }
+      .cover { all: unset; box-sizing: border-box; display: block; width: 160px; cursor: pointer; }
+      .cover:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 4px; }
+      ${COVER}
+    </style><slot><button class="cover" part="cover"><span class="c"></span></button></slot>`;
+    this.addEventListener('click', () => this.open());
+    // (what it holds that cannot take the keyboard, a picture alone: the element takes it)
+    this.addEventListener('keydown', e => { if (e.target === this && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this.open(); } });
+  }
+
+  get book() { return this.opened?.book ?? null; }
+
+  connectedCallback() {
+    const title = this.getAttribute('title'), src = this.getAttribute('src');
+    const cover = this.shadowRoot.querySelector('.cover'), c = this.shadowRoot.querySelector('.c');
+    cover.setAttribute('aria-label', title ? `Read ${title}` : 'Read the book');
+    c.textContent = title ?? '';
+    const own = this.getAttribute('cover');
+    if (own) c.style.backgroundImage = `url("${new URL(own, document.baseURI).href.replace(/"/g, '%22')}")`;
+    else if (src && /\.epub([?#]|$)/i.test(src)) epubCover(new URL(src, document.baseURI).href).then(u => { if (u) { c.style.backgroundImage = `url("${u}")`; c.textContent = ''; } }, () => {});
+    if (this.children.length && !this.querySelector('button, a[href], input, [tabindex]')) {
+      this.tabIndex = 0;
+      this.setAttribute('role', 'button');
+      if (!this.hasAttribute('aria-label')) this.setAttribute('aria-label', title ? `Read ${title}` : 'Read the book');
+    }
+  }
+
+  open() {
+    if (this.opened || !this.getAttribute('src')) return;
+    const attrs = {};
+    for (const k of ['src', 'chapters', 'theme', 'paper', 'end-href', 'end-label', 'remember', 'ui', 'off', 'title']) if (this.hasAttribute(k)) attrs[k] = this.getAttribute(k) || true;
+    attrs.src = new URL(attrs.src, document.baseURI).href;
+    this.opened = open(attrs, () => { this.opened = null; this.dispatchEvent(new CustomEvent('volumen-close', { bubbles: true })); });
+    this.dispatchEvent(new CustomEvent('volumen-open', { bubbles: true, detail: { book: this.opened.book } }));
+  }
+}
+
 if (!customElements.get('volumen-book')) customElements.define('volumen-book', VolumenBook);
+if (!customElements.get('volumen-open')) customElements.define('volumen-open', VolumenOpen);
 if (!customElements.get('volumen-library')) customElements.define('volumen-library', VolumenLibrary);

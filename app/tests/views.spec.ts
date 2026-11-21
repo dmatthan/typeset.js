@@ -1,6 +1,6 @@
 import { devices, type Page } from '@playwright/test';
 import { test, expect, openFile, firstCol } from './fixtures';
-import { layout, access } from './audit';
+import { layout, access, still } from './audit';
 
 // Every view, at every size it may be met at: a wide screen to a small phone held either
 // way, light and dark. Each must hold to the layout's rules (tests/audit.ts) and, at three
@@ -20,15 +20,6 @@ const SIZES = [
   { size: 'phone-sideways', use: device('iPhone 13 landscape'), axe: false, books: true },
   { size: 'small-phone', use: device('iPhone SE'), axe: false, books: true },
 ];
-
-/** Nothing moving: the reader at rest, every finite animation and transition finished. */
-async function still(p: Page) {
-  await p.waitForFunction(() => !(window as any).__vol?.reader?.motion?.moving);
-  await p.evaluate(async () => {
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    await Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})));
-  });
-}
 
 /** A word in the column in view selected as the hand would: a double click, or (a touch
  *  screen's selection being the system's own) the selection the system would make. */

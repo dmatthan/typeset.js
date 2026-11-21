@@ -1,4 +1,5 @@
 <script lang="ts">
+  /** A short message at the foot of the window, gone by itself. */
   import { ui } from '../state.svelte';
 </script>
 

@@ -22,6 +22,8 @@
   --scrim: oklch(0.2 0.012 70 / 0.32);
   --shadow: 0 1px 2px oklch(0.2 0.02 262 / 0.10), 0 12px 40px oklch(0.2 0.02 262 / 0.18);
   --focus: oklch(0.55 0.16 262);
+  /* what cannot be undone (removing a book, deleting a theme) */
+  --danger: oklch(0.53 0.18 28);
   --hl-lift: oklch(1 0 0 / 0.9); --hl-edge: oklch(0.5 0.08 80 / 0.4);
   --hl1: oklch(0.9 0.12 95 / 0.55); --hl2: oklch(0.88 0.1 150 / 0.5); --hl3: oklch(0.86 0.08 240 / 0.5); --hl4: oklch(0.86 0.1 350 / 0.45);
   /* the same colours opaque and stronger, where a highlight's colour is shown as a mark of
@@ -61,6 +63,7 @@
     --scrim: oklch(0.06 0.01 70 / 0.55);
     --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 50px oklch(0 0 0 / 0.5);
     --focus: oklch(0.78 0.12 262);
+    --danger: oklch(0.74 0.14 28);
     --hl-lift: oklch(1 0 0 / 0.16); --hl-edge: oklch(0.97 0.05 90 / 1);
     /* by night a jewel tone laid thinly, the counterpart of the day's pastels (themes'
        own: uiPalette, HIGHLIGHTS: the same) */
@@ -87,6 +90,7 @@
   --scrim: oklch(0.06 0.01 70 / 0.55);
   --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 50px oklch(0 0 0 / 0.5);
   --focus: oklch(0.78 0.12 262);
+  --danger: oklch(0.74 0.14 28);
   --hl-lift: oklch(1 0 0 / 0.16); --hl-edge: oklch(0.97 0.05 90 / 1);
   --hl1: oklch(0.8 0.16 88 / 0.42); --hl2: oklch(0.75 0.15 155 / 0.38); --hl3: oklch(0.72 0.13 250 / 0.44); --hl4: oklch(0.74 0.15 350 / 0.4);
   --hs1: oklch(0.78 0.13 92); --hs2: oklch(0.72 0.12 150); --hs3: oklch(0.7 0.11 245); --hs4: oklch(0.72 0.13 355);

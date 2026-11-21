@@ -1,5 +1,3 @@
-import type { FileNote, NotesFile } from './feedback';
-
 /* Notes as Markdown: what a reader reads (each book's title, its chapters, every quote and
  * note), with what the app needs to put them back on the book kept in HTML comments,
  * which Markdown does not show:
@@ -20,6 +18,8 @@ import type { FileNote, NotesFile } from './feedback';
  * opening words, kept in the comment: the blockquote shows the whole paragraph); the note
  * is what follows, up to the next quote or heading. Lines that Markdown would take for
  * something else (a heading, a quote, a list) are escaped with a backslash. */
+import type { FileNote, NotesFile } from './feedback';
+
 
 const BOOK = /^<!-- (volumen-notes\/\d+) (\{.*\}) -->\s*$/;
 const AT = /^<!-- at (\{.*\}) -->\s*$/;

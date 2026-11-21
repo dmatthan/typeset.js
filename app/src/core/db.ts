@@ -24,6 +24,8 @@ export async function tx<T>(store: string, mode: IDBTransactionMode, f: (s: IDBO
     const r = f(t.objectStore(store));
     t.oncomplete = () => res(r.result);
     t.onerror = () => rej(t.error);
+    // (aborted without an error of its own: storage full, or the browser closing it)
+    t.onabort = () => rej(t.error ?? new Error('The browser stopped saving.'));
   });
 }
 

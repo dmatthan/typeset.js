@@ -1,4 +1,5 @@
 <script lang="ts">
+  /** The library: the shelves of books, searching them, and each book's sheet. */
   import { touchUI } from './touch';
   import { coverThumb } from './thumb';
   import { fitImage, fitTitle } from './covers';
@@ -8,8 +9,6 @@
   import EpubSheet from './EpubSheet.svelte';
   import { droppedFiles } from './files';
   import { stale } from '../reader/reread';
-  import { isTauri } from '../core/shell';
-  import { isIOS, isInstalled } from '../core/env';
   import { removeBook, collectSoon, rereadStale, progressOf, byLastOpened, opened, takeNotes, backUp, restoreFrom, addFiles } from './library';
   import { sharedOf } from '../core/service';
   import type { Core, LibEntry } from '../core/types';
@@ -21,7 +20,6 @@
   import LibraryNotebook from './LibraryNotebook.svelte';
   import LibraryResults from './LibraryResults.svelte';
   import { fold } from '../reader/notebook';
-  import { hint } from '../reader/hints';
   import { SMART, shelves, loadShelves, onShelf, createShelf, renameShelf, deleteShelf, toggleShelf, addToShelf } from './shelves.svelte';
 
   let { core, reader, hidden }: { core: Core; reader: Reader; hidden: boolean } = $props();
@@ -108,13 +106,6 @@
 
   $effect(() => { ui.libVersion; load().then(() => { if (!hidden) restoreFocus(); }); });
   $effect(() => { if (!hidden) requestAnimationFrame(restoreFocus); });
-  // with a few books, how to find things among them
-  // on an iPhone or iPad, in Safari, not yet on the Home Screen: how to put it there, once
-  // (volumen.page sends people here to do it, so the library is what is installed)
-  $effect(() => {
-    if (!hidden && isIOS && !isInstalled() && !isTauri) setTimeout(() => !hidden && hint('touch-install', 'To keep Volumen on your Home Screen: tap Share, then Add to Home Screen. It then opens full screen and reads offline.', 8000), 1500);
-  });
-  $effect(() => { if (!hidden && books.length >= 3) setTimeout(() => !hidden && hint('lib-search', '/ searches titles and the text of every book. [ ] switch shelves; A puts a book in a collection.'), 1200); });
 
   function restoreFocus() {
     // (not from under an open sheet: it keeps the focus)
@@ -161,43 +152,52 @@
   async function remove(b: LibEntry) {
     removing = null;
     try { await removeBook(core, b.id); }
-    catch (e) { toast(`“${b.title}” is shared, and its link could not be withdrawn (${(e as Error).message}). It is still in your library.`, 6000); return; }
+    catch (e) { toast(`Couldn’t withdraw the link (${(e as Error).message}). The book was kept.`, 6000); return; }
     toast('Removed from the library.');
     await load();
     restoreFocus();
   }
 
-  /** Arrow keys and hjkl move through the grid. */
+  /** Moving through the grid: arrows and hjkl, by one book or by a row. */
+  const MOVES: Partial<Record<string, (i: number, row: number) => number>> = {
+    ArrowRight: i => i + 1, l: i => i + 1, ArrowLeft: i => i - 1, h: i => i - 1,
+    ArrowDown: (i, r) => i + r, j: (i, r) => i + r, ArrowUp: (i, r) => i - r, k: (i, r) => i - r,
+  };
+
+  /** The library's keys (a letter in either case): N the notebook and back; in the
+   *  notebook, its own; else ? Help, O add a book, / search, [ ] the shelves, then the
+   *  grid's (`gridKey`). Every one is listed in Help. */
   export function key(e: KeyboardEvent): boolean {
-    if (e.key === 'n' || e.key === 'N') { setView(view === 'books' ? 'notebook' : 'books'); return true; }
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (k === 'n') { setView(view === 'books' ? 'notebook' : 'books'); return true; }
     if (view === 'notebook') {
-      if (e.key === 'Escape' || e.key === 'b' || e.key === 'B') { setView('books'); return true; }
-      if (e.key === '?') { ui.sheet = 'help'; return true; }
+      if (k === 'Escape' || k === 'b') { setView('books'); return true; }
+      if (k === '?') { ui.sheet = 'help'; return true; }
       return notebook?.key(e) ?? false;
     }
-    const items = [...grid.querySelectorAll<HTMLElement>('.book')];
-    const i = items.indexOf(document.activeElement as HTMLElement);
-    const k = e.key;
-    if (k === 'o' || k === 'O') { add(); return true; }
-    if (k === '/') { searchEl?.focus(); searchEl?.select(); return true; }
-    if ((document.activeElement as Element)?.closest?.('.res')) return results?.key(e) ?? false;
-    if (k === ']' || k === '[') { stepShelf(k === ']' ? 1 : -1); return true; }
-    if ((k === 'a' || k === 'A') && i >= 0 && items[i].dataset.id) { const b = books.find(b => b.id === items[i].dataset.id); if (b) bookSheet(b); return true; }
-    if (k === '?') { ui.sheet = 'help'; return true; }
-    if (i < 0) {
-      if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'h', 'j', 'k', 'l'].includes(k)) { items[0]?.focus(); return true; }
-      return false;
-    }
-    const top0 = items[0].getBoundingClientRect().top;
-    const perRow = Math.max(1, items.filter(x => Math.abs(x.getBoundingClientRect().top - top0) < 2).length);
-    let j = i;
-    if (k === 'ArrowRight' || k === 'l') j = i + 1;
-    else if (k === 'ArrowLeft' || k === 'h') j = i - 1;
-    else if (k === 'ArrowDown' || k === 'j') j = i + perRow;
-    else if (k === 'ArrowUp' || k === 'k') j = i - perRow;
-    else if ((k === 'x' || k === 'Delete') && items[i].dataset.id) { const b = books.find(b => b.id === items[i].dataset.id); if (b) { removing = b; ui.sheet = 'remove'; } return true; }
-    else return false;
-    items[Math.max(0, Math.min(items.length - 1, j))].focus();
+    if (k === '?') ui.sheet = 'help';
+    else if (k === 'o') add();
+    else if (k === '/') { searchEl?.focus(); searchEl?.select(); }
+    else if ((document.activeElement as Element)?.closest?.('.res')) return results?.key(e) ?? false;
+    else if (k === ']' || k === '[') stepShelf(k === ']' ? 1 : -1);
+    else return gridKey(k);
+    return true;
+  }
+
+  /** In the grid: the moves (from nowhere, to the first book), and the focused book's A
+   *  (its collections) and X (remove it). */
+  function gridKey(k: string): boolean {
+    const items = [...grid.querySelectorAll<HTMLElement>('.book')], i = items.indexOf(document.activeElement as HTMLElement);
+    const move = MOVES[k];
+    if (i < 0) { if (move) items[0]?.focus(); return !!move; }
+    const b = books.find(x => x.id === items[i].dataset.id);
+    if (k === 'a' && b) bookSheet(b);
+    else if ((k === 'x' || k === 'Delete') && b) { removing = b; ui.sheet = 'remove'; }
+    else if (move) {
+      const top0 = items[0].getBoundingClientRect().top;
+      const row = Math.max(1, items.filter(x => Math.abs(x.getBoundingClientRect().top - top0) < 2).length);
+      items[Math.max(0, Math.min(items.length - 1, move(i, row)))].focus();
+    } else return false;
     return true;
   }
 </script>
@@ -286,28 +286,39 @@
 {/if}
 {#if !hidden && ui.sheet === 'book' && sheetBook}
   {@const b = sheetBook}
-  <Sheet label="{b.title}: collections" onclose={() => { ui.sheet = null; sheetBook = null; }} onkey={e => {
+  <!-- a book's sheet: the book, its collections, then what can be done with it (one list,
+       as a phone's action sheets have it), Done -->
+  <Sheet label={b.title} onclose={() => { ui.sheet = null; sheetBook = null; }} onkey={e => {
     if ((e.target as Element).closest?.('input')) return false;
     const n = +e.key;
     if (n >= 1 && n <= 9 && shelves.list[n - 1]) { toggleShelf(shelves.list[n - 1].id, b.id); return true; }
     if (e.key === 'x' || e.key === 'Delete') { removing = b; sheetBook = null; ui.sheet = 'remove'; return true; }
     return false;
   }}>
-    <div><p class="eyebrow">Collections</p><h2>{b.title}</h2>
-      {#if stale(b) && !b.source}<p class="where">Read by an earlier version of Volumen. Add its file again to see it as Volumen now reads it: your place and notes stay.</p>{/if}</div>
+    <div><h2>{b.title}</h2>{#if b.author}<p class="by">{b.author}</p>{/if}
+      {#if stale(b) && !b.source}<p class="where">Opened by an earlier version. Add the file again to update it.</p>{/if}</div>
     <div class="cols" role="group" aria-label="Collections">
+      <h3>Collections</h3>
       {#each shelves.list as c (c.id)}
         <label class="col-row"><input type="checkbox" checked={c.books.includes(b.id)} onchange={() => toggleShelf(c.id, b.id)} /><span class="cn">{c.name}</span></label>
       {/each}
       <form class="new" onsubmit={e => { e.preventDefault(); addNew(b); }}>
-        <input type="text" placeholder={shelves.list.length ? 'New collection' : 'Name a first collection, e.g. Essays'} bind:value={newName} aria-label="New collection" />
+        <input type="text" placeholder="New collection" bind:value={newName} aria-label="New collection" />
         <button class="btn" type="submit" disabled={!newName.trim()}>Add</button>
       </form>
     </div>
-    <button class="btn quiet share" onclick={() => { sharing = b; sheetBook = null; ui.sheet = 'share'; }}>Share as a link…</button>
-    {#if b.source}<button class="btn quiet share" onclick={() => { epubOf = b; sheetBook = null; ui.sheet = 'epub'; }}>Save as EPUB…</button>{/if}
-    <div class="acts two">
-      <button class="btn quiet" onclick={() => { removing = b; sheetBook = null; ui.sheet = 'remove'; }}>Remove book</button>
+    <div class="actions" role="group" aria-label="Actions">
+      <button onclick={() => { sharing = b; sheetBook = null; ui.sheet = 'share'; }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M6 12v7h12v-7" /></svg>Share as a link…
+      </button>
+      {#if b.source}<button onclick={() => { epubOf = b; sheetBook = null; ui.sheet = 'epub'; }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14" /></svg>Save as EPUB…
+      </button>{/if}
+      <button class="danger" onclick={() => { removing = b; sheetBook = null; ui.sheet = 'remove'; }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg>Remove from library…
+      </button>
+    </div>
+    <div class="acts">
       <button class="btn primary" data-autofocus onclick={() => { ui.sheet = null; sheetBook = null; }}>Done</button>
     </div>
   </Sheet>
@@ -391,7 +402,20 @@
      of the line under the cover that says how far the book is read */
   :global(.touchui) .slot > .more { align-self: end; margin: 0; place-items: end; padding: 0 2px 0 0; background: none; color: var(--ink-3); }
   :global(.touchui) .slot .s { padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .by { margin: 4px 0 0; font: 500 var(--t-m)/1.3 var(--f-ui); color: var(--ink-3); }
   .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .cols h3 { margin: 0 0 4px; font: 600 var(--t-s)/1.3 var(--f-ui); color: var(--ink-3); }
+  /* what can be done with the book: rows of one group, a hairline between them */
+  /* (the first and last rows rounded as the list is: a list that clipped them could be
+     squeezed by a short sheet, its rows cut off) */
+  .actions { display: grid; border-radius: var(--r-m); background: var(--surface); border: 1px solid var(--rule); }
+  .actions button:first-child { border-radius: calc(var(--r-m) - 1px) calc(var(--r-m) - 1px) 0 0; }
+  .actions button:last-child { border-radius: 0 0 calc(var(--r-m) - 1px) calc(var(--r-m) - 1px); }
+  .actions button { appearance: none; border: 0; background: none; cursor: pointer; min-height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 12px; text-align: left; font: 500 var(--t-m)/1.2 var(--f-ui); color: var(--ink); }
+  .actions button + button { border-top: 1px solid var(--rule); }
+  .actions svg { flex: none; width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-2); }
+  .actions .danger, .actions .danger svg { color: var(--danger); }
+  :global(html:not(.touchui)) .actions button:hover { background: var(--hover); }
   .col-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; border-radius: var(--r-s); cursor: pointer; font: 600 var(--t-m)/1.2 var(--f-ui); color: var(--ink); }
   :global(html:not(.touchui)) .col-row:hover { background: var(--hover); }
   .col-row input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }

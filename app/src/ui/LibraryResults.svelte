@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { BookHits, Core, LibEntry, LibHit } from '../core/types';
-  import type { Reader } from '../reader/reader.svelte';
-
   /** Library search in the books' text: books with the most matches first, each with its
    *  first few in context. A match opens its book there, the search going on in the
    *  reader (N steps through the rest). */
+  import type { BookHits, Core, LibEntry, LibHit } from '../core/types';
+  import type { Reader } from '../reader/reader.svelte';
+
   let { core, reader, query, books }: { core: Core; reader: Reader; query: string; books: LibEntry[] } = $props();
   let results: BookHits[] = $state([]);
   let pending = $state(false);

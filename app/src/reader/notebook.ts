@@ -1,3 +1,5 @@
+/** A book's notebook: its highlights, notes and marked paragraphs in reading order, as the
+ *  contents and the library's notebook list them. */
 import type { BookData } from '../core/types';
 import type { Annotation } from './annotations';
 import type { Anchor } from './strip';
