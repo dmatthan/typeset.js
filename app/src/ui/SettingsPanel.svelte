@@ -30,7 +30,7 @@
     focusFirst();
     const away = (e: PointerEvent) => {
       const t = e.target as Element;
-      if (panel.contains(t) || t.closest?.('[data-settings-toggle]') || t.closest?.('.wrap')) return;
+      if (panel.contains(t) || t.closest?.('.wrap')) return;
       // a tap beside the panel only puts it away (on a phone it would turn the page too)
       if (e.pointerType !== 'mouse') e.stopPropagation();
       close();
@@ -240,14 +240,15 @@
 
 <style>
   .panel {
-    position: absolute; z-index: 45; top: 54px; right: 14px; width: 344px; max-width: calc(100% - 28px); box-sizing: border-box;
+    /* rising from the menu's button at the end of the foot, where it was asked for */
+    position: absolute; z-index: 45; bottom: calc(env(safe-area-inset-bottom) + 64px); right: 10px; width: 344px; max-width: calc(100% - 20px); box-sizing: border-box;
     /* never past the window: the page scrolls inside the still frame (whose shadow is an
        image, so scrolling repaints nothing costly) */
-    max-height: calc(100% - 66px); display: flex; flex-direction: column;
+    max-height: calc(100% - 76px); display: flex; flex-direction: column;
     background: var(--sheet); color: var(--ink); border-radius: var(--r-l); border: 1px solid var(--rule);
     outline: none; animation: open .2s cubic-bezier(.2, .8, .2, 1);
   }
-  @keyframes open { from { opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top right; } }
+  @keyframes open { from { opacity: 0; transform: translateY(6px) scale(.98); transform-origin: bottom right; } }
   .page { padding: 14px 14px 12px; display: grid; gap: 10px; animation: page .18s cubic-bezier(.2, .8, .2, 1); min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; border-radius: inherit; }
   @keyframes page { from { opacity: 0; transform: translateX(10px); } }
   .ph { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; padding: 0 2px; }
@@ -278,7 +279,8 @@
   }
   :global([data-theme="dark"]) .th .aa { --pp: oklch(0.205 0.006 80); }
   @media (prefers-color-scheme: dark) { :global(:root:not([data-theme="light"])) .th .aa { --pp: oklch(0.205 0.006 80); } }
-  .th .nm { font: 500 13px/1.2 var(--f-ui); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* (a line as tall as its face: the ellipsis clips, and 1.2 lost the foot of a p) */
+  .th .nm { font: 500 13px/1.4 var(--f-ui); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .th[aria-checked="true"] { color: var(--ink); }
   .th[aria-checked="true"] .aa { box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent); }
   .th:focus-visible { outline-offset: 3px; }

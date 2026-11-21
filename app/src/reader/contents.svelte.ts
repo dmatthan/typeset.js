@@ -1,10 +1,12 @@
-/** The book's contents and the reader's highlights, beside the text: the chapters by the
- *  page each starts on, where the reader is and what is read, and the notebook (one's own
+/** The book's contents, bookmarks and the reader's highlights, beside the text: the
+ *  chapters by the page each starts on, where the reader is and what is read, the pages
+ *  marked to come back to, and the notebook (one's own
  *  highlights and notes, and other readers'). Long trips start here or on the progress
  *  line, and the reader animates them across the distance (`Reader.travelTo`). */
 import { copyText } from '../core/clipboard';
 import { BlockKind } from '../core/types';
 import { ui, toast } from '../state.svelte';
+import { openingOf } from './bookmarks';
 import { markdownOf, type NoteEntry } from './notebook';
 import { notesMarkdown } from './notesmd';
 import type { Reader } from './reader.svelte';
@@ -13,10 +15,12 @@ import { chapName, chapTitle } from './render';
 /** A notebook entry with the column it is in now. */
 export type NoteItem = NoteEntry & { k: number };
 export interface Chapter { sec: number; title: string; page: number; read: boolean; current: boolean; feedback: number }
+/** A bookmark as the contents list it: the page it marks now, its chapter, its words. */
+export interface BookmarkItem { id: string; k: number; page: number; where: string; quote: string; at: number }
 
 /** What the contents show, for the components. */
 export const cs = $state({
-  tab: 'contents' as 'contents' | 'highlights',
+  tab: 'contents' as 'contents' | 'bookmarks' | 'highlights',
   chapters: [] as Chapter[],
   notes: [] as NoteItem[],
 });
@@ -44,6 +48,14 @@ export class Contents {
     if (ui.contents && (!tab || tab === cs.tab)) this.close();
     else if (ui.contents && tab) this.setTab(tab);
     else this.open(tab);
+  }
+
+  /** The bookmarks in the book's order, each where it is now (reading `reader.bookmarks`:
+   *  a component deriving from this follows them). */
+  bookmarks(): BookmarkItem[] {
+    const r = this.r, strip = r.strip;
+    if (!strip) return [];
+    return r.bookmarks.map(b => { const k = strip.resolve({ key: b.key, off: b.off }); return { id: b.id, k, page: k + 1, where: r.headFor(k), quote: openingOf(b), at: b.at }; }).sort((a, z) => a.k - z.k);
   }
 
   setTab(t: typeof cs.tab) {

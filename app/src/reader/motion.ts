@@ -298,11 +298,12 @@ export class Motion {
   directBy(dc: number) {
     if (this.mode !== 'direct') this.directStart();
     const lo = this.host.min(), hi = this.host.max();
-    let p = this.p + dc;
-    // rubber band: past an end, travel is damped and saturates
-    if (p < lo) p = lo - this.band(lo - p);
-    else if (p > hi) p = hi + this.band(p - hi);
-    if (this.p < lo || this.p > hi) p = this.p + dc * 0.3;
+    // rubber band: past an end the sheet follows the hand less and less, never further than
+    // the band's reach; the hand's own place (the band undone) is what moves, so pulling
+    // back retraces the same curve
+    const hand = this.p < lo ? lo - this.unband(lo - this.p) : this.p > hi ? hi + this.unband(this.p - hi) : this.p;
+    const h = hand + dc;
+    const p = h < lo ? lo - this.band(lo - h) : h > hi ? hi + this.band(h - hi) : h;
     this.p = p;
     const now = performance.now();
     this.samples.push([now, p]);
@@ -311,7 +312,10 @@ export class Motion {
     this.v = now > t0 ? ((p - p0) / (now - t0)) * 1000 : 0;
     this.host.frame(this.p, this.v);
   }
+  /** How far past an end the sheet shows for the hand `x` columns past it (to 0.6 at most),
+   *  and back. */
   private band(x: number) { return 0.6 * (1 - 1 / (x * 0.9 + 1)); }
+  private unband(e: number) { return (1 / (1 - Math.min(e, 0.599999) / 0.6) - 1) / 0.9; }
 
   /** Fingers lifted: glide to a boundary in the direction of travel. `flicked` means the
    *  system's momentum began, which says the hand threw the sheet: it goes on to the next

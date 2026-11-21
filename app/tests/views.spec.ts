@@ -100,7 +100,16 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     if (touch) { await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 }); await p.touchscreen.tap(st.x + st.width / 2, st.y + st.height / 2); }
     else await p.mouse.move(st.x + st.width / 2, 20);
     await expect(p.locator('.bar')).not.toHaveClass(/away/);
-    await check('bar', ['.bar', '.progress'], lines);
+    await check('bar', ['.bar', '.progress', '.more'], lines);
+    // the menu at the end of the foot
+    const more = p.getByRole('button', { name: 'More' });
+    if (touch) await more.tap(); else await more.click();
+    await expect(p.getByRole('menu')).toBeVisible();
+    await check('more', ['.menu']);
+    await p.keyboard.press('Escape');
+    await expect(p.getByRole('menu')).toHaveCount(0);
+    // a bookmark on this page, for the contents' list
+    await p.keyboard.press('b');
 
     // a selection's menu; a note written (in a sheet: the rail is not on yet)
     await selectWord(p, touch);
@@ -114,6 +123,16 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await p.getByRole('textbox', { name: 'Your note' }).fill('A first thought about this, long enough to wrap onto a second line in a card.');
     await p.getByRole('button', { name: 'Done' }).click();
     await expect(p.locator('.sheet')).toHaveCount(0);
+    // the highlight's own menu: its colours and its actions in one row, on any phone but the
+    // narrowest (a 320 one wraps)
+    const mark = p.locator('.col mark.hl[data-a]').first();
+    if (touch) await mark.tap(); else await mark.click();
+    await expect(p.getByRole('button', { name: 'Remove highlight' })).toBeVisible();
+    await check('highlight-menu', ['.chip-pop']);
+    const W = await p.evaluate(() => innerWidth);
+    if (W >= 360) expect(await p.locator('.chip-pop > button').evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().top))).size), 'the highlight\'s menu in one row').toBe(1);
+    await p.keyboard.press('Escape');
+    await expect(p.locator('.chip-pop')).toHaveCount(0);
     await p.evaluate(() => {
       const r = (window as any).__vol.reader;
       const lns = document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`), ln = lns[Math.min(9, lns.length - 1)];
@@ -146,6 +165,8 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await p.keyboard.press('m');
     await expect(p.locator('.contents')).toBeVisible();
     await check('contents', ['.contents']);
+    await p.getByRole('tab', { name: 'Bookmarks' }).click();
+    await check('bookmarks', ['.contents']);
     await p.getByRole('tab', { name: 'Highlights' }).click();
     await check('highlights', ['.contents']);
     await esc('.contents');

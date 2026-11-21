@@ -1,16 +1,18 @@
-import { type Page } from '@playwright/test';
+import { type Frame, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 
 /** What a view must hold to at any size, checked on the page as it is drawn:
  *  - the page itself never scrolls;
  *  - every control of the view (within `roots`) is on the screen, not under anything
  *    else, not overlapping another, and, on a touch screen, big enough for a finger;
- *  - its text is never below 13 px, never cut off (an ellipsis or a clamp is meant), never
+ *  - its text is never below 13 px, never cut off (an ellipsis or a clamp is meant; nor
+ *    the low or high strokes of a line, g and q, a box shorter than its face clips), never
  *    outside the screen or its panel, and never over other text.
  *  The book's own text (`.track`) is the press's, checked by fidelity, not here; `clear`
  *  names what the view's text must also keep off (the book's lines, under a bar with no
- *  paper of its own). Returns what is wrong, each naming the element. */
-export async function layout(p: Page, roots: string[], touch: boolean, clear = ''): Promise<string[]> {
+ *  paper of its own). `p`, a page or a frame in one (a book on another site's page).
+ *  Returns what is wrong, each naming the element. */
+export async function layout(p: Page | Frame, roots: string[], touch: boolean, clear = ''): Promise<string[]> {
   return p.evaluate(({ roots, touch, clear }) => {
     const out: string[] = [];
     const W = innerWidth, H = innerHeight, de = document.documentElement;
@@ -111,6 +113,27 @@ export async function layout(p: Page, roots: string[], touch: boolean, clear = '
         }
         if (clipsX || clipsY) break;
       }
+    }
+    // a line in a box that clips it: its strokes, as the face draws them about the line's
+    // baseline (half the leading above and below the face's own height), within the box
+    const cx = document.createElement('canvas').getContext('2d')!;
+    for (const el of new Set(texts.map(t => t.el))) {
+      let clip: Element | null = null;
+      for (let e: Element | null = el; e && els.some(r => r.contains(e!)); e = e.parentElement) {
+        const o = getComputedStyle(e).overflowY;
+        if (o === 'hidden' || o === 'clip') { clip = e; break; }
+        if (o !== 'visible') break;
+      }
+      if (!clip) continue;
+      const range = document.createRange(); range.selectNodeContents(el);
+      const lines = [...range.getClientRects()].filter(r => r.width > 0.5);
+      if (lines.length !== 1) continue;
+      const s = getComputedStyle(el);
+      cx.font = s.font || `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+      const m = cx.measureText(el.textContent ?? ''), lh = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.2;
+      const box = el.getBoundingClientRect(), base = box.top + (lh - (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent)) / 2 + m.fontBoundingBoxAscent;
+      const c = clip.getBoundingClientRect();
+      if (base + m.actualBoundingBoxDescent > c.bottom + 0.5 || base - m.actualBoundingBoxAscent < c.top - 0.5) out.push(`clips its letters' strokes: ${name(el)}`);
     }
     for (let i = 0; i < texts.length; i++) for (let j = i + 1; j < texts.length; j++) {
       const [a, z] = [texts[i], texts[j]];

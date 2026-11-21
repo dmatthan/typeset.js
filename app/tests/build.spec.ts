@@ -39,7 +39,8 @@ test('after one visit the app opens and a book reads with no network', async ({ 
   // (a production build has no test hooks: the page itself says when it is ready)
   await expect(p.locator('.col .ln').first()).toBeVisible({ timeout: 15000 });
   await p.keyboard.press('ArrowRight');
-  await p.waitForTimeout(1500);
+  // (all it fetches as it reads, fetched: the worker keeps what passes through it)
+  await p.waitForLoadState('networkidle');
   await p.evaluate(() => navigator.serviceWorker.ready);
   // a reload lets the worker take over, then the network goes away
   await p.reload();

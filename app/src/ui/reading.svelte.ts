@@ -20,7 +20,8 @@ export function reading(core: Core): { reader: Reader; contents: Contents } {
     edgeView = v;
     untrack(() => reader.paintEdges(viewChanged ? 0 : 250));
   });
-  // appearance and the desktop's colours repaint; a theme change relays out (settings sheet)
-  $effect(() => { settings.appearance; themes.desktop; reader.themeChanged(); });
+  // appearance and the desktop's colours repaint, and only they: a theme, a face or an option
+  // waits for its text to be set (`settingsChanged`), which the repaint must not read ahead of
+  $effect(() => { settings.appearance; themes.desktop; untrack(() => reader.themeChanged()); });
   return { reader, contents };
 }

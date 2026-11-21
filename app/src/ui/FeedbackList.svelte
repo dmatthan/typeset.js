@@ -26,14 +26,16 @@
     if (order === 'most') all = all.map((g, i) => ({ g, i })).sort((a, b) => b.g.readers - a.g.readers || a.i - b.i).map(x => x.g);
     return all;
   });
+  // (a passage settled leaves the page, and comes back when reopened)
   function mark(g: { key: string; s: number; st?: string }, st: 'done' | 'wont') {
     fb.setStatus(g, g.st === st ? null : st);
     version++;
+    reader.redraw();
   }
   function toggle(id: string) {
     fb.toggle(id);
     version++;
-    for (const [k] of reader.surface.rendered()) reader.surface.refresh(k);
+    reader.redraw();
   }
   /** Removing a reader's notes takes a second press (the × becomes "Remove"). */
   let confirming = $state('');
@@ -42,7 +44,7 @@
     confirming = '';
     fb.remove(id);
     version++;
-    for (const [k] of reader.surface.rendered()) reader.surface.refresh(k);
+    reader.redraw();
   }
   const kindLabel = { highlight: '', mark: 'Marked this paragraph' } as const;
 </script>

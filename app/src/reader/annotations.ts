@@ -36,7 +36,7 @@ export interface Annotation {
 }
 
 /** Characters of context kept either side of a highlight, to find it again. */
-const CTX = 32;
+export const CTX = 32;
 
 export class Annotations {
   list: Annotation[] = [];

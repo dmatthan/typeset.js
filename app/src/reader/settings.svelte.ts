@@ -14,7 +14,9 @@ export interface Settings {
 }
 /** The sizes the size control steps through. */
 export const SIZES = [15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 28];
-export const DEFAULTS: Settings = { size: null, layout: 'auto', theme: 'book', appearance: 'auto', motion: 'system' };
+/** (less motion unless asked for: a key or a tap turns the page at once, as a book's page
+ *  is simply there; a hand's drag still carries, and "Less motion" off follows the system) */
+export const DEFAULTS: Settings = { size: null, layout: 'auto', theme: 'book', appearance: 'auto', motion: 'reduce' };
 
 /** Settings are stored as the changes from DEFAULTS, so "reset" is deleting them; a
  *  setting that no longer exists is left behind as they load. */

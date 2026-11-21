@@ -12,8 +12,6 @@
   --ink: oklch(0.23 0.008 70);
   --ink-2: oklch(0.42 0.008 70);
   --ink-3: oklch(0.52 0.008 70);   /* 4.8:1 on the ground, 5.2:1 on paper (WCAG AA) */
-  /* the selection's menu: a dark pill in either scheme, a step lighter than dark paper */
-  --pill: oklch(0.26 0.006 70);
   --rule: oklch(0.88 0.006 75);
   --accent: oklch(0.5 0.11 255);
   --accent-ink: oklch(0.99 0.003 80);
@@ -53,7 +51,6 @@
     --ink: oklch(0.88 0.012 84);
     --ink-2: oklch(0.74 0.011 84);
     --ink-3: oklch(0.64 0.01 84);   /* 5.0:1 on a sheet, 5.2:1 on the surface (WCAG AA) */
-    --pill: oklch(0.36 0.006 70);
     --rule: oklch(0.32 0.006 70);
     --accent: oklch(0.76 0.1 262);
     --accent-ink: oklch(0.18 0.03 262);
@@ -64,8 +61,10 @@
     --scrim: oklch(0.06 0.01 70 / 0.55);
     --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 50px oklch(0 0 0 / 0.5);
     --focus: oklch(0.78 0.12 262);
-    --hl-lift: oklch(0.75 0.03 90 / 0.5); --hl-edge: oklch(0.1 0 0 / 0.5);
-    --hl1: oklch(0.55 0.1 95 / 0.45); --hl2: oklch(0.52 0.09 150 / 0.45); --hl3: oklch(0.52 0.09 240 / 0.45); --hl4: oklch(0.52 0.1 350 / 0.42);
+    --hl-lift: oklch(1 0 0 / 0.16); --hl-edge: oklch(0.97 0.05 90 / 1);
+    /* by night a jewel tone laid thinly, the counterpart of the day's pastels (themes'
+       own: uiPalette, HIGHLIGHTS: the same) */
+    --hl1: oklch(0.8 0.16 88 / 0.42); --hl2: oklch(0.75 0.15 155 / 0.38); --hl3: oklch(0.72 0.13 250 / 0.44); --hl4: oklch(0.74 0.15 350 / 0.4);
     --hs1: oklch(0.78 0.13 92); --hs2: oklch(0.72 0.12 150); --hs3: oklch(0.7 0.11 245); --hs4: oklch(0.72 0.13 355);
     --r1: oklch(0.72 0.15 28); --r2: oklch(0.74 0.11 195); --r3: oklch(0.72 0.13 300); --r4: oklch(0.78 0.13 62); --r5: oklch(0.74 0.13 145); --r6: oklch(0.72 0.13 260);
     color-scheme: dark;
@@ -78,7 +77,6 @@
   --ink: oklch(0.88 0.012 84);
   --ink-2: oklch(0.74 0.011 84);
   --ink-3: oklch(0.64 0.01 84);   /* 5.0:1 on a sheet, 5.2:1 on the surface (WCAG AA) */
-  --pill: oklch(0.36 0.006 70);
   --rule: oklch(0.32 0.006 70);
   --accent: oklch(0.76 0.1 262);
   --accent-ink: oklch(0.18 0.03 262);
@@ -89,8 +87,8 @@
   --scrim: oklch(0.06 0.01 70 / 0.55);
   --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 16px 50px oklch(0 0 0 / 0.5);
   --focus: oklch(0.78 0.12 262);
-  --hl-lift: oklch(0.75 0.03 90 / 0.5); --hl-edge: oklch(0.1 0 0 / 0.5);
-  --hl1: oklch(0.55 0.1 95 / 0.45); --hl2: oklch(0.52 0.09 150 / 0.45); --hl3: oklch(0.52 0.09 240 / 0.45); --hl4: oklch(0.52 0.1 350 / 0.42);
+  --hl-lift: oklch(1 0 0 / 0.16); --hl-edge: oklch(0.97 0.05 90 / 1);
+  --hl1: oklch(0.8 0.16 88 / 0.42); --hl2: oklch(0.75 0.15 155 / 0.38); --hl3: oklch(0.72 0.13 250 / 0.44); --hl4: oklch(0.74 0.15 350 / 0.4);
   --hs1: oklch(0.78 0.13 92); --hs2: oklch(0.72 0.12 150); --hs3: oklch(0.7 0.11 245); --hs4: oklch(0.72 0.13 355);
     --r1: oklch(0.72 0.15 28); --r2: oklch(0.74 0.11 195); --r3: oklch(0.72 0.13 300); --r4: oklch(0.78 0.13 62); --r5: oklch(0.74 0.13 145); --r6: oklch(0.72 0.13 260);
   color-scheme: dark;
@@ -176,9 +174,10 @@ html:not(.touchui) .touch-only { display: none !important; }
 /* what shows on hover shows anyway */
 .touchui .hover-reveal { opacity: 1 !important; display: grid !important; }
 /* a finger's target: 44 px at least either way (Apple's guidance), however small the control
-   is drawn on a desktop; a link in a sentence stays a word (tests/audit.ts checks each view) */
-.touchui :is(button, select, [role=tab], [role=radio], [role=switch], input:not([type=checkbox]):not([type=radio]):not([type=hidden])):not(p > *) { min-height: 44px !important; }
-.touchui :is(button, [role=tab], [role=radio], [role=switch]):not(p > *) { min-width: 44px !important; }
+   is drawn on a desktop, a link drawn as a button too; a link in a sentence stays a word
+   (tests/audit.ts checks each view) */
+.touchui :is(button, a.ibtn, a.btn, select, [role=tab], [role=radio], [role=switch], input:not([type=checkbox]):not([type=radio]):not([type=hidden])):not(p > *) { min-height: 44px !important; }
+.touchui :is(button, a.ibtn, a.btn, [role=tab], [role=radio], [role=switch]):not(p > *) { min-width: 44px !important; }
 
 /* the app could not start (main.ts) */
 .failed { margin: 0; padding: 40px 24px; max-width: 46ch; font: 500 var(--t-m)/1.5 var(--f-ui); color: var(--ink-2); }

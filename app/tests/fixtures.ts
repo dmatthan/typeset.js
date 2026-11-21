@@ -29,3 +29,7 @@ export const firstCol = (p: Page, sel: string) => p.evaluate(sel => {
   for (let k = 3; k < s.N; k++) { r.jump(k); if (document.querySelector(`.col[data-k="${k}"] ${sel}`)) return k; }
   return -1;
 }, sel);
+/** Landed: nothing moving, and the sheet on a whole column (a test waits for this, never
+ *  for a time). */
+export const settled = (p: Page) => p.waitForFunction(() => { const m = (window as any).__vol.reader.motion; return !m.moving && Number.isInteger(m.p); });
+

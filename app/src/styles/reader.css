@@ -21,6 +21,10 @@
 .curtain { position: absolute; top: 0; bottom: 0; pointer-events: none; will-change: transform; transform: translateZ(0); }
 .curtain.l { left: 0; width: var(--fl); background: linear-gradient(to left, transparent, var(--paper) 14px); }
 .curtain.r { left: var(--fr); right: 0; background: linear-gradient(to right, transparent, var(--paper) 14px); }
+/* the page as it was, fading into the new one (hold.ts): on paper, over the text and the
+   curtains, under what stands by the text (cards, menus); every press is the page's */
+.hold { position: absolute; inset: 0; z-index: 3; background: var(--paper); pointer-events: none; }
+.held { position: absolute; inset: 0; }
 
 .ln {
   --o: var(--opsz); --w: var(--wb, 400);

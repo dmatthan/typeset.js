@@ -13,6 +13,9 @@ import { themes, themeById, resolve, loadFamily, fontsReady, type Resolved } fro
 import { Annotations } from './annotations';
 import { Finder } from './find.svelte';
 import { Feedback, notesFile, type Progress } from './feedback';
+import { bookmarkAt, bookmarksIn, loadBookmarks, saveBookmarks, type Bookmark } from './bookmarks';
+import { Hold, lineStart } from './hold';
+import { geomVars, paletteVars, PALETTE, setVars, typeVars } from './paint';
 import { takeNotes } from './intake';
 import { embedded, embedMoved, embedOpts, features } from '../core/embed';
 import { shell } from '../core/shell';
@@ -36,6 +39,8 @@ export class Reader {
   /** First column of the focus window, at rest. */
   cur = 0;
   marks = new Set<string>();
+  /** The pages marked to come back to (bookmarks.ts). */
+  bookmarks: Bookmark[] = $state([]);
   ann: Annotations | null = null;
   seen = new Set<string>();
   /** Columns seen since the book was opened (for the hints). */
@@ -93,6 +98,8 @@ export class Reader {
     new ResizeObserver(() => {
       if (!this.book) return;
       if (this.opening) { this.resizedWhileOpening = true; return; }
+      // (the page as it is, kept in the middle of the window until it rests, then set again)
+      this.recentre();
       clearTimeout(this.resizeT);
       this.resizeT = window.setTimeout(() => this.relayout(), 140);
     }).observe(stage);
@@ -112,37 +119,29 @@ export class Reader {
     return themes.desktop ? themes.desktop.dark : matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  /** Resolves the theme and paints it: the appearance on the root, the theme's colours on
-   *  the reader (sheets keep the app's own), and the type variables the lines use. */
-  applyLook() {
+  /** The look the settings ask for now (the page's only once its text is set: `commit`). */
+  private wanted() { return resolve(themeById(settings.theme), this.isDark()); }
+
+  /** Paints `look` on the page: the appearance on the root, the theme's colours on the
+   *  reader and all it shows (its menus, panels and sheets: the theme's paper, softened, as
+   *  their surface, so that all of it is of one piece with the page; the library's sheets
+   *  keep the app's own), the type the lines are set in (on the root, so calibration probes
+   *  anywhere are set as the lines are). Only with the text set for it (`commit`), or a
+   *  look that sets nothing differently (another appearance: `themeChanged`). */
+  private paint(look: Resolved) {
     const root = document.documentElement;
     const want = settings.appearance === 'auto' ? (themes.desktop ? (themes.desktop.dark ? 'dark' : 'light') : null) : settings.appearance;
     if (want) root.setAttribute('data-theme', want); else root.removeAttribute('data-theme');
-    this.look = resolve(themeById(settings.theme), this.isDark());
-    const el = this.stage?.parentElement;
+    this.look = look;
+    const el = this.stage?.closest<HTMLElement>('.look');
     if (el) {
-      const pal = this.look.palette;
-      const set = (k: string, v: string) => el.style.setProperty(k, v);
-      const TOK = ['--paper', '--ink', '--ink-2', '--ink-3', '--rule', '--accent', '--accent-ink', '--focus', '--wash', '--read', '--hover'];
-      if (!pal) for (const k of TOK) el.style.removeProperty(k);
-      else {
-        const { paper, ink, accent } = pal;
-        set('--paper', paper); set('--ink', ink); set('--accent', accent); set('--focus', accent); set('--accent-ink', paper);
-        // (more contrast asked for: the quieter inks nearer the ink)
-        const more = matchMedia('(prefers-contrast: more)').matches;
-        set('--ink-2', `color-mix(in oklab, ${ink} ${more ? 90 : 74}%, ${paper})`);
-        set('--ink-3', `color-mix(in oklab, ${ink} ${more ? 84 : 62}%, ${paper})`);   // (4.5:1 at least: WCAG AA)
-        set('--rule', `color-mix(in oklab, ${ink} 16%, ${paper})`);
-        set('--wash', `color-mix(in srgb, ${accent} 13%, transparent)`);
-        set('--read', `color-mix(in srgb, ${ink} 5%, transparent)`);
-        set('--hover', `color-mix(in srgb, ${ink} 7%, transparent)`);
-      }
+      const pal = paletteVars(look.palette, this.isDark(), matchMedia('(prefers-contrast: more)').matches);
+      if (pal) setVars(el, pal); else for (const k of PALETTE) el.style.removeProperty(k);
     }
     // (dark paper: rich blocks, drawn in ink, are inverted: reader.css)
-    el?.classList.toggle('dark-paper', this.isDark());
-    root.classList.toggle('synth-sc', this.look.synthSc);
-    root.style.setProperty('--f-text', this.look.css);
-    if (this.M) this.applyType();
+    this.stage?.parentElement?.classList.toggle('dark-paper', this.isDark());
+    root.classList.toggle('synth-sc', look.synthSc);
+    setVars(root, typeVars(look, this.M?.fs ?? 20));
     this.paintEdges(1400);
   }
 
@@ -153,47 +152,36 @@ export class Reader {
     edges(c, ms);
   }
 
-  lookGeom(): Look {
-    const o = this.look.options;
-    return { scale: this.look.scale, lineSpacing: o.lineSpacing, margins: o.margins };
-  }
-
-  /** Type variables for the current size: on the root, so calibration probes anywhere
-   *  are set exactly like the lines. */
-  private applyType(M = this.M) {
-    const st = document.documentElement.style, L = this.look, fs = M.fs;
-    st.setProperty('--wb', String(L.wght));
-    st.setProperty('--wB', String(L.bold));
-    st.setProperty('--w-sc', String(L.wght + 30));
-    st.setProperty('--ls', ((L.options.charSpacing / 100) * fs).toFixed(3) + 'px');
-    st.setProperty('--ws', ((L.options.wordSpacing / 100) * fs).toFixed(3) + 'px');
-    st.setProperty('--opsz-sc', String(Math.min(144, Math.max(6, fs * 0.78))));
-    st.setProperty('--fvs', L.axes.map(([k, v]) => `"${k}" ${v}, `).join('') + '"wght" 400,');
+  lookGeom(look = this.look): Look {
+    const o = look.options;
+    return { scale: look.scale, lineSpacing: o.lineSpacing, margins: o.margins };
   }
 
   /** The faces, weights and book the fonts were last made ready for: a size changes none
    *  of them (asking again cost 23 ms of every change of size). */
   private fontsFor = '';
-  /** Loads the theme's face (system families are handed to the webview first). */
-  private async ensureFonts() {
+  /** Loads `look`'s face (system families are handed to the webview first), nothing on
+   *  the page changing; returns the look as it is known with its face (small capitals). */
+  private async ensureFonts(look: Resolved): Promise<Resolved> {
     const book = this.book;
-    const key = JSON.stringify([this.look.chain, this.look.wght, this.look.bold, book?.id ?? '', book?.ext ?? '']);
-    if (key === this.fontsFor) return;
+    const key = JSON.stringify([look.chain, look.wght, look.bold, book?.id ?? '', book?.ext ?? '']);
+    if (key === this.fontsFor) return look;
     // the page's faces first: the engine's copy of them then comes from the browser's
     // cache (asked for at once, each face was downloaded twice)
-    await fontsReady(this.look, this.M?.fs ?? 20, '', undefined).catch(() => {});
-    await loadFamily(this.core, this.look.chain[0]);
+    await fontsReady(look, this.M?.fs ?? 20, '', undefined).catch(() => {});
+    await loadFamily(this.core, look.chain[0]);
     // the family's small capitals are known only once it is loaded
-    this.look = resolve(themeById(settings.theme), this.isDark());
-    document.documentElement.classList.toggle('synth-sc', this.look.synthSc);
-    const needs = book ? await this.core.fontNeeds(book.id, this.look.chain[0]).catch(() => undefined) : undefined;
-    await fontsReady(this.look, this.M?.fs ?? 20, book?.ext ?? '', needs);
+    look = this.wanted();
+    const needs = book ? await this.core.fontNeeds(book.id, look.chain[0]).catch(() => undefined) : undefined;
+    await fontsReady(look, this.M?.fs ?? 20, book?.ext ?? '', needs);
     this.fontsFor = key;
+    return look;
   }
 
-  themeChanged() {
-    this.applyLook();
-  }
+  /** Another appearance (light, dark, the desktop's colours): the theme's other palette,
+   *  nothing set differently. A theme, a face or an option changes through
+   *  `settingsChanged`, with the text set for it. */
+  themeChanged() { this.paint(this.wanted()); }
 
   /** Highlights and find hits for a block, as the renderer draws them (hits first). */
   private marksOf = (key: string) => {
@@ -210,17 +198,38 @@ export class Reader {
     const texts = Array.isArray(input) ? input : [input];
     if (!this.book || !this.fb || !this.strip || !this.ann) return 'Open the book the notes are for first.';
     const { said, changed } = await takeNotes(this.core, texts, await this.core.library(), { book: this.book, ann: this.ann, marks: this.marks, fb: this.fb });
-    if (changed) {
-      for (const [k] of this.surface.rendered()) this.surface.refresh(k);
-      ui.annVersion++;
-      this.marking.digestSoon();
-    }
+    if (changed) { this.bookmarks = loadBookmarks(this.book.id); this.redraw(); this.marking.digestSoon(); }
     return said;
+  }
+
+  /** The bookmarks on the columns in view. */
+  bookmarksInView(): Bookmark[] {
+    return this.strip && this.M ? bookmarksIn(this.bookmarks, this.strip, this.cur, this.cur + this.M.N - 1) : [];
+  }
+  /** The page in view marked to come back to; or, marked already, unmarked. */
+  toggleBookmark() {
+    const book = this.book, strip = this.strip;
+    if (!book || !strip) return;
+    const here = this.bookmarksInView();
+    if (here.length) this.bookmarks = this.bookmarks.filter(b => !here.includes(b));
+    else { const b = bookmarkAt(book, strip, this.cur); if (b) this.bookmarks = [...this.bookmarks, b]; }
+    saveBookmarks(book.id, this.bookmarks);
+  }
+  removeBookmark(id: string) {
+    this.bookmarks = this.bookmarks.filter(b => b.id !== id);
+    if (this.book) saveBookmarks(this.book.id, this.bookmarks);
+  }
+
+  /** Every column in view built again from what is on the book, and what lists it told:
+   *  after notes arrive, or readers' notes are shown, hidden, removed or settled. */
+  redraw() {
+    for (const [k] of this.surface.rendered()) this.surface.refresh(k);
+    ui.annVersion++;
   }
 
   /** This reader's notes on the open book, as a notes file. */
   myNotes() {
-    const f = notesFile(this.book!, this.ann?.list ?? [], this.marks, this.strip!.keyIndex);
+    const f = notesFile(this.book!, this.ann?.list ?? [], this.marks, this.strip!.keyIndex, this.bookmarks);
     // how far they got goes with their notes, unless they said not
     if (kv.get('progress.' + this.book!.id, true)) f.progress = this.progress();
     return f;
@@ -287,8 +296,8 @@ export class Reader {
   /** Whether this webview shapes inline elements apart (see calibrate.ts). */
   private linkRuns = false;
   calibErr = 0;
-  private params(M = this.M): LayoutParams {
-    const L = this.look, o = L.options;
+  private params(M = this.M, L = this.look): LayoutParams {
+    const o = L.options;
     // a short measure (a phone's) is set ragged, whatever the theme says: justified lines of
     // under ~45 characters open rivers between their words
     const justify = o.justify && M.colW >= M.fs * NARROW;
@@ -297,20 +306,28 @@ export class Reader {
       font: L.chain, wght: L.wght, bold: L.bold, ls: +((o.charSpacing / 100) * M.fs).toFixed(3), ws: +((o.wordSpacing / 100) * M.fs).toFixed(3), axes: L.axes, spaceKern: this.spaceKern, linkRuns: this.linkRuns,
     };
   }
-  private applyCSS() {
-    const M = this.M, st = this.stage.parentElement!.style;
-    st.setProperty('--fs', M.fs + 'px'); st.setProperty('--lh', M.lh + 'px');
-    st.setProperty('--colW', M.colW + 'px'); st.setProperty('--colH', M.colH + 'px');
-    st.setProperty('--G', M.G + 'px'); st.setProperty('--y0', M.y0 + 'px'); st.setProperty('--foot', M.foot + 'px');
-    st.setProperty('--opsz', String(Math.min(144, Math.max(6, M.fs))));
-    st.setProperty('--opsz-s', String(Math.min(144, Math.max(6, M.fs * 0.7))));
-    this.applyType();
-    // the paper either side of the spread (the curtains, reader.css)
-    st.setProperty('--fl', M.x0 - M.G / 2 + 'px');
-    st.setProperty('--fr', M.x0 + M.focusW + M.G / 2 + 'px');
-    ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone; ui.railed = this.railed();
+  /** The page's style made `look`'s at `M`, in the frame the text set for them comes in
+   *  (`recompose` follows at once): never before it. */
+  private commit(look: Resolved, M: Metrics) {
+    this.M = M;
+    this.paint(look);
+    const reader = this.stage.parentElement!;
+    setVars(reader, geomVars(M));
+    ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone; ui.arrows = M.arrows; ui.railed = this.railed();
     // the notes' rail beside the text: what is about the text (its head, its page) centres on the text
-    st.setProperty('--rail', (ui.railed ? this.stage.clientWidth - M.W : 0) + 'px');
+    reader.style.setProperty('--rail', (ui.railed ? this.stage.clientWidth - M.W : 0) + 'px');
+  }
+
+  /** The window resizing: the page as it is, kept in the middle of it (set again once it
+   *  rests: `relayout`), moved, not rebuilt. */
+  private recentre() {
+    const M = this.M;
+    if (!M || !this.strip) return;
+    const W = this.stage.clientWidth - (ui.railed ? RAIL : 0), cx = Math.round(W / 2), x0 = Math.round(cx - M.focusW / 2);
+    if (x0 === M.x0 && W === M.W) return;
+    this.M = { ...M, W, cx, x0 };
+    setVars(this.stage.parentElement!, geomVars(this.M));
+    if (!this.motion.moving) this.surface.place(this.cur);
   }
 
   /* ---------- open, layout, close ---------- */
@@ -331,6 +348,7 @@ export class Reader {
       await this.images.measure(book).catch(() => {});
       if (gen !== this.gen) return;
       this.marks = new Set(kv.get<string[]>('marks.' + id, []));
+      this.bookmarks = loadBookmarks(id);
       this.seen = new Set(kv.get<string[]>('seen.' + id, []));
       this.visited = new Set();
       this.furthest = kv.get<number>('far.' + id, 0);
@@ -346,7 +364,8 @@ export class Reader {
       ui.title = book.title;
       ui.view = 'reader';
       await new Promise(r => requestAnimationFrame(r));
-      await this.layoutFrom(at ?? kv.get<Anchor | null>('pos.' + id, null), gen);
+      const look = this.wanted();
+      await this.layoutFrom(at ?? kv.get<Anchor | null>('pos.' + id, null), gen, look, this.measure(undefined, look));
       if (gen !== this.gen) return;
       // a book whose notebook the library has not seen yet gets its digest now
       if (!kv.get('nb.' + id, null)) this.marking.digestSoon();
@@ -385,36 +404,54 @@ export class Reader {
   }
 
   /** The geometry for the stage as it is (less the rail, which takes one column's place). */
-  private measure(size = settings.size) {
+  private measure(size = settings.size, look = this.look) {
     const rail = this.railed();
-    return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.lookGeom(), insets(), size, rail ? 1 : settings.layout);
+    return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.lookGeom(look), insets(), size, rail ? 1 : settings.layout);
   }
 
-  private async layoutFrom(anchor: Anchor | null, gen: number) {
+  /** Calibrates `look` at `M` on a probe host of its own (the page keeps its style), in
+   *  the document's body: always drawn (the reader is hidden until a book opens, and a
+   *  probe in it measured nothing). */
+  private async calibrateFor(look: Resolved, M: Metrics) {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none';
+    setVars(host, typeVars(look, M.fs));
+    document.body.append(host);
+    try { return await calibrate(this.core, host, { ...this.params(M, look), round: false, appUnits: false }); } finally { host.remove(); }
+  }
+
+  /** Lays the book out at `M` in `look`, apart from the page, and puts both on the page in
+   *  one frame: around `anchor` (none: where the reader is then), its section first, then
+   *  (not awaited) the rest. `fade`: the page as it was fades into the new (hold.ts). */
+  private async layoutFrom(anchor: Anchor | null, gen: number, look: Resolved, M: Metrics, fade = false) {
     const strip = this.strip!, book = this.book!;
     this.whole = new Promise(r => (this.wholeLaid = r));
-    this.applyLook();
-    this.M = this.measure();
-    this.applyCSS();
-    await this.ensureFonts();
+    // (the numbers wait for the whole book's count: Progress.svelte)
+    ui.settling = true;
+    look = await this.ensureFonts(look);
     performance.mark('open:fonts');
     if (gen !== this.gen) return;
-    this.applyType();
-    const cal = await calibrate(this.core, this.stage.parentElement!, { ...this.params(), round: false, appUnits: false });
+    const cal = await this.calibrateFor(look, M);
     performance.mark('open:calibrated');
     this.round = cal.round; this.appUnits = cal.appUnits; this.spaceKern = cal.spaceKern; this.linkRuns = cal.linkRuns; this.calibErr = cal.err;
     if (gen !== this.gen) return;
-    const p = this.params();
+    const p = this.params(M, look);
     const pg = ++this.paramGen;
-    strip.setEstimate(this.M.rows, this.M.colW, this.M.fs);
+    const near = anchor ?? strip.anchorAt(this.cur);
     let sec = 0;
-    if (anchor && 'key' in anchor) sec = strip.keyIndex.get(anchor.key)?.[0] ?? 0;
-    else if (anchor && 'sec' in anchor) sec = Math.max(0, Math.min(book.sections.length - 1, anchor.sec));
+    if (near && 'key' in near) sec = strip.keyIndex.get(near.key)?.[0] ?? 0;
+    else if (near && 'sec' in near) sec = Math.max(0, Math.min(book.sections.length - 1, near.sec));
     const first = parseLayout(await this.core.layout(book.id, [sec], p));
     performance.mark('open:first-layout');
     if (gen !== this.gen) return;
+    // the page as it is, then (in the same frame) the new: its style and its text together
+    const at = anchor ?? strip.anchorAt(this.cur), old = this.M;
+    if (fade && old) this.hold.take(this.stage, this.surface.track, this.inView(), { ...typeVars(this.look, old.fs), ...geomVars(old) }, this.lineOf(at));
+    this.commit(look, M);
+    strip.setEstimate(M.rows, M.colW, M.fs);
     strip.layouts = first;
-    this.recompose(anchor);
+    this.recompose(at);
+    if (fade && old) this.hold.release(this.lineOf(at), M.fs / old.fs);
     performance.mark('open:shown');
     this.calibrateNeighbours();
     this.core.layout(book.id, [], p).then(buf => {
@@ -425,7 +462,8 @@ export class Reader {
       strip.layouts = all;
       this.recompose(keep ?? strip.anchorAt(this.cur), true);
       this.wholeLaid();
-    }, e => toast(`Couldn’t lay out the book: ${(e as Error).message}`, 5000));
+      ui.settling = false;
+    }, e => { ui.settling = false; toast(`Couldn’t lay out the book: ${(e as Error).message}`, 5000); });
   }
 
   /** The sizes either side of this one, measured while nothing else is happening: the
@@ -442,21 +480,19 @@ export class Reader {
     idle(async () => {
       for (const size of next) {
         if (!book || this.book !== book) return;
-        const M = this.measure(size);
-        await calibrate(this.core, this.stage.parentElement!, { ...this.params(M), round: false, appUnits: false }).catch(() => {});
+        await this.calibrateFor(this.look, this.measure(size)).catch(() => {});
       }
     });
   }
 
   /** Measures this webview's glyph positioning once, before any book is opened. */
   async prewarm() {
-    this.applyLook();
-    await this.ensureFonts();
+    this.paint(this.wanted());
+    const look = await this.ensureFonts(this.look);
     await document.fonts.ready;
     if (this.book) return;
-    const M = metrics(Math.max(640, window.innerWidth), Math.max(480, window.innerHeight), this.lookGeom());
-    this.applyType(M);
-    await calibrate(this.core, document.body, { ...this.params(M), round: false }).catch(() => {});
+    this.paint(look);
+    await this.calibrateFor(look, metrics(Math.max(640, window.innerWidth), Math.max(480, window.innerHeight), this.lookGeom(look))).catch(() => {});
     if (!this.book) this.core.idle?.();
   }
 
@@ -470,22 +506,32 @@ export class Reader {
     ui.layoutVersion++;
   }
 
+  /** The page as it was, faded into the new one as the text is set again (hold.ts). */
+  hold = new Hold();
+  private inView() { return Array.from({ length: this.M.N }, (_, i) => this.surface.columnEl(this.cur + i)); }
+  /** Where the line at `a` begins on the page in view. */
+  private lineOf(a: Anchor | null | undefined) {
+    const h = a && 'key' in a ? this.strip!.keyIndex.get(a.key) : null;
+    if (!a || !h || !('key' in a)) return null;
+    const cols = this.inView().filter((c, i): c is HTMLElement => !!c && this.strip!.itemAt(this.cur + i)?.sec === h[0]);
+    return lineStart(this.stage, cols, h[1], a.off);
+  }
+
   async relayout() {
     if (!this.book || !this.strip) return;
     const gen = ++this.gen;
-    const anchor = this.strip.anchorAt(this.cur);
-    const old = this.M;
-    this.applyLook();
-    const M = this.measure();
+    const old = this.M, look = this.wanted(), M = this.measure(undefined, look);
     const force = this.forceRelayout;
     this.forceRelayout = false;
     if (!force && old && M.W === old.W && M.H === old.H && M.fs === old.fs && M.colW === old.colW && M.rows === old.rows && M.N === old.N) return;
     // same measure and rows: the text need not be set again, only the window moves
     if (!force && old && M.fs === old.fs && M.colW === old.colW && M.rows === old.rows && M.headRows === old.headRows) {
-      this.M = M; this.applyCSS(); this.recompose(anchor, true);
+      const at = this.strip.anchorAt(this.cur);
+      this.commit(look, M);
+      this.recompose(at, true);
       return;
     }
-    await this.layoutFrom(anchor, gen);
+    await this.layoutFrom(null, gen, look, M, true);
   }
   forceRelayout = false;
   async settingsChanged(kind: 'layout' | 'style') {
@@ -502,11 +548,12 @@ export class Reader {
     this.motion.jump(0);
     if (this.finder.open) this.finder.hide();
     ui.bookNote = null; ui.lightbox = null;
-    this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false;
+    this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false; this.bookmarks = [];
     ui.chip = null;
     this.cursor.end();
     ui.contents = false; ui.sheet = null;
     this.surface.clear();
+    this.hold.drop(); ui.settling = false;
     this.core.idle?.();
     ui.view = 'library';
     ui.libVersion++;
@@ -671,6 +718,15 @@ export class Reader {
     if (!this.strip) return;
     ui.bookNote = null;
     this.travelTo(this.strip.resolve({ key, off: 0 }));
+  }
+  /** The column of every note with a card beside its line (one's own written notes, and
+   *  readers' on the page), in order (two on one page, twice): the notes' rail counts them
+   *  and goes from one page with notes to the next. */
+  noteCols(): number[] {
+    const strip = this.strip;
+    if (!strip) return [];
+    const at = [...(this.ann?.list ?? []).filter(a => a.note).map(a => ({ key: a.key, off: a.s })), ...(this.fb?.writtenAt() ?? [])];
+    return at.map(a => strip.resolve(a)).sort((a, b) => a - b);
   }
   /** Where a note is printed in the book, as a column to go to. */
   noteHome(i: number): number | null {

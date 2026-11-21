@@ -6,6 +6,7 @@ import { Annotations, type Annotation } from './annotations';
 import { me } from '../core/identity';
 import type { FileNote, NotesFile } from './feedback';
 import { notebookOf, saveDigest } from './notebook';
+import { loadBookmarks, saveBookmarks } from './bookmarks';
 
 /** Whether a notes file is this reader's own (an export, or a copy from another device of
  *  theirs): put back as their notes, not shown as someone's feedback. */
@@ -19,8 +20,9 @@ const anchorOf = (n: FileNote) => ({ key: n.key, s: n.s, e: n.e, quote: n.quote,
 
 /** One's own notes put back on a book: highlights merged (by id) and found in its text
  *  (exactly on the same book; by their words on another version of it), marked
- *  paragraphs found by their opening words. `ann` and `marks` are the book's own, saved
- *  as they change. Returns how many came back and how many were not found. */
+ *  paragraphs and bookmarks found by their opening words. `ann` and `marks` are the
+ *  book's own, saved as they change (bookmarks are read and saved here: `bm.<id>`).
+ *  Returns how many came back and how many were not found. */
 export async function restoreInto(f: NotesFile, book: BookData, core: Core, ann: Annotations, marks: Set<string>) {
   const fresh = ann.merge(f.notes.filter(n => n.kind === 'highlight').map(annotationOf));
   await ann.place(core);
@@ -35,6 +37,17 @@ export async function restoreInto(f: NotesFile, book: BookData, core: Core, ann:
       else lost++;
     }
     kv.set('marks.' + book.id, [...marks]);
+  }
+  const bk = f.notes.filter(n => n.kind === 'bookmark');
+  if (bk.length) {
+    const list = loadBookmarks(book.id), placed = await core.place(book.id, bk.map(anchorOf));
+    placed.forEach((p, i) => {
+      if (!p || p.how === 'lost') { lost++; return; }
+      if (list.some(b => b.id === bk[i].id || (b.key === p.key && b.off === p.s))) return;
+      list.push({ id: bk[i].id, key: p.key, off: p.s, quote: bk[i].quote, prefix: bk[i].prefix ?? '', suffix: bk[i].suffix ?? '', at: bk[i].created || Date.now() });
+      back++;
+    });
+    saveBookmarks(book.id, list);
   }
   return { back, lost };
 }

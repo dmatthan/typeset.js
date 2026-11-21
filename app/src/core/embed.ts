@@ -9,6 +9,9 @@
  *  The page and the frame talk in messages `{ volumen: 1, type, … }` (PROTOCOL), each
  *  side to the other's origin only:
  *    frame → page   ready { title, chapters }   progress { at: 0…1 }   end   error { message }
+ *                   back (the reader's Back, where the page asked for one with no address)
+ *                   full { on } (full screen where the browser has none for a frame, as on
+ *                   an iPhone: the page fills its window with the book, and gives it back)
  *    page → frame   goto { chapter } | goto { at }   theme { theme: id or volumen-theme/1 }
  *  The page names its origin in the address (`host`); without it the frame says nothing
  *  and takes no commands. */
@@ -39,13 +42,16 @@ export interface Features {
 const FEATURES = ['contents', 'settings', 'find', 'highlights', 'links'] as const satisfies readonly (keyof Features)[];
 
 /** What the page asked for (kit/volumen.js writes these into the address's fragment):
- *  the book (an absolute http(s) address), only some chapters, a theme, a way on at the
- *  end, whether to remember the reader's place in this browser, how much interface,
- *  what is turned off, and the page's own origin. */
+ *  the book (an absolute http(s) address), only some chapters, a theme, the paper (a colour,
+ *  the page's own as the kit measured it), a way back (an address, or `history`: the page
+ *  goes back its own way), a way on at the end, whether to remember the reader's place in
+ *  this browser, how much interface, what is turned off, and the page's own origin. */
 export interface EmbedOptions {
   src: string | null;
   chapters?: [number, number];
   theme?: string;
+  paper?: string;
+  back?: string | 'history';
   endHref?: string;
   endLabel?: string;
   remember: boolean;
@@ -66,6 +72,8 @@ export function embedOptions(hash: string): EmbedOptions {
     src: url(q.get('src')),
     chapters: chapters && chapters[0] >= 1 && chapters[1] >= chapters[0] ? chapters : undefined,
     theme: q.get('theme') ?? undefined,
+    paper: /^#[0-9a-f]{6}$/i.test(q.get('paper') ?? '') ? q.get('paper')! : undefined,
+    back: q.get('back') === 'history' ? 'history' : url(q.get('back')) ?? undefined,
     endHref: url(q.get('end')) ?? undefined,
     endLabel: q.get('endl')?.slice(0, 60) || undefined,
     remember: q.get('rem') === '1',
@@ -82,9 +90,32 @@ export const embedOpts = embedded ? embedOptions(location.hash) : APP;
 export const features = embedOpts.features;
 
 /** Tells the page around the frame (only it: its origin, as it named it). */
-export function tellPage(type: 'ready' | 'progress' | 'end' | 'error', detail: Record<string, unknown> = {}) {
+export function tellPage(type: 'ready' | 'progress' | 'end' | 'error' | 'back' | 'full', detail: Record<string, unknown> = {}) {
   if (!embedded || window.parent === window || !embedOpts.host) return;
   window.parent.postMessage({ volumen: PROTOCOL, type, ...detail }, embedOpts.host);
+}
+
+/** How a book on another site's page goes full screen, with the whole interface: the
+ *  browser's own where it allows it; else (an iPhone has none for a frame) the page fills
+ *  its window with the book when told (`full`), where the page is one that hears (the kit:
+ *  it named its origin); else not at all. */
+export function fullscreenBy(): 'browser' | 'page' | null {
+  if (!embedded || embedOpts.ui !== 'full') return null;
+  if (document.fullscreenEnabled) return 'browser';
+  return window.parent !== window && embedOpts.host ? 'page' : null;
+}
+
+/** The reader's way back. In a frame: what the page asked for (an address, opened in the
+ *  page's own window; or its history, which the page goes back in its own way: `back`).
+ *  Opened as a page of its own: where the reader came from. Otherwise none: inline, the
+ *  page around the book is the way back. */
+export function wayBack(): { href: string } | { go: () => void } | null {
+  if (!embedded) return null;
+  if (embedOpts.back && embedOpts.back !== 'history') return { href: embedOpts.back };
+  // (with no page around it to ask, its own history)
+  if (embedOpts.back === 'history') return { go: () => (window.parent === window ? history.back() : tellPage('back')) };
+  if (window.parent === window && history.length > 1) return { go: () => history.back() };
+  return null;
 }
 
 /** What the page may ask of the reader. */

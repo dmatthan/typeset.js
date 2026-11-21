@@ -4,16 +4,21 @@
    *  over the whole book). With the bar (a tap, the pointer near the top or the foot): a
    *  hairline through the book where the numbers were, and "N of Total" just below it; page
    *  turns bring neither. Dragged (or its arrow keys), the line moves through the book, the
-   *  pages and the chapter following; let go, and the reader travels there. */
+   *  pages and the chapter following; let go, and the reader travels there. While the text
+   *  is set again (`ui.settling`) the numbers stay as they were, with the page held over it,
+   *  until the whole book's are known (a first pass only estimates the chapters before). */
   import type { Reader } from '../reader/reader.svelte';
   import { ui } from '../state.svelte';
 
   let { reader, shown, el = $bindable() }: { reader: Reader; shown: boolean; el?: HTMLElement } = $props();
   let dragging = $state(false), at = $state(0);
-  const first = $derived(dragging ? at + 1 : ui.page);
-  const last = $derived(Math.min(ui.pages, first + ui.cols - 1));
+  let kept = $state({ page: 0, pages: 0 });
+  $effect(() => { if (!ui.settling) kept = { page: ui.page, pages: ui.pages }; });
+  const page = $derived(ui.settling ? kept.page : ui.page), pages = $derived(ui.settling ? kept.pages : ui.pages);
+  const first = $derived(dragging ? at + 1 : page);
+  const last = $derived(Math.min(pages, first + ui.cols - 1));
   const where = $derived(dragging ? reader.headFor(at) : ui.runhead);
-  const fill = $derived(ui.pages > 1 ? ((first - 1) / (ui.pages - 1)) * 100 : 0);
+  const fill = $derived(pages > 1 ? ((first - 1) / (pages - 1)) * 100 : 0);
   // under the middle of each column in view (as the layout puts them)
   const mids = $derived.by(() => {
     ui.layoutVersion; ui.cols;
@@ -24,13 +29,13 @@
 
 <div class="progress" class:shown={shown || dragging} bind:this={el}>
   <!-- (nothing until the book has pages: a place in nothing means nothing) -->
-  {#if ui.pages}
-    {#each mids as x, i}{#if ui.page + i <= ui.pages}<span class="pn" style:left="{x}px" aria-hidden="true">{ui.page + i}</span>{/if}{/each}
-    <input type="range" min="0" max={ui.pages - 1} value={ui.page - 1} style:--fill="{fill}%"
-      aria-label="Place in the book" aria-valuetext="Page {first} of {ui.pages}{where ? `, ${where}` : ''}"
+  {#if pages}
+    {#each mids as x, i}{#if page + i <= pages}<span class="pn" style:left="{x}px" aria-hidden="true">{page + i}</span>{/if}{/each}
+    <input type="range" min="0" max={pages - 1} value={page - 1} style:--fill="{fill}%"
+      aria-label="Place in the book" aria-valuetext="Page {first} of {pages}{where ? `, ${where}` : ''}"
       oninput={e => { dragging = true; at = +e.currentTarget.value; }}
       onchange={e => { dragging = false; reader.travelTo(+e.currentTarget.value); }} />
-    <p class="where">{first === last ? first : `${first}–${last}`} of {ui.pages}{dragging && where ? ` · ${where}` : ''}</p>
+    <p class="where">{first === last ? first : `${first}–${last}`} of {pages}{dragging && where ? ` · ${where}` : ''}</p>
   {/if}
 </div>
 

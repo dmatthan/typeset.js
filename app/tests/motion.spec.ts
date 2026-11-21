@@ -14,8 +14,18 @@ async function openBook(p: Page) {
   await p.goto('/');
   await p.locator('.book[data-id]').first().click();
   await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length && !r.motion.moving; });
-  await p.waitForTimeout(800);
+  await builtAhead(p);
 }
+
+/** At rest with the next turn's columns built, either way: those the surface builds in idle
+ *  time once settled (`prebuild`: up to N + 1, at most four, beyond what is seen). */
+const builtAhead = (p: Page) => p.waitForFunction(() => {
+  const r = (window as any).__vol.reader, s = r.surface;
+  if (r.motion.moving) return false;
+  const [lo, hi] = s.seen(r.motion.p);
+  for (let d = 1; d <= Math.min(r.M.N + 1, 4); d++) for (const k of [hi + d, lo - d]) if (k >= 0 && k < r.strip.N && !s.columnEl(k)) return false;
+  return true;
+});
 
 /** Starts something in the page (`start`, run there), then keeps the page's thread busy
  *  for `ms`; returns how many different frames the screen showed meanwhile. */
@@ -27,6 +37,7 @@ async function framesWhileBusy(p: Page, start: string, ms = 450) {
     cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
   });
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 30, everyNthFrame: 1 });
+  // (the recording's own start: it sends nothing for its first moments)
   await p.waitForTimeout(250);
   const [a, z] = await p.evaluate(([code, ms]) => new Promise<[number, number]>(done => {
     new Function('r', code as string)((window as any).__vol.reader);
@@ -49,9 +60,17 @@ test('a turn goes on across the screen while the page is busy', async ({ page: p
   expect(await p.evaluate(() => (window as any).__vol.reader.cur)).toBe(await p.evaluate(() => Math.round((window as any).__vol.reader.motion.p)));
 });
 
+test('a page set again fades into the new one while the page is busy', async ({ page: p }) => {
+  await openBook(p);
+  // (the copy taken and let go at once, as a relayout does: the fade is the compositor's)
+  expect(await framesWhileBusy(p, 'r.hold.take(r.stage, r.surface.track, [r.surface.columnEl(r.cur)], {}, null); r.hold.release()')).toBeGreaterThanOrEqual(6);
+  await expect(p.locator('.hold')).toHaveCount(0);
+});
+
 test('a held key\'s glide goes on while the page is busy, and lands on a column when let go', async ({ page: p }) => {
   await openBook(p);
   const from = await p.evaluate(() => (window as any).__vol.reader.cur);
+  // (held long enough to glide: the hand's own time)
   await p.keyboard.down('ArrowRight');
   await p.waitForTimeout(700);
   expect(await p.evaluate(() => (window as any).__vol.reader.motion.mode)).toBe('cruise');
@@ -66,7 +85,7 @@ test('a held key\'s glide goes on while the page is busy, and lands on a column 
 test('at rest the next turn\'s columns are built ahead: a turn builds none as it moves', async ({ page: p }) => {
   await openBook(p);
   for (const d of [1, -1, 1]) {
-    await p.waitForTimeout(600);
+    await builtAhead(p);
     const made = await p.evaluate(dir => new Promise<number>(done => {
       const r = (window as any).__vol.reader;
       let n = 0;

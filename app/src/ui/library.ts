@@ -1,16 +1,100 @@
 /** What the library does with its books, apart from showing them (Library.svelte). */
 import type { Core, LibEntry } from '../core/types';
 import { kv } from '../core/kv';
-import { isTauri } from '../core/shell';
+import { backup, restore, isBackup } from '../core/backup';
+import { isTauri, shell } from '../core/shell';
 import { isSafari, isInstalled } from '../core/env';
 import { embedded } from '../core/embed';
 import { syncShares, hasVault, sharedOf, service, withdraw, fetchNotes } from '../core/service';
 import { ui, toast } from '../state.svelte';
 import { forgetBookState } from '../reader/bookstate';
+import { earlierDraft } from '../reader/draft';
 import { parseNotes, receive } from '../reader/feedback';
 import { hint } from '../reader/hints';
+import { takeNotes as takeNotesIn } from '../reader/intake';
+import { isNotesMarkdown } from '../reader/notesmd';
+import { isWebAnno } from '../reader/webanno';
 import { stale, reread } from '../reader/reread';
-import { forgetBook } from './shelves.svelte';
+import { addToShelf, forgetBook } from './shelves.svelte';
+
+/** What a book's tile says under its cover: where the reader is in it (not started,
+ *  finished), and, on a writer's book, how many readers have sent notes on it. */
+export function progressOf(b: LibEntry): string {
+  const s = kv.get<{ where: string; done: boolean } | null>('state.' + b.id, null);
+  const fb = Object.keys(kv.get<Record<string, unknown>>('fb.' + b.id, {})).length;
+  const notes = fb ? ` · notes from ${fb} reader${fb === 1 ? '' : 's'}` : '';
+  if (!s) return 'Not started' + notes;
+  return (s.done ? 'Finished' : s.where) + notes;
+}
+
+/** The books, the one opened last first (one never opened: as when it was added). */
+export const byLastOpened = (list: LibEntry[]) => list.sort((a, z) => kv.get<number>('opened.' + z.id, z.added) - kv.get<number>('opened.' + a.id, a.added));
+/** A book opened from the library: first in the order, and the one to come back to. */
+export function opened(id: string) { kv.set('lastOpened', id); kv.set('opened.' + id, Date.now()); }
+
+/** Notes files taken in (one's own put back on their books, another reader's kept as
+ *  feedback on theirs: reader/intake.ts), and what came of them said. */
+export async function takeNotes(core: Core, texts: string[], names: string[] = [], readerOpen = false) {
+  const { said } = await takeNotesIn(core, texts, await core.library(), undefined, names);
+  // (one's own notes put back read their books in the engine; none is open here)
+  if (!readerOpen) core.idle?.();
+  toast(said, Math.max(5200, said.length * 60));
+  ui.libVersion++;
+}
+
+/** The whole library in one file (core/backup.ts), saved where the person says. */
+export async function backUp(core: Core) {
+  toast('Gathering the library…', 8000);
+  const b = await backup(core);
+  const bytes = new Uint8Array(await b.blob.arrayBuffer());
+  const day = new Date().toISOString().slice(0, 10);
+  if (await shell.saveBytes(`Volumen library ${day}.vbackup`, bytes)) {
+    toast(`Backed up: ${b.books} book${b.books === 1 ? '' : 's'} and everything about them.${b.missing.length ? ` Not their files: ${b.missing.join(', ')} (added before files were kept: add them again).` : ''}`, 6000);
+  }
+}
+/** A library put back from its file, then the app started again (settings, themes and
+ *  collections are read as it starts). */
+export async function restoreFrom(core: Core, f: File) {
+  toast('Restoring the library…', 15000);
+  const r = await restore(core, f);
+  if (typeof r === 'string') { toast(r, 5200); return; }
+  toast(`Restored: ${r.books} book${r.books === 1 ? '' : 's'} added${r.failed.length ? `; could not read ${r.failed.join(', ')}` : ''}. Reloading…`, 4000);
+  setTimeout(() => location.reload(), 1600);
+}
+
+/** Files given to the library (picked, dropped, a folder's): a backup restores the
+ *  library; every other file is a book, put on the collection shown (`shelf`); notes files
+ *  are taken in after the books, so a folder holding a manuscript and its readers' notes
+ *  is taken whole. The book added last (to focus), and a new draft of a book already here
+ *  (to be offered its notes, feedback and share). */
+export async function addFiles(core: Core, files: FileList | File[], shelf: string | null, readerOpen: boolean): Promise<{ last?: LibEntry; draft?: { from: LibEntry; to: LibEntry } }> {
+  const notes: string[] = [], names: string[] = [];
+  let last: LibEntry | undefined, draft: { from: LibEntry; to: LibEntry } | undefined;
+  for (const f of files) {
+    if (/\.vbackup$/i.test(f.name) || (f.size > 10 && await isBackup(f))) { await restoreFrom(core, f); return {}; }
+    if (/\.vnotes$/i.test(f.name)) { notes.push(await f.text()); names.push(f.name); continue; }
+    // notes exported as Markdown (rather than a manuscript), or as Web Annotations
+    if (/\.(md|markdown|txt|json|jsonld)$/i.test(f.name) && f.size < 8e6) {
+      const text = await f.text();
+      if (isNotesMarkdown(text) || isWebAnno(text) || /\.(json|jsonld)$/i.test(f.name)) { notes.push(text); names.push(f.name); continue; }
+    }
+    toast(`Opening ${f.name}…`, 8000);
+    try {
+      const e = await core.importFile(new Uint8Array(await f.arrayBuffer()), f.name);
+      last = e;
+      const before = draft ? null : earlierDraft(e, await core.library());
+      if (before) draft = { from: before, to: e };
+      if (shelf) addToShelf(shelf, e.id);
+      toast(`Added “${e.title}”.`, 3600);
+      keepLibrary();
+    } catch (err) {
+      const m = `Couldn’t open ${f.name}: ${(err as Error).message}`;
+      toast(m, Math.max(5200, m.length * 70));
+    }
+  }
+  if (notes.length) await takeNotes(core, notes, names, readerOpen);
+  return { last, draft };
+}
 
 /** A book gone from the library: its link withdrawn first if it is shared (or readers
  *  would go on sending notes to it, and the writer's other devices bring it back), then

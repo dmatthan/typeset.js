@@ -1,7 +1,7 @@
 import { kv } from '../core/kv';
 import type { Core, FamilyLoad } from '../core/types';
 import { BUNDLED, BUNDLED_SMCP } from '../core/fonts';
-import { contrast, fitContrast, fromOklch, hexToRgb, tame } from './color';
+import { contrast, fitContrast, fromOklch, hexToRgb, luminance, mix, tame } from './color';
 
 /** A theme: a typeface with its own settings, the layout options it is designed for, and
  *  a light and a dark palette. The reader may change any option; the change is kept per
@@ -93,11 +93,67 @@ export const BUILTIN: Theme[] = [
   },
 ];
 
-/** The app's own paper, as hex (tokens.css has it in OKLCH, drifting in hue). */
+/** The app's own palette (the default theme's: `tokens.css`, which CSS keeps), as colours
+ *  for what needs one written down: a theme exported or begun from the default, a book on a
+ *  page's own paper. The two are held to agree (tests/reader.spec.ts). */
 export const STOCK = {
-  light: { paper: fromOklch(0.965, 0.008, 96), ink: fromOklch(0.24, 0.014, 262), accent: fromOklch(0.47, 0.13, 262) },
-  dark: { paper: fromOklch(0.205, 0.006, 96), ink: fromOklch(0.88, 0.012, 84), accent: fromOklch(0.76, 0.1, 262) },
+  light: { paper: fromOklch(0.982, 0.006, 80), ink: fromOklch(0.23, 0.008, 70), accent: fromOklch(0.5, 0.11, 255) },
+  dark: { paper: fromOklch(0.205, 0.006, 80), ink: fromOklch(0.88, 0.012, 84), accent: fromOklch(0.76, 0.1, 262) },
 };
+
+/** A book on another site's page, on that page's own paper (ui/Embed.svelte): the theme
+ *  the page chose, read light or dark as the paper is, the paper exactly the page's, the
+ *  theme's ink and accent kept where they read on it (else moved, hue kept, until they
+ *  do: 7:1 for the text, 3.2:1 for the accent); its other scheme as the theme has it. */
+export function onPaper(t: Theme, paper: string): { theme: Theme; dark: boolean } | null {
+  const rgb = hexToRgb(paper);
+  if (!rgb) return null;
+  const dark = luminance(rgb) < 0.18;
+  const own = (dark ? t.dark : t.light) ?? STOCK[dark ? 'dark' : 'light'];
+  const pal: Palette = { paper, ink: fitContrast(paper, own.ink, 7, 21), accent: fitContrast(paper, own.accent, 3.2, 21) };
+  return { theme: { ...t, id: 'page', name: 'This page', builtin: false, desktop: false, light: dark ? t.light : pal, dark: dark ? pal : t.dark }, dark };
+}
+
+/** What a theme's palette gives the interface on its page: a surface for what lies on it
+ *  (a menu, a card, a panel; `sheet`, a sheet), the paper a step lighter (by day toward
+ *  white, by night toward the ink, as the app's own are), and a ground a step darker for
+ *  what sits beside it (the contents); and the quieter inks, `ink2` for
+ *  what is secondary, `ink3` for what is quietest (the running head, the page's number),
+ *  set toward the paper but never below 4.5:1 (WCAG AA) on the paper or any of these:
+ *  a mix alone left Slate's and Warm's at 3.1 to 4.2. `more`: more contrast asked for. */
+export function uiPalette(p: Palette, dark: boolean, more = false) {
+  const surface = dark ? mix(p.paper, p.ink, 0.03) : mix(p.paper, '#ffffff', 0.4);
+  const sheet = dark ? mix(p.paper, p.ink, 0.05) : mix(p.paper, '#ffffff', 0.25);
+  const ground = dark ? mix(p.paper, '#000000', 0.2) : mix(p.paper, p.ink, 0.035);
+  const worst = (c: string) => Math.min(...[p.paper, surface, sheet, ground].map(g => contrast(c, g)));
+  // the most of the way to the paper (at most `t`) that still reads at 4.5:1 (4.6, for
+  // rounding): the ink itself reads (7:1 and more), so the search has an answer
+  const quiet = (t: number) => {
+    if (worst(mix(p.ink, p.paper, t)) >= 4.6) return t;
+    let lo = 0, hi = t;
+    for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (worst(mix(p.ink, p.paper, m)) >= 4.6) lo = m; else hi = m; }
+    return lo;
+  };
+  const t3 = quiet(more ? 0.16 : 0.38), t2 = Math.min(more ? 0.1 : 0.26, t3 * 0.68);
+  return { surface, sheet, ground, ink2: mix(p.ink, p.paper, t2), ink3: mix(p.ink, p.paper, t3), hl: highlights(p, dark) };
+}
+
+/** The highlights' colours (yellow, green, blue, pink), by day a pastel and by night a
+ *  jewel tone laid thinly on the paper, as much of each as leaves the ink over it reading
+ *  at 4.5:1 (a dim ink on a grey paper, Slate's by night, read at 4.0 under the yellow
+ *  before). The default theme's are its tokens' (tokens.css), the same. */
+export const HIGHLIGHTS = {
+  light: [[0.9, 0.12, 95, 0.55], [0.88, 0.1, 150, 0.5], [0.86, 0.08, 240, 0.5], [0.86, 0.1, 350, 0.45]],
+  dark: [[0.8, 0.16, 88, 0.42], [0.75, 0.15, 155, 0.38], [0.72, 0.13, 250, 0.44], [0.74, 0.15, 350, 0.4]],
+} as const;
+function highlights(p: Palette, dark: boolean): string[] {
+  return HIGHLIGHTS[dark ? 'dark' : 'light'].map(([L, C, H, a]) => {
+    const c = fromOklch(L, C, H);
+    let k = a;
+    while (k > 0.12 && contrast(p.ink, mix(p.paper, c, k)) < 4.6) k -= 0.02;
+    return c + Math.round(k * 255).toString(16).padStart(2, '0');
+  });
+}
 
 export interface DesktopPalette { name: string; paper: string; ink: string; accent: string; dark: boolean }
 

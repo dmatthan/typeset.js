@@ -1,30 +1,43 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
+  import { embedOpts } from '../core/embed';
   import { me } from '../core/identity';
+  import { count, when } from '../core/say';
+  import { BAR, insets } from '../reader/geometry';
   import { type Reader } from '../reader/reader.svelte';
-  import { ui } from '../state.svelte';
+  import { ui, toast } from '../state.svelte';
 
   /** Notes beside their lines. With the rail (ui.railed: a wide window, asked for), every
    *  note in the columns in view, each level with its line in the rail beside the text,
    *  one's own edited in place; a note being written (ui.composing) has a card of its own
    *  there. Without it, the notes asked for (a dot pointed at, `;`) over the column, below
-   *  their highlight. Cards never overlap and keep within the stage. */
+   *  their highlight. Cards never overlap, and keep within the stage and off the bar (and,
+   *  with the rail, its foot). The rail begins under the bar, which stays over it, whole:
+   *  its controls are the window's. Its foot says how many notes the book has, goes to
+   *  the one before or after the page, and puts the rail away. */
   let { reader }: { reader: Reader } = $props();
   const GAP = 10, EDGE = 12;
 
-  /** A card: one's own note, or another reader's (theirs to read, not to edit). */
-  interface Card { id: string; note: string; color: number; who: string; reader?: string; rc?: number; top: number; left: number; width: number; x: number }
+  /** A card: one's own note, or another reader's (theirs to read and settle, not to edit),
+   *  with when it was written. */
+  interface Card { id: string; note: string; color: number; who: string; at: number; reader?: string; rc?: number; top: number; left: number; width: number; x: number }
   function noteOf(id: string): Omit<Card, 'id' | 'top' | 'left' | 'width' | 'x'> | null {
     if (id.includes('|')) {
       const f = reader.fb?.find(id);
-      return f?.n.note ? { note: f.n.note, color: 0, who: f.reader, reader: f.reader, rc: f.colour } : null;
+      return f?.n.note ? { note: f.n.note, color: 0, who: f.reader, at: f.n.updated, reader: f.reader, rc: f.colour } : null;
     }
     const a = reader.ann?.list.find(x => x.id === id);
-    return a && (a.note || id === ui.composing) ? { note: a.note, color: a.color, who: 'You' } : null;
+    return a && (a.note || id === ui.composing) ? { note: a.note, color: a.color, who: 'You', at: a.updated } : null;
   }
   let cards: Card[] = $state([]);
   let box: HTMLElement;
+  /** Where the bar's band ends (cards and the rail begin below it). */
+  let band = $state(0);
+  /** The columns with notes, and the nearest before and after those in view. */
+  const cols = $derived.by(() => { ui.annVersion; ui.layoutVersion; return ui.railed ? reader.noteCols() : []; });
+  const prev = $derived(cols.findLast(k => k < ui.page - 1) ?? null);
+  const next = $derived(cols.find(k => k > ui.page - 1 + ui.cols - 1) ?? null);
   /** The card being written in, and what it says so far. */
   let editing = $state(''), text = $state('');
 
@@ -41,6 +54,7 @@
     const stage = reader.stage, M = reader.M;
     if (!stage || !M || !reader.strip) { cards = []; return; }
     const st = stage.getBoundingClientRect();
+    band = insets().t + (embedOpts.ui === 'none' ? 0 : BAR);
     const out: Card[] = [];
     for (const id of ids()) {
       const a = noteOf(id);
@@ -80,7 +94,8 @@
   async function settle() {
     await tick();
     const els = [...box.querySelectorAll<HTMLElement>('.sn')];
-    const H = reader.stage?.clientHeight ?? 0, h = (i: number) => els[i]?.offsetHeight ?? 0;
+    // (with the rail, its foot below: the band the page's number has beside the text)
+    const H = (reader.stage?.clientHeight ?? 0) - (ui.railed ? (reader.M?.foot ?? 0) + insets().b : 0), h = (i: number) => els[i]?.offsetHeight ?? 0;
     const tops = cards.map(c => c.top);
     const at = Math.max(0, cards.findIndex(c => c.id === editing));
     for (let i = at + 1; i < tops.length; i++) tops[i] = Math.max(tops[i], tops[i - 1] + h(i - 1) + GAP);
@@ -88,7 +103,7 @@
     // within the stage: a stack past the bottom rises, one past the top falls (the top wins)
     const over = tops.length ? tops[tops.length - 1] + h(tops.length - 1) - (H - EDGE) : 0;
     if (over > 0) for (let i = 0; i < tops.length; i++) tops[i] -= over;
-    const under = tops.length ? EDGE - tops[0] : 0;
+    const under = tops.length ? band + EDGE - tops[0] : 0;
     if (under > 0) for (let i = 0; i < tops.length; i++) tops[i] += under;
     els.forEach((el, i) => (el.style.top = tops[i] + 'px'));
     box.querySelector<HTMLTextAreaElement>('textarea')?.focus({ preventScroll: true });
@@ -115,6 +130,12 @@
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); }
   }
+  /** Another reader's note settled: off the page, kept (and reopened) among the readers' notes. */
+  function resolve(id: string) {
+    reader.fb?.resolve(id);
+    reader.redraw();
+    toast('Resolved: kept among the readers’ notes, in Highlights.', 3600);
+  }
   const initial = (c: Card) => (c.reader ? c.reader : me().name || 'You').trim().charAt(0).toUpperCase();
 
   onMount(() => {
@@ -125,11 +146,31 @@
   });
 </script>
 
-{#if ui.railed}<div class="rail" style:left="{reader.M?.W ?? 0}px" aria-hidden="true"></div>{/if}
+{#if ui.railed && reader.M}
+  {@const M = reader.M}
+  <div class="rail" style:left="{M.W}px" style:top="{band}px" aria-hidden="true"></div>
+  {#if !cards.length}
+    <p class="rail-empty" style:left="{M.W + 20}px" style:top="{M.y0}px">{cols.length ? 'No notes on this page.' : 'Notes you write show here, beside their lines.'}</p>
+  {/if}
+  <div class="rail-foot" style:left="{M.W + 1}px" role="group" aria-label="The book's notes">
+    <button onclick={() => prev !== null && reader.travelTo(prev)} disabled={prev === null} aria-label="Previous note" title="Previous note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+    </button>
+    <span>{cols.length ? count(cols.length, 'note', 'notes') : 'No notes yet'}</span>
+    <button onclick={() => next !== null && reader.travelTo(next)} disabled={next === null} aria-label="Next note" title="Next note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+    </button>
+    <!-- (the rail put away where it is; also ; and Notes in the menu) -->
+    <button class="close" onclick={() => reader.toggleNotes()} aria-label="Close the notes" title="Close the notes (;)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg>
+    </button>
+  </div>
+{/if}
 {#snippet who(c: Card)}
   <span class="who">
     <span class="av" style={c.reader ? `--t: var(--r${c.rc})` : `--t: var(--hs${c.color})`} aria-hidden="true">{initial(c)}</span>
     <span class="nm">{c.who}</span>
+    <span class="dt">{when(c.at)}</span>
   </span>
 {/snippet}
 <div class="sns" bind:this={box}>
@@ -149,6 +190,8 @@
     {:else if c.reader}
       <div class="sn theirs" data-a={c.id} style={at} transition:fade|global={{ duration: 120 }}>
         {@render who(c)}<p class="txt">{c.note}</p>
+        <!-- settled, the passage leaves the page; it stays among the readers' notes -->
+        <span class="theirs-acts"><button onclick={() => resolve(c.id)}>Resolve</button></span>
       </div>
     {:else}
       <button class="sn" data-a={c.id} style={at} transition:fade|global={{ duration: 120 }} onclick={() => open(c)} aria-label="Your note: {c.note}. Press to edit it.">
@@ -159,7 +202,15 @@
 </div>
 
 <style>
-  .rail { position: absolute; top: 0; bottom: 0; right: 0; z-index: 24; background: var(--paper); border-left: 1px solid var(--rule); pointer-events: none; }
+  .rail { position: absolute; bottom: 0; right: 0; z-index: 24; background: var(--paper); border-left: 1px solid var(--rule); pointer-events: none; }
+  .rail-empty { position: absolute; z-index: 25; right: 20px; margin: 0; font: 400 var(--t-s)/1.45 var(--f-ui); color: var(--ink-3); }
+  /* the rail's foot, level with the page's number beside it */
+  .rail-foot { position: absolute; z-index: 25; right: 0; bottom: env(safe-area-inset-bottom); height: var(--foot, 52px); display: flex; align-items: center; justify-content: center; gap: 6px; font: 500 13px/1 var(--f-ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .rail-foot button { appearance: none; border: 0; background: none; width: 36px; height: 36px; padding: 0; border-radius: var(--r-s); display: grid; place-items: center; color: var(--ink-3); cursor: pointer; transition: color .15s, background-color .15s; }
+  .rail-foot button:disabled { opacity: .35; cursor: default; }
+  :global(html:not(.touchui)) .rail-foot button:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
+  .rail-foot .close { position: absolute; right: 10px; }
+  .rail-foot svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .sns { position: absolute; inset: 0; pointer-events: none; z-index: 25; }
   /* a card: clean, a hairline; colour only in the writer's initial */
   .sn {
@@ -172,7 +223,10 @@
   .sn.open { box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent); border-color: color-mix(in oklab, var(--accent) 45%, var(--rule)); }
   .who { display: flex; align-items: center; gap: 8px; }
   .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 600 13px/1 var(--f-ui); background: color-mix(in oklab, var(--t) 38%, var(--surface)); color: color-mix(in oklab, var(--t) 55%, var(--ink)); }
-  .nm { font: 500 var(--t-s)/1.2 var(--f-ui); color: var(--ink-2); }
+  .nm { flex: 1; font: 500 var(--t-s)/1.2 var(--f-ui); color: var(--ink-2); }
+  .dt { font: 500 13px/1.2 var(--f-ui); color: var(--ink-3); }
+  .theirs-acts button { appearance: none; border: 0; background: none; padding: 0; font: 500 13px/1.6 var(--f-ui); color: var(--ink-3); cursor: pointer; }
+  :global(html:not(.touchui)) .theirs-acts button:hover { color: var(--ink); }
   .txt { display: -webkit-box; -webkit-line-clamp: 12; line-clamp: 12; -webkit-box-orient: vertical; overflow: hidden; margin: 0; font: 400 var(--t-s)/1.45 var(--f-ui); white-space: pre-wrap; overflow-wrap: anywhere; }
   textarea { box-sizing: border-box; width: 100%; resize: none; border: 0; outline: none; padding: 0; background: none; color: var(--ink); font: 400 var(--t-s)/1.45 var(--f-ui); }
   .acts { display: flex; justify-content: flex-end; gap: 6px; }

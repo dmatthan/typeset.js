@@ -1,5 +1,5 @@
 import { devices, type Page } from '@playwright/test';
-import { test, expect, openFile, firstCol } from './fixtures';
+import { test, expect, openFile, firstCol, settled } from './fixtures';
 
 // A phone: one column as a spread, and the touch conventions (the outer fifth of the page
 // turns it, the middle shows the bar); key hints hidden.
@@ -8,7 +8,6 @@ const { defaultBrowserType: _, ...phone } = devices['iPhone 13'];
 test.use(phone);
 
 const cur = (p: Page) => p.evaluate(() => (window as any).__vol.reader.cur as number);
-const settled = (p: Page) => p.waitForFunction(() => !(window as any).__vol.reader.motion.moving);
 
 async function open(p: Page) {
   await p.goto('/');
@@ -35,28 +34,24 @@ async function select(p: Page, line: number | 'last', from = 1, to = 4) {
 }
 const box = (p: Page) => p.locator('.chip-pop').evaluate(e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
 
-test('a phone: the selection is the system\'s, and stays; the menu stands clear of the system\'s own', async ({ page: p }) => {
+test('a phone: the selection is the system\'s, and stays; our menu is in the reader\'s own band farther from it', async ({ page: p }) => {
   await open(p);
   const k = await cur(p);
-  // a few words mid-page: the system's menu goes above them, ours below, clear of the
-  // handle that hangs under the selection's end; no Copy (the system has its own)
-  const mid = await select(p, 8);
   const menu = p.locator('.chip-pop');
-  await expect(menu).toBeVisible();
-  expect(await menu.getByRole('button', { name: 'Copy' }).count()).toBe(0);
-  let m = await box(p);
-  expect(m.top).toBeGreaterThanOrEqual(mid.bottom + 20);
-  // it stays selected while the menu shows
-  expect(await p.evaluate(() => getSelection()!.toString())).toBe(mid.text);
-  // the top line: below it if the system's has room above, else past the system's below
-  const top = await select(p, 0);
-  if (top.top >= 74) await expect.poll(async () => (await box(p)).top).toBeGreaterThanOrEqual(top.bottom + 20);
-  else await expect.poll(async () => (await box(p)).top).toBeGreaterThanOrEqual(top.bottom + 60);
-  // the last line: the system's above it, and no room below for ours: above the system's
-  const last = await select(p, 'last');
-  await expect.poll(async () => (await box(p)).bottom).toBeLessThanOrEqual(last.top - 60);
-  m = await box(p);
-  expect(m.top).toBeGreaterThanOrEqual(0);
+  // the bands the text never uses: the bar's at the top, the page number's at the foot
+  const bands = await p.evaluate(() => { const r = (window as any).__vol.reader, st = r.stage.getBoundingClientRect(); return { top: st.top + r.M.y0, foot: st.top + r.M.y0 + r.M.colH }; });
+  // (wherever the system puts its own, above or below the selection, it hugs it: ours is in
+  // whichever band is farther, over no text, never beside the selection)
+  for (const [line, band] of [[8, 'foot'], [0, 'foot'], ['last', 'top']] as const) {
+    const sel = await select(p, line);
+    await expect(menu).toBeVisible();
+    await expect.poll(async () => { const m = await box(p); return band === 'foot' ? m.top >= bands.foot : m.bottom <= bands.top; }).toBe(true);
+    const m = await box(p);
+    expect(Math.min(Math.abs(m.top - sel.bottom), Math.abs(sel.top - m.bottom))).toBeGreaterThan(60);
+    // no Copy (the system has its own); and it stays selected while the menu shows
+    expect(await menu.getByRole('button', { name: 'Copy' }).count()).toBe(0);
+    expect(await p.evaluate(() => getSelection()!.toString())).toBe(sel.text);
+  }
   // a tap elsewhere only puts the selection away: no turn, no bar
   await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
   const away = await p.locator('.bar').getAttribute('class');
@@ -79,6 +74,52 @@ test('a phone: the selection is the system\'s, and stays; the menu stands clear 
   await sheet.getByRole('button', { name: 'Done' }).tap();
   await expect(sheet).toHaveCount(0);
   expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.filter((a: any) => a.note).map((a: any) => a.note))).toEqual(['From a phone.']);
+});
+
+test('a phone: a highlight tapped has its menu in one row, in a band, over none of its text', async ({ page: p }) => {
+  await open(p);
+  // a highlight over three lines in the middle of the page
+  const id = await p.evaluate(() => {
+    const r = (window as any).__vol.reader;
+    const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
+    const ln = lns[Math.floor(lns.length / 2)], sec = r.strip.itemAt(r.cur).sec, b = r.book.sections[sec].blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
+    const a = r.ann.add(b.key, s0, Math.min(b.t.length, s0 + 120), 3, 'A thought.');
+    r.marking.refreshSection(sec);
+    return a.id ?? a;
+  });
+  const marks = p.locator(`.col mark[data-a="${id}"]`);
+  await expect(marks.nth(1)).toBeVisible();
+  await marks.nth(1).tap();
+  const pop = p.locator('.chip-pop');
+  await expect(pop).toBeVisible();
+  await expect(pop.getByRole('button', { name: 'Remove highlight' })).toBeVisible();
+  const rows = await pop.locator(':scope > button').evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().top))).size);
+  expect(rows, 'the menu in one row').toBe(1);
+  // over no line of the page (a band of the reader's own: no text there)
+  const m = (await pop.boundingBox())!;
+  const over = await p.locator('.col .ln').evaluateAll((els, m) => els.filter(e => { const r = e.getBoundingClientRect(); return r.width && r.left < m.x + m.width && r.right > m.x && r.top < m.y + m.height && r.bottom > m.y; }).length, m);
+  expect(over).toBe(0);
+});
+
+test('a phone: a press whose end the page never hears (the system took it, to select) leaves the page turning', async ({ page: p }) => {
+  await open(p);
+  const box = (await p.locator('.stage').boundingBox())!;
+  const y = box.y + box.height / 2;
+  // a finger down on the text, as iOS sends it before its selection takes the press over;
+  // its lift goes to the system, or lands outside the page (never here)
+  await p.evaluate(([x, y]) => {
+    const ln = document.elementFromPoint(x, y)!;
+    ln.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true }));
+    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true }));
+  }, [box.x + box.width / 2, y]);
+  // the next taps at the edge still turn, each one finger (not a second beside one gone)
+  const k = await cur(p);
+  await p.touchscreen.tap(box.x + box.width * 0.92, y); await settled(p);
+  expect(await cur(p)).toBe(k + 1);
+  // and one whose lift is never sent at all: the next finger down is a first one again
+  await p.evaluate(([x, y]) => document.elementFromPoint(x, y)!.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 78, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true })), [box.x + box.width / 2, y]);
+  await p.touchscreen.tap(box.x + box.width * 0.92, y); await settled(p);
+  expect(await cur(p)).toBe(k + 2);
 });
 
 test('a phone: a finger held on the text and lifted is not a tap (the system selects there)', async ({ page: p }) => {
@@ -138,6 +179,13 @@ test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; 
   await expect(p.locator('.bar')).not.toHaveClass(/away/);
   const N = await p.evaluate(() => (window as any).__vol.reader.strip.N);
   await expect(p.locator('.where')).toHaveText(`${k + 1} of ${N}`);
+  // finding in the book from the menu at the foot (a phone has no / to press)
+  await p.getByRole('button', { name: 'More' }).tap();
+  await p.getByRole('menuitem', { name: 'Find in the book' }).tap();
+  await expect(p.getByRole('textbox', { name: 'Find in book' })).toBeFocused();
+  await p.locator('.find').getByRole('button', { name: /End the search/ }).tap();
+  await expect(p.locator('.find')).toHaveCount(0);
+  await expect(p.locator('.bar')).not.toHaveClass(/away/);
   await expect(p.locator('.pn')).not.toBeVisible();
   expect(await cur(p)).toBe(k);
   await p.touchscreen.tap(box.x + box.width * 0.5, y);
@@ -164,13 +212,13 @@ test('a phone: back closes the contents, then the book; the bar comes back from 
   // the page cannot be moved sideways
   expect(await p.evaluate(() => { window.scrollTo(300, 0); return [window.scrollX, document.documentElement.scrollWidth <= innerWidth]; })).toEqual([0, true]);
   // the bar, away: a tap in its band brings it
-  await p.waitForTimeout(2200);
-  await expect(p.locator('.bar')).toHaveClass(/away/);
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
   const bar = (await p.locator('.bar').boundingBox())!;
   await p.touchscreen.tap(bar.x + bar.width / 2, bar.y + bar.height / 2);
   await expect(p.locator('.bar')).not.toHaveClass(/away/);
-  // the contents (the whole width), then back
-  await p.locator('.bar').getByRole('button', { name: 'Contents' }).tap();
+  // the contents (the whole width), from the menu at the foot, then back
+  await p.getByRole('button', { name: 'More' }).tap();
+  await p.getByRole('menuitem', { name: 'Contents' }).tap();
   await expect(p.locator('.contents')).toBeVisible();
   expect((await p.locator('.contents').boundingBox())!.width).toBeCloseTo(p.viewportSize()!.width, 0);
   await p.goBack();
@@ -191,7 +239,9 @@ test('a phone: settings are a sheet from the bottom edge; help shows gestures; a
   const vw = p.viewportSize()!;
   await p.evaluate(() => { (window as any).__vol.ui.sheet = 'settings'; });
   const panel = p.locator('.panel');
-  await expect(panel).toBeVisible(); await p.waitForTimeout(400);
+  await expect(panel).toBeVisible();
+  // (where it rests, once it has slid in)
+  await panel.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => {}))));
   const r = (await panel.boundingBox())!;
   expect(r.x).toBe(0); expect(Math.round(r.width)).toBe(vw.width);
   expect(Math.round(r.y + r.height)).toBe(vw.height);
@@ -201,8 +251,8 @@ test('a phone: settings are a sheet from the bottom edge; help shows gestures; a
   const k = await cur(p);
   await p.touchscreen.tap(vw.width * 0.92, 60);
   await expect(panel).toHaveCount(0);
-  await p.waitForTimeout(400);
-  expect(await cur(p)).toBe(k);
+  // (a turn would have begun within the tap)
+  expect([await cur(p), await p.evaluate(() => (window as any).__vol.reader.motion.moving)]).toEqual([k, false]);
   // help, on a touch screen: the gestures
   await p.evaluate(() => { (window as any).__vol.ui.sheet = 'settings'; });
   await panel.getByRole('button', { name: 'Gestures' }).tap();
@@ -246,16 +296,18 @@ test('a phone: the colour around the page follows it; nothing scrolls the frame;
   await p.locator('.panel .row.nav').nth(1).tap();
   expect(await p.evaluate(() => [document.querySelector('.app')!.scrollTop, document.querySelector('.app')!.scrollLeft, visualViewport!.scale])).toEqual([0, 0, 1]);
   await p.evaluate(() => { (window as any).__vol.ui.sheet = null; });
-  // the selection's menu, for a selection in a corner: on the screen, clear of its edges
-  // (where a browser's own bars may be)
+  // the selection's menu, for a selection in a corner: on the screen, clear of its sides,
+  // over no text (in a band of the reader's own)
   const vw = p.viewportSize()!;
+  const text = await p.evaluate(() => { const r = (window as any).__vol.reader; return [r.M.y0, r.M.y0 + r.M.colH]; });
   for (const [x, y] of [[vw.width - 10, 20], [10, vw.height - 70]]) {
-    await p.evaluate(([x, y]) => { (window as any).__vol.ui.chip = null; (window as any).__vol.ui.chip = { x, y, b: y + 20, native: true, sel: { a: [3, 2, 0], z: [3, 2, 20] }, ann: null }; }, [x, y]);
+    await p.evaluate(([x, y]) => { (window as any).__vol.ui.chip = null; (window as any).__vol.ui.chip = { x, y, b: y + 20, finger: true, sel: { a: [3, 2, 0], z: [3, 2, 20] }, ann: null }; }, [x, y]);
     await expect(p.locator('.chip-pop')).toBeVisible();
     const r = (await p.locator('.chip-pop').boundingBox())!;
     expect(r.x).toBeGreaterThanOrEqual(10);
     expect(r.x + r.width).toBeLessThanOrEqual(vw.width - 10);
-    expect(r.y).toBeGreaterThanOrEqual(10);
-    expect(r.y + r.height).toBeLessThanOrEqual(vw.height - 10);
+    expect(r.y).toBeGreaterThanOrEqual(0);
+    expect(r.y + r.height).toBeLessThanOrEqual(vw.height);
+    expect(r.y + r.height <= text[0] || r.y >= text[1]).toBe(true);
   }
 });

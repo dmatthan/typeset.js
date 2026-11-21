@@ -33,16 +33,16 @@ export class ReaderInput {
   private pointer = '';
 
   /** What the browser's selection covers in the book, and the box its menu keeps clear of
-   *  (in the stage's coordinates); null when nothing of the book is selected. `native`: a
+   *  (in the stage's coordinates); null when nothing of the book is selected. `finger`: a
    *  finger's selection, beside which the system shows a menu of its own. */
-  private selected(native: boolean) {
+  private selected(finger: boolean) {
     const s = getSelection(), strip = this.r.strip;
     if (!s || s.isCollapsed || !s.rangeCount || !strip) return null;
     const r0 = s.getRangeAt(0);
     const a = pointAt(strip, r0.startContainer, r0.startOffset), z = pointAt(strip, r0.endContainer, r0.endOffset);
     if (!a || !z || (a[0] === z[0] && a[1] === z[1] && a[2] === z[2])) return null;
     const box = r0.getBoundingClientRect(), st = this.r.stage.getBoundingClientRect();
-    return { x: box.left + box.width / 2 - st.left, y: box.top - st.top, b: box.bottom - st.top, native, sel: { a, z }, ann: null };
+    return { x: box.left + box.width / 2 - st.left, y: box.top - st.top, b: box.bottom - st.top, finger, sel: { a, z }, ann: null };
   }
   /** Something of the book is selected (by the hand or the system). */
   private selecting() { const s = getSelection(); return !!s && !s.isCollapsed && !!s.anchorNode && this.r.stage.contains(s.anchorNode); }
@@ -82,7 +82,7 @@ export class ReaderInput {
       return true;
     }
     // ; the notes beside the text (their rail, or those in view over it), and away again
-    if (k === ';') { this.r.toggleNotes(); return true; }
+    if (k === ';' && features.highlights) { this.r.toggleNotes(); return true; }
     if (k === 'Escape' && ui.sideNotes) { ui.sideNotes = null; return true; }
     // a search goes on with its field put away: N steps through it, Esc ends it
     if (this.r.finder.open) {
@@ -193,10 +193,11 @@ export class ReaderInput {
       // a card over the page (a book's note, your notes) takes its own presses: never a
       // turn or a selection of the page beneath it
       if ((e.target as Element).closest?.('.bn, .sn')) return;
-      // controls handle themselves; links in the text (notes, references) are the reader's
+      // controls handle themselves, wherever they are (a note's card, the rail's foot); links
+      // in the text (notes, references) are the reader's; the notes' rail is its own, its
+      // paper no side of the page to turn by
       const ctl = (e.target as Element).closest?.('textarea, button, input, label, a:not(.nr):not(.xr):not(.ur)');
-      if (ctl && this.zoneAt(e.clientX) === 'focus') return;
-      if (ctl) e.preventDefault();
+      if (ctl || (ui.railed && e.clientX - stage.getBoundingClientRect().left >= this.r.M.W)) return;
       const zone = this.zoneAt(e.clientX);
       // the text is selected as in any document, by the browser or the system: a mouse's drag
       // (the menu when the button is let go; it never moves the sheet there: the keys, the
@@ -206,6 +207,10 @@ export class ReaderInput {
       const native = e.pointerType === 'mouse' && zone === 'focus';
       const touch = e.pointerType !== 'mouse';
       this.pointer = e.pointerType;
+      // a first finger (or a mouse) down means nothing else is: a press whose end was never
+      // heard (iOS takes a held finger over to select, and may keep its lift) is over, not a
+      // finger still down that would make every later one a second (and the page unturnable)
+      if (e.isPrimary && PTR.size) { cancelPress(); if (GS?.dragging) this.r.motion.directEnd(); GS = null; PTR.clear(); }
       PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!native && !(touch && zone === 'focus')) try { stage.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
       // a second finger ends what the first began: two-finger gestures are the system's
@@ -280,9 +285,12 @@ export class ReaderInput {
       }
       // a highlight opens its chip; find hits (h5, h6) are not annotations
       const mark = (g.down as Element)?.closest?.('mark.hl:not(.h5):not(.h6)') as HTMLElement | null;
+      // (the menu keeps clear of the whole highlight in that column, not only the line
+      // pressed; a finger's goes in a band, as a selection's does)
       if (g.zone === 'focus' && mark) {
-        const r = stage.getBoundingClientRect(), m = mark.getBoundingClientRect();
-        ui.chip = { x: e.clientX - r.left, y: m.top - r.top, b: m.bottom - r.top, sel: null, ann: mark.dataset.a! };
+        const r = stage.getBoundingClientRect(), col = mark.closest('.col') ?? stage;
+        const ms = [...col.querySelectorAll(`mark[data-a="${CSS.escape(mark.dataset.a!)}"]`)].map(m => m.getBoundingClientRect());
+        ui.chip = { x: e.clientX - r.left, y: Math.min(...ms.map(m => m.top)) - r.top, b: Math.max(...ms.map(m => m.bottom)) - r.top, finger: g.touch, sel: null, ann: mark.dataset.a! };
         return;
       }
       // a finger, as phone readers expect: the outer fifth of the page turns it, the middle
@@ -298,8 +306,10 @@ export class ReaderInput {
       else if (g.zone === 'prev') this.r.step(-1);
       if (!g.touch && (g.zone === 'next' || g.zone === 'prev') && ++this.taps >= 4) hint('keys-turn', 'Space turns the page from the keyboard, → one column (held, it glides), ← back.');
     };
-    stage.addEventListener('pointerup', end);
-    stage.addEventListener('pointercancel', end);
+    // (heard wherever it lands: a press begun on the page may end off it, over the bar or a
+    // menu, or on lines rebuilt under the finger)
+    addEventListener('pointerup', end, true);
+    addEventListener('pointercancel', end, true);
     // a note's dot, or its highlight, shows the note beside the line while the pointer rests
     // on either (or on the card); a pinned note stays until put away
     let hoverT = 0;

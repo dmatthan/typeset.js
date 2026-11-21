@@ -1,5 +1,13 @@
 import { type BrowserContext, type Page } from '@playwright/test';
 import { test, expect } from './base';
+
+/** Moved and landed, as the page shows it (the service serves a build without test hooks):
+ *  the place in the book is no longer `from`, and the sheet's move is over. */
+async function landed(r: Page, from: string | null) {
+  await expect(r.getByRole('slider', { name: 'Place in the book' })).not.toHaveAttribute('aria-valuetext', from ?? '');
+  await r.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))));
+}
+const place = (r: Page) => r.getByRole('slider', { name: 'Place in the book' }).getAttribute('aria-valuetext');
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
@@ -34,8 +42,7 @@ async function highlight(r: Page, n: number) {
   const box = await handle.jsonValue() as { x: number; y: number; height: number };
   const y = box.y + box.height / 2;
   await r.mouse.move(box.x + 20, y); await r.mouse.down();
-  await r.waitForTimeout(380);
-  for (let i = 1; i <= 6; i++) { await r.mouse.move(box.x + 20 + i * 30, y); await r.waitForTimeout(16); }
+  await r.mouse.move(box.x + 200, y, { steps: 6 });
   await r.mouse.up();
   await expect(r.locator('.chip-pop')).toBeVisible();
   await r.keyboard.press('2');
@@ -111,8 +118,9 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 20000 });
   expect(await r.evaluate(() => location.hash)).toBe('');
   // a few words held and dragged over, highlighted; then sent from the notebook
+  const at = await place(r);
   await r.keyboard.press('ArrowRight');
-  await r.waitForTimeout(900);
+  await landed(r, at);
   await highlight(r, 0);
   await expect(r.locator('mark.hl').first()).toBeVisible();
   await r.keyboard.press('m');
@@ -127,7 +135,8 @@ test('a writer invited shares a book through the service; a reader reads it and 
   r.on('request', q => { if (q.method() === 'PUT') puts.push(q.url()); });
   await r.keyboard.press('Escape');
   await expect(r.locator('.contents')).toHaveCount(0);
-  await r.waitForTimeout(1200);
+  // (the panel's going over)
+  await r.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => {}))));
   await highlight(r, 1);
   await expect(r.locator('mark.hl')).toHaveCount(2);
   await r.keyboard.press('q');
@@ -135,6 +144,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await r.locator('.book[data-id]', { hasText: 'Tables and Figures' }).click();
   await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   await r.keyboard.press('q');
+  // (unchanged notes not sent again: nothing to wait for, the time a send would take)
   await r.waitForTimeout(1500);
   expect(puts.length).toBe(1);
 
@@ -256,13 +266,13 @@ test('a book embedded in another site\'s page: read in place, nothing else of th
   await p.goto('http://127.0.0.1:8799/post'); // (another origin: a public one may not frame localhost)
   const f = p.frameLocator('iframe');
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
-  // no library, nothing to go back to: a way to Volumen itself instead
-  await expect(f.getByRole('button', { name: /Back to the library/ })).toHaveCount(0);
-  await expect(f.getByRole('link', { name: /Volumen/ })).toHaveAttribute('href', 'https://volumen.page');
+  // no library, nothing to go back to (the page is the way back), and no brand of ours
+  await expect(f.getByRole('button', { name: /Back/ })).toHaveCount(0);
+  await expect(f.locator('a[href*="volumen.page"]')).toHaveCount(0);
   // reading moves nothing in the host page's history
   const before = await p.evaluate(() => history.length);
   await f.locator('.stage, [role=region]').first().click({ position: { x: 450, y: 300 } }).catch(() => {});
-  await p.keyboard.press('m'); await p.waitForTimeout(400); await p.keyboard.press('Escape');
+  await p.keyboard.press('m'); await expect(f.locator('.contents')).toBeVisible(); await p.keyboard.press('Escape');
   await p.keyboard.press('q');
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   expect(await p.evaluate(() => history.length)).toBe(before);
@@ -306,8 +316,9 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   await r.getByRole('dialog', { name: 'A book sent to you' }).waitFor({ timeout: 20000 });
   await r.keyboard.press('Enter');
   await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
+  const at = await place(r);
   await r.keyboard.press('ArrowRight');
-  await r.waitForTimeout(900);
+  await landed(r, at);
   await highlight(r, 0);
   await expect(r.locator('mark.hl')).toHaveCount(1);
   const quote = await r.locator('mark.hl').first().textContent();

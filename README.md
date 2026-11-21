@@ -76,20 +76,28 @@ a folder (here `/volumen/`), or built with `VOLUMEN_KIT=1 npx vite build` in `ap
 <volumen-library src="/books.json"></volumen-library>
 ```
 
-`<volumen-book>` fills the box the page gives it. Its attributes:
+`<volumen-book>` fills the box the page gives it, gently rounded with a hairline in the
+page's own ink (style the element, `border-radius` and `box-shadow`, to change them). Its
+attributes:
 
 | Attribute | |
 | --- | --- |
 | `src` | the book: EPUB, Word (`.docx`) or Markdown |
 | `chapters` | only these: `3`, `1-3` |
-| `theme` | `original`, `quiet`, `paper`, `bold`, `calm` or `focus` |
+| `theme` | `book` (the default), `slate`, `linen`, `clear`, `warm` or `open` |
+| `paper` | the paper the book is set on: a colour, or `page` (whatever is behind the element); a dark one reads dark. Without it, the theme's own |
+| `back` | a way back, shown as Back: an address (opened in the page's window), or with no value the page's own history. Without it, none (the page is the way back) |
 | `end-href`, `end-label` | a way on, on a card at the end |
-| `remember` | keep the reader's place and highlights in the browser (off by default) |
-| `ui` | the reader's own interface: `full` (the default), `minimal` (the chapter's name alone) or `none` |
-| `off` | what it does not offer, any of `contents settings find highlights links` |
+| `remember` | keep the reader's place, highlights and bookmarks in the browser (off by default) |
+| `ui` | the reader's own interface: `full` (the default: Back where asked for, a bookmark, full screen, and a menu with the contents, finding and the type and theme; for a mouse, quiet arrows at its sides to turn by), `minimal` (the book's title and the page's number alone) or `none` |
+| `off` | what it does not offer, any of `contents settings find highlights links` (`highlights` takes bookmarks with it) |
 
 It sends `volumen-ready` (`detail.title`, `detail.chapters`), `volumen-progress`
-(`detail.at`, 0 to 1), `volumen-end` and `volumen-error` (`detail.message`). Once ready it
+(`detail.at`, 0 to 1), `volumen-end`, `volumen-error` (`detail.message`), `volumen-back`
+(the reader's Back, with `back` and no address: cancel it to go your own way) and
+`volumen-full` (`detail.on`). Full screen is the browser's where it allows it; where a frame
+has none (an iPhone), the element fills the window instead, the page held still behind it,
+until the reader leaves it (an ancestor with a `transform` would hold it in its box). Once ready it
 takes `book.goTo({ chapter: 3 })` or `book.goTo({ at: 0.5 })`, and `book.setTheme(theme)`: a
 theme's name, or a theme as Volumen exports one (`{ "format": "volumen-theme/1", … }`).
 

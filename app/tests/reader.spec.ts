@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { test, expect, SAMPLE, openFile, firstCol } from './fixtures';
+import { test, expect, SAMPLE, openFile, firstCol, settled } from './fixtures';
 import { inflateRawSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 
@@ -11,7 +11,12 @@ const place = (p: Page) => p.getByRole('slider', { name: 'Place in the book' }).
 /** The chapter the reader is in. */
 const runhead = async (p: Page) => (await place(p)).replace(/^Page \d+ of \d+, /, '');
 const anchor = (p: Page) => p.evaluate(() => { const r = (window as any).__vol.reader; return JSON.stringify(r.strip.anchorAt(r.cur)); });
-const settled = (p: Page) => p.waitForFunction(() => !(window as any).__vol.reader.motion.moving);
+/** A key that moves the sheet, pressed, and the sheet landed where it went. */
+const turn = async (p: Page, key: string) => { const from = await cur(p); await p.keyboard.press(key); await expect.poll(() => cur(p)).not.toBe(from); await settled(p); };
+/** Set again for a window `w` wide: measured, the whole book laid out, landed. */
+const laidAt = async (p: Page, w: number) => { await p.waitForFunction(w => (window as any).__vol.reader.M?.W === w, w); await p.evaluate(() => (window as any).__vol.reader.whole); await settled(p); };
+/** Set again at another size than `fs`: measured, the whole book laid out, landed. */
+const fsChanged = async (p: Page, fs: number) => { await p.waitForFunction(fs => (window as any).__vol.reader.M.fs !== fs, fs); await p.evaluate(() => (window as any).__vol.reader.whole); await settled(p); };
 
 async function openSample(p: Page) {
   await p.goto('/');
@@ -31,6 +36,94 @@ async function toChapterOne(p: Page) {
   await expect.poll(() => runhead(p)).toMatch(/^I · /);
   await settled(p);
 }
+
+test('the stock palette (what a theme file, a new theme or a page\'s paper takes from the default) and the highlights are the app\'s own', async ({ page: p }) => {
+  await p.goto('/');
+  const diff = await p.evaluate(async () => {
+    // (the module as the dev server serves it to the page)
+    const at = '/src/reader/themes.svelte.ts';
+    const { STOCK, HIGHLIGHTS } = await import(/* @vite-ignore */ at);
+    // (as painted: a browser may keep oklch() as it was written)
+    const cx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    const rgb = (c: string) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); return `rgb(${[...cx.getImageData(0, 0, 1, 1).data].slice(0, 3).join(', ')})`; };
+    const out: string[] = [];
+    for (const mode of ['light', 'dark'] as const) {
+      document.documentElement.setAttribute('data-theme', mode);
+      const root = getComputedStyle(document.documentElement);
+      for (const k of ['paper', 'ink', 'accent'] as const) {
+        const tok = root.getPropertyValue('--' + k).trim().replace(/var\(--(\w+)\)/g, (_, v) => root.getPropertyValue('--' + v).trim());
+        const [a, b] = [rgb(tok), rgb((STOCK as any)[mode][k])];
+        const [x, y] = [a, b].map(v => v.match(/[\d.]+/g)!.slice(0, 3).map(Number));
+        if (x.some((v, i) => Math.abs(v - y[i]) > 1.5)) out.push(`${mode} ${k}: ${a} (tokens) against ${b} (STOCK)`);
+      }
+      // the highlights, colour and how much of it (a theme's own are worked out from these)
+      const rgba = (c: string) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); return [...cx.getImageData(0, 0, 1, 1).data]; };
+      (HIGHLIGHTS as any)[mode].forEach(([L, C, H, al]: number[], i: number) => {
+        const [x, y] = [rgba(root.getPropertyValue(`--hl${i + 1}`).trim()), rgba(`oklch(${L} ${C} ${H} / ${al})`)];
+        if (x.some((v, j) => Math.abs(v - y[j]) > 2)) out.push(`${mode} --hl${i + 1}: ${x} (tokens) against ${y} (HIGHLIGHTS)`);
+      });
+    }
+    return out;
+  });
+  expect(diff).toEqual([]);
+});
+
+test('the reader\'s menus and sheets take each theme\'s paper, softened, and its quieter inks read on them', async ({ page: p }) => {
+  await openSample(p);
+  const out = await p.evaluate(async () => {
+    const at = '/src/reader/themes.svelte.ts';
+    const { BUILTIN } = await import(/* @vite-ignore */ at);
+    const v = (window as any).__vol, look = document.querySelector('.look')!;
+    const cx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    const probe = document.createElement('div'); look.append(probe);
+    const rgb = (prop: 'color' | 'backgroundColor', val: string) => { probe.style[prop] = val; cx.clearRect(0, 0, 1, 1); cx.fillStyle = getComputedStyle(probe)[prop]; cx.fillRect(0, 0, 1, 1); return [...cx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+    const lum = (c: number[]) => { const [r, g, b] = c.map(x => { x /= 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = (a: number[], b: number[]) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+    const found: string[] = [], seen: string[] = [];
+    for (const t of BUILTIN) for (const mode of ['light', 'dark']) {
+      v.settings.theme = t.id; v.settings.appearance = mode; v.reader.themeChanged();
+      const paper = rgb('backgroundColor', 'var(--paper)');
+      // the text over each highlight, laid on the paper as the page lays it, reads
+      for (const h of ['--hl1', '--hl2', '--hl3', '--hl4']) {
+        probe.style.backgroundColor = `var(${h})`;
+        cx.fillStyle = `rgb(${paper.join(',')})`; cx.fillRect(0, 0, 1, 1);
+        cx.fillStyle = getComputedStyle(probe).backgroundColor; cx.fillRect(0, 0, 1, 1);
+        const over = [...cx.getImageData(0, 0, 1, 1).data].slice(0, 3), k = ratio(rgb('color', 'var(--ink)'), over);
+        if (k < 4.5) found.push(`${t.id} ${mode}: --ink on ${h} ${k.toFixed(2)}:1`);
+      }
+      for (const bg of ['--paper', '--surface', '--sheet', '--ground']) {
+        const ground = rgb('backgroundColor', `var(${bg})`);
+        // (its own: near the paper, not the app's)
+        seen.push(`${t.id} ${mode} ${bg} ${ground.map((x, i) => Math.abs(x - paper[i])).reduce((m, x) => Math.max(m, x), 0)}`);
+        for (const ink of ['--ink', '--ink-2', '--ink-3']) {
+          const k = ratio(rgb('color', `var(${ink})`), ground);
+          if (k < 4.5) found.push(`${t.id} ${mode}: ${ink} on ${bg} ${k.toFixed(2)}:1`);
+        }
+      }
+    }
+    probe.remove();
+    return { found, far: seen.filter(s => +s.split(' ').pop()! > 24) };
+  });
+  expect(out.found).toEqual([]);
+  // every surface within a step of its paper: the theme's, softened
+  expect(out.far).toEqual([]);
+});
+
+test('however small the box (a sidebar on someone\'s blog), the text keeps margins and ends inside it', async ({ page: p }) => {
+  await p.goto('/');
+  const bad = await p.evaluate(async () => {
+    const at = '/src/reader/geometry.ts';
+    const { metrics } = await import(/* @vite-ignore */ at);
+    const out: string[] = [];
+    for (const [W, H] of [[200, 600], [236, 600], [320, 120], [800, 120], [800, 160], [800, 200], [180, 140]]) {
+      const M = metrics(W, H);
+      if (M.x0 < 12 || M.x0 + M.focusW > W - 12) out.push(`${W}×${H}: the text from ${M.x0} to ${M.x0 + M.focusW}`);
+      if (M.rows < 1 || M.y0 + M.colH > H) out.push(`${W}×${H}: ${M.rows} rows ending at ${M.y0 + M.colH}`);
+    }
+    return out;
+  });
+  expect(bad).toEqual([]);
+});
 
 test('library, open: reading begins at once, and again where it was left', async ({ page: p }) => {
   await openSample(p);
@@ -69,6 +162,268 @@ test('a chapter chosen in the contents: they go away and the reader travels ther
   // Esc, or a press beside them, puts the contents away
   await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
   await p.keyboard.press('Escape'); await expect(p.locator('.contents')).toHaveCount(0);
+});
+
+test('less motion is the default: a key turns the page at once, and Aa says so', async ({ browser }, info) => {
+  // (a context of its own: the tests' pages follow the system's motion, base.ts)
+  const ctx = await browser.newContext({ baseURL: info.project.use.baseURL });
+  const p = await ctx.newPage();
+  await p.goto('/');
+  await p.locator('.book[data-id]').first().click();
+  await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r?.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
+  await p.evaluate(() => (window as any).__vol.reader.jump(6));
+  const k = await p.evaluate(() => (window as any).__vol.reader.cur);
+  const turned = await p.evaluate(() => new Promise<[number, boolean]>(done => {
+    const r = (window as any).__vol.reader;
+    dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+    // (at once: the next frame finds it there, nothing moving)
+    requestAnimationFrame(() => done([r.cur, r.motion.moving]));
+  }));
+  expect(turned).toEqual([k + 1, false]);
+  // (on Style, one step into Aa)
+  await p.keyboard.press('s');
+  await p.keyboard.press('c');
+  await expect(p.getByRole('switch', { name: 'Less motion' })).toHaveAttribute('aria-checked', 'true');
+  await ctx.close();
+});
+
+test('the controls: Back, the title in the middle, a bookmark; the rest in one menu at the foot, by key too', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  await p.mouse.move(640, 10);
+  const bar = p.locator('.bar');
+  await expect(bar).not.toHaveClass(/away/);
+  // the top: the way back and the bookmark, nothing else; the title in the middle of the window
+  await expect(bar.getByRole('button')).toHaveCount(2);
+  await expect(bar.getByRole('button', { name: 'Back to the library' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Bookmark this page' })).toBeVisible();
+  const mid = await p.locator('.runhead').evaluate(e => { const r = e.getBoundingClientRect(); return r.left + r.width / 2 - innerWidth / 2; });
+  expect(Math.abs(mid)).toBeLessThan(2);
+  // the foot: the line, and the menu's button at its end
+  await p.mouse.move(640, 790);
+  const more = p.getByRole('button', { name: 'More' });
+  await expect(more).toBeVisible();
+  await more.click();
+  const menu = p.getByRole('menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem')).toHaveText(['Contents', 'Bookmarks', 'Find in the book', 'Type and appearance', 'Keys and gestures']);
+  await expect(menu.getByRole('menuitemcheckbox', { name: 'Notes beside the text' })).toHaveAttribute('aria-checked', 'false');
+  // the keys: the first item has focus; arrows go through them, Escape closes it and back to the button
+  await expect(menu.getByRole('menuitem', { name: 'Contents' })).toBeFocused();
+  await p.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitem', { name: 'Bookmarks' })).toBeFocused();
+  await p.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(more).toBeFocused();
+  // what it opens: type and appearance, rising from where the menu was
+  await more.click();
+  await menu.getByRole('menuitem', { name: 'Type and appearance' }).click();
+  const panel = p.getByRole('dialog', { name: 'Type and appearance' });
+  await expect(panel).toBeVisible();
+  await expect(menu).toHaveCount(0);
+  const [pb, mb] = await Promise.all([panel.boundingBox(), more.boundingBox()]);
+  expect(pb!.y + pb!.height).toBeLessThanOrEqual(mb!.y);
+  expect(pb!.x + pb!.width).toBeGreaterThan(mb!.x);
+  await p.keyboard.press('Escape');
+  // Escape put it away however soon it is pressed (before its first item has focus too)
+  await p.mouse.move(640, 790);
+  // (the next task after the press: a key cannot come sooner, and focus moves a frame later)
+  await p.evaluate(async () => { (document.querySelector('.more button[aria-haspopup]') as HTMLElement).click(); await new Promise(r => setTimeout(r, 0)); document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  await expect(menu).toHaveCount(0);
+  // a press anywhere else puts the menu away
+  await p.mouse.move(640, 790);
+  await more.click();
+  await expect(menu).toBeVisible();
+  await p.mouse.click(400, 400);
+  await expect(menu).toHaveCount(0);
+});
+
+test('bookmarks: B or the bar marks the page, a ribbon shows it, the contents list them; they go with one\'s notes, not to a writer', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  const bm = p.locator('.bar').getByRole('button', { name: 'Bookmark this page' });
+  const ribbon = p.locator('.ribbon');
+  await expect(ribbon).toHaveCount(0);
+  await p.keyboard.press('b');
+  await expect(ribbon).toHaveCount(1);
+  await expect(bm).toHaveAttribute('aria-pressed', 'true');
+  const first = await cur(p);
+  // the ribbon is for reading: with the bar up (Type and appearance holds it), its button says it
+  await p.mouse.move(640, 400);
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
+  await expect(ribbon).not.toHaveClass(/hid/);
+  await p.keyboard.press('s');
+  await expect(p.locator('.bar')).not.toHaveClass(/away/);
+  await expect(ribbon).toHaveClass(/hid/);
+  await p.keyboard.press('Escape');
+  // another page: not marked; the bar's button marks it
+  await p.evaluate(() => { const r = (window as any).__vol.reader; r.jump(r.cur + 20); });
+  await settled(p);
+  await expect(ribbon).toHaveCount(0);
+  await p.mouse.move(640, 10);
+  await expect(bm).toHaveAttribute('aria-pressed', 'false');
+  await bm.click();
+  await expect(ribbon).toHaveCount(1);
+  // kept, and listed in the contents, in the book's order, each with its page
+  expect(await p.evaluate(() => { const v = (window as any).__vol; return v.kv.get('bm.' + v.reader.book.id, []).length; })).toBe(2);
+  await p.keyboard.press('m');
+  await p.getByRole('tab', { name: 'Bookmarks' }).click();
+  const items = p.locator('.bms .bmk');
+  await expect(items).toHaveCount(2);
+  await expect(items.first()).toContainText(String(first + 1));
+  // (its opening to a whole word)
+  await expect(items.first().locator('.q')).toHaveText(/\w…$/);
+  await items.first().locator('.go').click();
+  await expect.poll(() => cur(p)).toBe(first);
+  await expect(ribbon).toHaveCount(1);
+  // B on a marked page takes the mark away
+  await p.keyboard.press('b');
+  await expect(ribbon).toHaveCount(0);
+  await p.keyboard.press('m');
+  await p.getByRole('tab', { name: 'Bookmarks' }).click();
+  await expect(items).toHaveCount(1);
+  await items.first().getByRole('button', { name: 'Remove bookmark' }).click();
+  await expect(items).toHaveCount(0);
+  await expect(p.locator('.bms')).toContainText('No bookmarks');
+  await p.keyboard.press('Escape');
+  // with one's notes: out in the file, and back from it
+  await p.keyboard.press('b');
+  const file = await p.evaluate(() => JSON.stringify((window as any).__vol.reader.myNotes()));
+  expect(JSON.parse(file).notes.filter((n: any) => n.kind === 'bookmark')).toHaveLength(1);
+  await p.keyboard.press('b');
+  await expect(ribbon).toHaveCount(0);
+  await p.evaluate(t => (window as any).__vol.reader.receiveNotes([t]), file);
+  await expect(ribbon).toHaveCount(1);
+  // another reader's file: their bookmarks are theirs, never shown to the writer
+  const theirs = JSON.parse(file); theirs.from = { id: 'someone-else', name: 'Ada' };
+  await p.evaluate(t => (window as any).__vol.reader.receiveNotes([t]), JSON.stringify(theirs));
+  expect(await p.evaluate(() => (window as any).__vol.reader.fb.gathered().length)).toBe(0);
+});
+
+test('set again (a size, a face, the window): the page as it was until the new one is set, then both at once; nothing held over it meanwhile', async ({ page: p }) => {
+  // (a window where the first pass's page count is not the book's)
+  await p.setViewportSize({ width: 1000, height: 640 });
+  await openSample(p);
+  // (in a chapter whose pages the first pass guesses wrongly at this size)
+  await p.evaluate(() => (window as any).__vol.reader.jump(14));
+  await settled(p);
+  await p.mouse.move(500, 300);
+  // every frame: the page shown whole (each line within its column, the columns apart);
+  // the page as it was drawn as it was (a size, a face, spacing come with the page set for
+  // them, never before it); a copy fading over the page only once the new one is under it
+  // (never over one still being set: it would hide the page, and what is done to it, for
+  // the wait); while the window changes size, the page in its middle (read once the reader
+  // has heard of the size: resize observers run in the order they were made)
+  const watch = () => p.evaluate(() => {
+    const w = window as any; w.bad = []; w.watching = true; w.held = 0; w.settling = 0;
+    const stage = document.querySelector<HTMLElement>('.stage')!, r = w.__vol.reader;
+    const VARS = ['--f-text', '--fs', '--lh', '--colW', '--ls', '--ws', '--wb', '--fvs'];
+    const vars = () => { const s = getComputedStyle(stage); return VARS.map(v => s.getPropertyValue(v)).join('|'); };
+    const was = vars(), old = new WeakSet(stage.querySelectorAll(':scope > .track .col'));
+    const inView = () => [...stage.querySelectorAll<HTMLElement>(':scope > .track .col')].filter(c => +c.dataset.k! >= r.cur && +c.dataset.k! < r.cur + r.M.N);
+    const check = () => {
+      if (!w.watching) return;
+      const cols = inView(), rs = cols.map(c => c.getBoundingClientRect());
+      for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) if (Math.min(rs[i].right, rs[j].right) - Math.max(rs[i].left, rs[j].left) > 1) w.bad.push('columns over each other');
+      cols.forEach((c, i) => {
+        for (const ln of c.querySelectorAll('.ln:not(.brk)')) {
+          const g = document.createRange(); g.selectNodeContents(ln);
+          const b = g.getBoundingClientRect();
+          if (b.width && b.right > rs[i].right + 3) { w.bad.push(`a line past its column by ${Math.round(b.right - rs[i].right)}`); break; }
+        }
+      });
+      if (cols.some(c => old.has(c)) && vars() !== was) w.bad.push('the page as it was, drawn with the new style');
+      if (document.querySelector('.hold')) { w.held++; if (cols.some(c => old.has(c))) w.bad.push('a copy over a page not yet set'); }
+      if (w.__vol.ui.settling) w.settling++;
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+    new ResizeObserver(() => {
+      if (!w.watching) return;
+      const cs = inView().map(c => c.getBoundingClientRect()), st = stage.getBoundingClientRect();
+      if (!cs.length) return;
+      const mid = (Math.min(...cs.map(c => c.left)) + Math.max(...cs.map(c => c.right))) / 2;
+      if (Math.abs(mid - (st.left + st.width / 2)) > 2) w.bad.push(`off the middle of the window by ${Math.round(mid - (st.left + st.width / 2))}`);
+    }).observe(stage);
+  });
+  const seen = () => p.evaluate(() => { const w = window as any; w.watching = false; return { bad: [...new Set(w.bad)], held: w.held, settling: w.settling }; });
+
+  // a size: the page's number, the old then the last (the whole book's layout as slow as a
+  // phone's, so that the first pass's estimate would show)
+  await p.evaluate(() => {
+    const core = (window as any).__vol.reader.core, layout = core.layout.bind(core);
+    core.layout = (id: string, secs: number[], params: unknown) => secs.length ? layout(id, secs, params) : new Promise(r => setTimeout(r, 500)).then(() => layout(id, secs, params));
+  });
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
+  const was = await p.locator('.pn').allTextContents();
+  await watch();
+  await p.evaluate(() => {
+    const w = window as any; w.numbers = new Set();
+    const look = () => { for (const n of document.querySelectorAll<HTMLElement>('.pn')) if (+getComputedStyle(n).opacity > 0.05) w.numbers.add(n.textContent); if (w.watching) requestAnimationFrame(look); };
+    requestAnimationFrame(look);
+  });
+  await p.evaluate(() => { const w = window as any; w.__vol.settings.size = 22; return w.__vol.reader.settingsChanged('layout'); });
+  await laidOut(p);
+  await expect(p.locator('.hold')).toHaveCount(0);
+  const shown: string[] = await p.evaluate(() => [...(window as any).numbers]), last = await p.locator('.pn').allTextContents();
+  expect(shown.filter(n => !was.includes(n) && !last.includes(n)), `${was} then ${last}`).toEqual([]);
+  expect((await seen()).bad).toEqual([]);
+
+  // a face, as the panel changes it (the setting at once, the text set again 60 ms later)
+  await watch();
+  await p.evaluate(async () => { const w = window as any; w.__vol.settings.theme = 'slate'; await new Promise(r => setTimeout(r, 60)); return w.__vol.reader.settingsChanged('layout'); });
+  await laidOut(p);
+  await expect(p.locator('.hold')).toHaveCount(0);
+  expect((await seen()).bad).toEqual([]);
+
+  // the window made narrower in steps: the page kept in its middle, set again once it rests
+  await watch();
+  for (const w of [900, 820, 760]) { await p.setViewportSize({ width: w, height: 640 }); await p.waitForTimeout(40); }
+  // set again once it rests: the page within the window (the columns in view: those built
+  // ahead lie under the paper beside them)
+  const inside = () => p.evaluate(() => { const r = (window as any).__vol.reader; return [...document.querySelectorAll<HTMLElement>('.stage > .track .col')].filter(c => +c.dataset.k! >= r.cur && +c.dataset.k! < r.cur + r.M.N).map(c => c.getBoundingClientRect()).every(b => b.left >= 0 && b.right <= innerWidth); });
+  await expect.poll(inside).toBe(true);
+  await laidOut(p);
+  await expect(p.locator('.hold')).toHaveCount(0);
+  expect((await seen()).bad).toEqual([]);
+
+  // a few pixels' change of height that sets nothing again (a phone's bars): nothing at all
+  await watch();
+  await p.setViewportSize({ width: 760, height: 636 });
+  await p.waitForTimeout(400);
+  const still = await seen();
+  expect(still).toEqual({ bad: [], held: 0, settling: 0 });
+});
+
+test('set again, the line being read travels to its new place as the old page fades into the new', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  // where the reader is: the line at the head of the page
+  const at = await p.evaluate(() => { const r = (window as any).__vol.reader, a = r.strip.anchorAt(r.cur), h = r.strip.keyIndex.get(a.key); return { off: a.off, sec: h[0], b: h[1] }; });
+  // the fade, caught at its last frame and kept there
+  await p.evaluate(() => {
+    const w = window as any; w.caught = false;
+    const look = () => {
+      const as = [...document.querySelectorAll('.hold, .held')].flatMap(e => e.getAnimations());
+      if (as.length) { for (const a of as) { a.pause(); a.currentTime = Number(a.effect!.getTiming().duration); } w.caught = true; return; }
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  await p.evaluate(() => { const w = window as any; w.__vol.settings.size = 24; return w.__vol.reader.settingsChanged('layout'); });
+  await expect.poll(() => p.evaluate(() => (window as any).caught)).toBe(true);
+  const [held, live] = await p.evaluate(at => {
+    const r = (window as any).__vol.reader;
+    // the copy's: the first line of the page it shows; the page's: the line with those words now
+    const first = document.querySelector('.held .col .ln:not(.brk)')!.getBoundingClientRect();
+    const lines = [...document.querySelectorAll<HTMLElement>('.stage > .track .col')].filter(c => { const k = +c.dataset.k!; return k >= r.cur && k < r.cur + r.M.N && r.strip.itemAt(k)?.sec === at.sec; })
+      .flatMap(c => [...c.querySelectorAll<HTMLElement>(`.ln[data-b="${at.b}"]`)]).filter(l => +l.dataset.s! <= at.off);
+    const ln = lines.sort((a, z) => +z.dataset.s! - +a.dataset.s!)[0].getBoundingClientRect();
+    return [[first.left, first.top], [ln.left, ln.top]];
+  }, at);
+  expect(Math.abs(held[0] - live[0]), `${held} ${live}`).toBeLessThanOrEqual(2);
+  expect(Math.abs(held[1] - live[1]), `${held} ${live}`).toBeLessThanOrEqual(2);
 });
 
 test('the page number alone while reading; with the bar, a hairline and N of Total, all in the margin below the text', async ({ page: p }) => {
@@ -135,9 +490,31 @@ test('a trackpad moves the sheet directly; its momentum tail is taken over and l
   expect(mid - k0).toBeGreaterThan(0.05);
   expect(mid - k0).toBeLessThan(0.5);
   for (const d of [40.5, 30.5, 22.5, 15.5, 10.5, 6.5, 4.5, 2.5, 1.5]) { await p.mouse.wheel(0, d); await p.waitForTimeout(16); }
-  await p.waitForTimeout(1200);
+  await expect.poll(() => cur(p)).toBe(k0 + 1);
   await settled(p);
   expect(await cur(p)).toBe(k0 + 1);
+});
+
+test('past either end a drag meets a band: the sheet goes a little way and no further, and follows the hand back', async ({ page: p }) => {
+  await openSample(p);
+  const r = await p.evaluate(() => {
+    const rd = (window as any).__vol.reader, m = rd.motion, ends = [m.host.min(), m.host.max()];
+    const out: { most: number; back: number }[] = [];
+    for (const [end, d] of [[ends[1], 1], [ends[0], -1]]) {
+      rd.jump(end); m.directStart();
+      let most = 0;
+      for (let i = 0; i < 40; i++) { m.directBy(d); most = Math.max(most, Math.abs(m.p - end)); }
+      for (let i = 0; i < 40; i++) m.directBy(-d);
+      out.push({ most, back: Math.abs(m.p - end) });
+      m.directEnd();
+    }
+    return out;
+  });
+  for (const { most, back } of r) {
+    expect(most).toBeGreaterThan(0.3);
+    expect(most).toBeLessThanOrEqual(0.6);
+    expect(back).toBeLessThan(1e-6);
+  }
 });
 
 test('a mouse wheel notch is one turn', async ({ page: p }) => {
@@ -146,7 +523,8 @@ test('a mouse wheel notch is one turn', async ({ page: p }) => {
   const k0 = await cur(p);
   await p.mouse.move(640, 400);
   await p.mouse.wheel(0, 100);
-  await p.waitForTimeout(1200);
+  await expect.poll(() => cur(p)).toBe(k0 + 1);
+  await settled(p);
   expect(await cur(p)).toBe(k0 + 1);
 });
 
@@ -162,7 +540,7 @@ test('a drag moves the sheet one to one and settles on the column nearest where 
     const mid = await p.evaluate(() => (window as any).__vol.reader.motion.p);
     await p.waitForTimeout(120);                       // the hand pauses, then lets go
     await p.mouse.up();
-    await p.waitForTimeout(1000); await settled(p);
+    await settled(p);
     return mid;
   };
   expect((await drag(0.3)) - k0).toBeCloseTo(0.3, 1);
@@ -203,11 +581,13 @@ test('a gesture during a turn waits; key repeat is ignored', async ({ page: p })
   await p.keyboard.press('ArrowRight');
   await p.keyboard.press('ArrowRight');
   await p.keyboard.press('ArrowRight');
-  await p.waitForTimeout(1600);
-  expect(await cur(p)).toBe(k0 + 2);    // one turn, then at most one waiting gesture
-  await p.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', repeat: true })));
-  await p.waitForTimeout(700);
+  // one turn, then at most one waiting gesture
+  await expect.poll(() => cur(p)).toBe(k0 + 2);
+  await settled(p);
   expect(await cur(p)).toBe(k0 + 2);
+  // a repeated keydown (a key held by the system's own repeat) asks nothing of the motion
+  const [before, after, moving] = await p.evaluate(() => { const m = (window as any).__vol.reader.motion, t = m.target; window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', repeat: true })); return [t, m.target, m.moving]; });
+  expect([after, moving]).toEqual([before, false]);
 });
 
 test('holding a key glides and settles on a whole column', async ({ page: p }) => {
@@ -215,7 +595,6 @@ test('holding a key glides and settles on a whole column', async ({ page: p }) =
   await toChapterOne(p);
   const k0 = await cur(p);
   await p.keyboard.down('ArrowRight'); await p.waitForTimeout(1800); await p.keyboard.up('ArrowRight');
-  await p.waitForTimeout(1200);
   await settled(p);
   const k1 = await cur(p);
   expect(k1 - k0).toBeGreaterThanOrEqual(2);
@@ -241,13 +620,14 @@ test('a double click selects the word under it; V then H highlights a paragraph'
 test('resize and type size keep the sentence', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
-  await p.keyboard.press('ArrowRight'); await p.waitForTimeout(700);
+  await p.keyboard.press('ArrowRight'); await settled(p);
   const a = JSON.parse(await anchor(p));
-  await p.setViewportSize({ width: 900, height: 700 }); await p.waitForTimeout(900);
+  await p.setViewportSize({ width: 900, height: 700 }); await laidAt(p, 900);
   const b = JSON.parse(await anchor(p));
   expect(b.key).toBe(a.key);
+  const fs = await p.evaluate(() => (window as any).__vol.reader.M.fs);
   await p.keyboard.press('s'); await p.keyboard.press('='); await p.keyboard.press('='); await p.keyboard.press('Escape');
-  await p.waitForTimeout(900);
+  await fsChanged(p, fs);
   const c = JSON.parse(await anchor(p));
   expect(c.key).toBe(a.key);
 });
@@ -305,7 +685,7 @@ test('a paragraph written right to left is set from the right edge', async ({ pa
 test('a screen reader hears the page in view as a document, not as lines', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
-  await p.keyboard.press('ArrowRight'); await p.waitForTimeout(600);
+  await turn(p, 'ArrowRight');
   const r = await p.evaluate(() => {
     const rd = (window as any).__vol.reader, said = document.querySelector('.spoken')!;
     const words = (t: string) => t.replace(/-$/, '').replace(/\s+/g, ' ').trim();
@@ -358,11 +738,11 @@ test('Space turns the whole set in view; an arrow moves one column', async ({ pa
   await toChapterOne(p);
   expect(await p.evaluate(() => (window as any).__vol.reader.M.N)).toBe(2);
   const k0 = await cur(p);
-  await p.keyboard.press('Space'); await p.waitForTimeout(1300); await settled(p);
+  await turn(p, 'Space');
   expect(await cur(p)).toBe(k0 + 2);
-  await p.keyboard.press('ArrowRight'); await p.waitForTimeout(1100); await settled(p);
+  await turn(p, 'ArrowRight');
   expect(await cur(p)).toBe(k0 + 3);
-  await p.keyboard.press('Shift+Space'); await p.waitForTimeout(1300); await settled(p);
+  await turn(p, 'Shift+Space');
   expect(await cur(p)).toBe(k0 + 1);
 });
 
@@ -383,8 +763,8 @@ test('in a book sent by link, the chip offers reactions for its writer; 5 to 8 g
   const hold = async (n: number) => {
     const box = (await p.locator(`.col[data-k="${k}"] .ln[data-b]`).nth(n).boundingBox())!;
     const y = box.y + box.height / 2;
-    await p.mouse.move(box.x + 20, y); await p.mouse.down(); await p.waitForTimeout(380);
-    for (let i = 1; i <= 6; i++) { await p.mouse.move(box.x + 20 + i * 30, y); await p.waitForTimeout(16); }
+    await p.mouse.move(box.x + 20, y); await p.mouse.down();
+    await p.mouse.move(box.x + 200, y, { steps: 6 });
     await p.mouse.up();
     await expect(p.locator('.chip-pop')).toBeVisible();
   };
@@ -395,6 +775,8 @@ test('in a book sent by link, the chip offers reactions for its writer; 5 to 8 g
   await p.evaluate(() => { const v = (window as any).__vol; v.kv.set('joined.' + v.reader.book.id, { id: 'x', key: 'y' }); });
   await hold(5);
   await expect(p.locator('.chip-pop .reacts').getByRole('button')).toHaveCount(4);
+  // (said who they are for: the writer who sent the book)
+  await expect(p.locator('.chip-pop .reacts')).toContainText('For the writer');
   await p.keyboard.press('6');
   await expect(p.locator('.toast')).toContainText('Confused here');
   expect(await p.evaluate(() => (window as any).__vol.reader.ann.list.map((a: any) => a.react))).toEqual(['confused']);
@@ -462,26 +844,24 @@ test('a mouse selects as in any document: the menu above, 2 highlights it, acros
   await expect(p.locator('.chip-pop')).toHaveCount(0);
 });
 
-test('hold then drag selects; 2 highlights; N adds a note; the notebook lists and filters it', async ({ page: p }) => {
+test('a drag selects; 2 highlights it, whole words; N adds a note; the notebook lists and filters it', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
-  // a line in the focus column, held still, then dragged along
+  // a drag along a line in the focus column, from inside a word to inside another
   const k = await cur(p);
   const box = await p.locator(`.col[data-k="${k}"] .ln[data-b]`).nth(3).boundingBox();
   const y = box!.y + box!.height / 2;
   await p.mouse.move(box!.x + 20, y); await p.mouse.down();
-  await p.waitForTimeout(380);
-  for (let i = 1; i <= 8; i++) { await p.mouse.move(box!.x + 20 + i * 30, y); await p.waitForTimeout(16); }
+  await p.mouse.move(box!.x + 260, y, { steps: 8 });
   await p.mouse.up();
   await expect(p.locator('.chip-pop')).toBeVisible();
-  // the selection grew word by word: it starts and ends on word boundaries
-  const sel = await p.evaluate(() => { const r = (window as any).__vol.reader, c = (window as any).__vol.ui.chip; return r.marking.selText(c.sel); });
-  expect(sel).toMatch(/^[\p{L}“‘]/u);
-  expect(sel).toMatch(/[\p{L}’”.,;:!?]$/u);
   await p.keyboard.press('2');
-  await expect(p.locator(`.col[data-k="${k}"] mark.hl.h2`).first()).toBeVisible();
-  const quote = await p.evaluate(() => (window as any).__vol.reader.ann.list[0].quote);
+  // the highlight takes the words the drag began and ended in, whole
+  const quote = await p.evaluate(() => (window as any).__vol.reader.ann.list[0].quote as string);
+  expect(quote).toMatch(/^[\p{L}“‘]/u);
+  expect(quote).toMatch(/[\p{L}’”.,;:!?]$/u);
   expect(quote.length).toBeGreaterThan(8);
+  await expect(p.locator(`.col[data-k="${k}"] mark.hl.h2`).first()).toBeVisible();
   // tap the highlight: its chip; N: a note
   await p.locator(`.col[data-k="${k}"] mark.hl`).first().click();
   await expect(p.locator('.chip-pop')).toBeVisible();
@@ -519,10 +899,10 @@ test('only the spread shows; the bar hides and returns without moving the text',
   const curtain = await p.locator('.curtain.l').boundingBox();
   expect(curtain!.width).toBeCloseTo(g.x0 - g.G / 2, 0);
   // the bar steps aside while reading, comes back at the top, and never moves the text
-  await p.mouse.move(800, 500); await p.waitForTimeout(2600);
-  await expect(p.locator('.bar')).toHaveClass(/away/);
+  await p.mouse.move(800, 500);
+  await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
   const before = await p.locator('.col .ln').first().boundingBox();
-  await p.mouse.move(800, 20); await p.waitForTimeout(400);
+  await p.mouse.move(800, 20);
   await expect(p.locator('.bar')).not.toHaveClass(/away/);
   const after = await p.locator('.col .ln').first().boundingBox();
   expect(after!.y).toBe(before!.y);
@@ -638,6 +1018,9 @@ test('type and appearance: the themes, Match device, and Style one step in, all 
 test('the wheel: every notch counts, partial notches add up, a short push does not fall back', async ({ page: p }) => {
   await openSample(p);
   await p.evaluate(() => (window as any).__vol.reader.jump(20));
+  // (times here are the input's own: a quiet spell is what ends a wheel gesture and lets the
+  // next be read, WHEEL_QUIET and WHEEL_LOCK in input.ts; the gaps between spins make them
+  // separate gestures, as a hand's would)
   const rest = async () => { await p.waitForTimeout(80); await settled(p); await p.waitForTimeout(250); return cur(p); };
   // wheel events as a webview delivers them, spaced in time
   const wheel = (deltas: number[], gap: number) => p.evaluate(async ([deltas, gap]) => {
@@ -675,7 +1058,7 @@ test('find in book: count, marks, Enter travels, the list, Esc clears', async ({
   const k0 = await cur(p);
   await p.keyboard.press('Enter');
   await p.keyboard.press('Enter');
-  await settled(p); await p.waitForTimeout(300);
+  await settled(p);
   await expect(p.locator('.find .count')).toHaveText(/^3 of/);
   await expect(p.locator('.ln mark.h6')).toHaveCount(1);
   expect(await cur(p)).toBeGreaterThan(k0);
@@ -718,6 +1101,31 @@ test('the library notebook lists every book\'s entries, filters, and opens a boo
   await expect(p.locator('.sheet')).toHaveCount(0);
   expect(await cur(p)).toBe(want.col);
   await expect(p.locator(`.col[data-k="${want.col}"] mark.hl`).first()).toBeVisible();
+});
+
+test('a highlight\'s menu covers none of the highlight, whichever of its lines is clicked', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  const id = await p.evaluate(() => {
+    const r = (window as any).__vol.reader;
+    const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
+    const ln = lns[Math.floor(lns.length / 2)], sec = r.strip.itemAt(r.cur).sec, b = r.book.sections[sec].blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
+    const a = r.ann.add(b.key, s0, Math.min(b.t.length, s0 + 160), 2, '');
+    r.marking.refreshSection(sec);
+    return a.id ?? a;
+  });
+  const marks = p.locator(`.col mark[data-a="${id}"]`);
+  expect(await marks.count()).toBeGreaterThanOrEqual(3);
+  for (const i of [0, 1, (await marks.count()) - 1]) {
+    await marks.nth(i).click();
+    const pop = p.locator('.chip-pop');
+    await expect(pop).toBeVisible();
+    const m = (await pop.boundingBox())!;
+    const over = await marks.evaluateAll((els, m) => els.filter(e => { const r = e.getBoundingClientRect(); return r.left < m.x + m.width && r.right > m.x && r.top < m.y + m.height && r.bottom > m.y; }).length, m);
+    expect(over, `the menu over the highlight, clicked on its line ${i}`).toBe(0);
+    await p.keyboard.press('Escape');
+    await expect(pop).toHaveCount(0);
+  }
 });
 
 test('notes beside their lines: a dot in the gutter, ; shows them all, hover shows one, a move puts them away', async ({ page: p }) => {
@@ -837,6 +1245,69 @@ test('the notes rail: ; sets the text in one column with every note in view besi
   await expect(p.locator('.rail')).toHaveCount(0);
   await expect(cards).toHaveCount(0);
   expect(await p.evaluate(() => (window as any).__vol.kv.get('rail'))).toBe(false);
+});
+
+test('with the rail, the bar keeps over it, its buttons seen and pressed; the rail\'s foot goes to the book\'s other notes and puts it away', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  // notes far apart: one here, one some chapters on
+  await twoNotes(p);
+  await p.evaluate(() => {
+    const r = (window as any).__vol.reader, sec = r.strip.itemAt(r.cur).sec + 3, b = r.book.sections[sec].blocks.find((x: any) => x.t.length > 80);
+    r.ann.add(b.key, 0, 40, 2, 'Further on.');
+    r.marking.refreshSection(sec);
+  });
+  await p.keyboard.press(';');
+  await laidOut(p);
+  const bar = p.locator('.bar');
+  await p.mouse.move(700, 10);
+  await expect(bar).not.toHaveClass(/away/);
+  // every button in the bar is what a press there meets, the rail under it
+  const hits = await p.locator('.bar button, .bar a').evaluateAll(els => els.map(el => { const b = el.getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('button, a') === el; }));
+  expect(hits.length).toBe(2);
+  expect(hits.every(Boolean)).toBe(true);
+  // (the rail lets presses through, so a hit alone does not show it is seen: the rail
+  // begins under the bar, and no card goes under it)
+  const barBottom = (await bar.boundingBox())!.y + 52;
+  expect((await p.locator('.rail').boundingBox())!.y).toBeGreaterThanOrEqual(barBottom - 1);
+  for (const c of await p.locator('.sn').all()) expect((await c.boundingBox())!.y).toBeGreaterThanOrEqual(barBottom);
+  // the rail's foot: how many notes the book has, and the way to the others
+  const foot = p.locator('.rail-foot');
+  await expect(foot).toContainText('3 notes');
+  const prev = foot.getByRole('button', { name: 'Previous note' }), next = foot.getByRole('button', { name: 'Next note' });
+  await expect(prev).toBeDisabled();
+  await next.click();
+  await expect(p.locator('.sn', { hasText: 'Further on.' })).toBeVisible();
+  await settled(p);
+  await expect(next).toBeDisabled();
+  await prev.click();
+  await expect(p.locator('.sn', { hasText: 'A second, longer thought' })).toBeVisible();
+  // a press in the rail is the rail's: on a card (to edit it) or its paper, the page stays
+  const k = await p.evaluate(() => (window as any).__vol.reader.noteCols()[0]);
+  await expect.poll(() => cur(p)).toBe(k);
+  await settled(p);
+  await p.locator('.sn', { hasText: 'A second, longer thought' }).locator('.txt').click();
+  await expect(p.locator('.sn.open textarea')).toBeFocused();
+  await p.keyboard.press('Escape');
+  const rail = (await p.locator('.rail').boundingBox())!;
+  await p.mouse.click(rail.x + rail.width / 2, rail.y + rail.height - 120);
+  await settled(p);
+  expect(await cur(p)).toBe(k);
+  // a page with none says so
+  await p.evaluate(() => { const r = (window as any).__vol.reader; r.jump(r.cur + 2); });
+  await expect(p.locator('.sn')).toHaveCount(0);
+  await expect(p.locator('.rail-empty')).toBeVisible();
+  // put away from its own foot, or from the menu, where Notes is ticked while it shows
+  await foot.getByRole('button', { name: 'Close the notes' }).click();
+  await expect(p.locator('.rail')).toHaveCount(0);
+  await p.keyboard.press(';');
+  await expect(p.locator('.rail')).toBeVisible();
+  await p.mouse.move(640, 790);
+  await p.getByRole('button', { name: 'More' }).click();
+  const notes = p.getByRole('menuitemcheckbox', { name: 'Notes beside the text' });
+  await expect(notes).toHaveAttribute('aria-checked', 'true');
+  await notes.click();
+  await expect(p.locator('.rail')).toHaveCount(0);
 });
 
 test('a note is written beside its passage where the rail shows: N in the menu, Save or Cancel', async ({ page: p }) => {
@@ -1048,7 +1519,7 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
   // in place: her underline and her note's dot, where she put them
   const where = JSON.parse(text).notes.find((n: any) => n.note);
   const col = await p.evaluate(w => (window as any).__vol.reader.strip.resolve({ key: w.key, off: w.s }), where);
-  await p.evaluate(k => (window as any).__vol.reader.jump(k), col); await p.waitForTimeout(400);
+  await p.evaluate(k => (window as any).__vol.reader.jump(k), col); await settled(p);
   await expect(p.locator(`.col[data-k="${col}"] .fb`).first()).toBeVisible();
   await expect(p.locator(`.col[data-k="${col}"] .nd.fd`)).toHaveCount(1);
   await expect(p.locator('.fmb').first()).toBeAttached();
@@ -1087,9 +1558,11 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
   await expect(p.locator('.fbl .grp')).toHaveCount(1);
   await p.getByRole('button', { name: 'Open only' }).click();
   await expect(p.locator('.fbl .pas.settled')).toHaveCount(1);
-  await p.locator('.fbl .grp').first().click();
+  // an open passage pressed (her marked paragraph): the reader goes there, the mark beside
+  // it (a settled passage is off the page: its own test)
+  await p.locator('.fbl .pas:not(.settled) .grp').first().click();
   await expect(p.locator('.contents')).toHaveCount(0);
-  await expect(p.locator('.ln .fb').first()).toBeVisible();
+  await expect(p.locator('.col .fb, .col .fmb').first()).toBeVisible();
 });
 
 test('a Word manuscript opens as a book: its title, chapters and footnotes', async ({ page: p }) => {
@@ -1111,20 +1584,20 @@ test('a note marker opens its note; G goes to where it is printed', async ({ pag
   await openFile(p, '../bench/fixtures/artofwar.epub', 'Art of War');
   const k = await firstCol(p, 'a.nr');
   expect(k).toBeGreaterThan(0);
-  await p.waitForTimeout(300);
+  await settled(p);
   await p.locator(`.col[data-k="${k}"] a.nr`).first().click();
   const card = p.getByRole('dialog', { name: /^Note / });
   await expect(card).toContainText('Published at Paris in 1782.');
   const before = await cur(p);
-  // a press on the card's text is the card's: the page beneath does not turn
+  // a press on the card's text is the card's: the page beneath does not turn (a turn would
+  // have begun within the click)
   await card.locator('.body').click();
-  await p.waitForTimeout(300);
-  expect(await cur(p)).toBe(before);
+  expect([await cur(p), await p.evaluate(() => (window as any).__vol.reader.motion.moving)]).toEqual([before, false]);
   await expect(card).toHaveCount(1);
   await p.keyboard.press('g');
   await expect(card).toHaveCount(0);
-  await settled(p); await p.waitForTimeout(300);
-  expect(await cur(p)).toBeGreaterThan(before + 20);   // the endnotes are at the back
+  await expect.poll(() => cur(p)).toBeGreaterThan(before + 20);   // the endnotes are at the back
+  await settled(p);
 });
 
 test('a long note scrolls under the wheel; the page beneath stays, and a turn puts it away', async ({ page: p }) => {
@@ -1161,7 +1634,7 @@ test('an image opens large and goes back; the keyboard can open it too', async (
   await openFile(p, '../bench/fixtures/beagle.epub', 'Beagle');
   const k = await firstCol(p, 'figure.img');
   expect(k).toBeGreaterThan(0);
-  await p.waitForTimeout(500);
+  await settled(p);
   const img = p.locator(`.col[data-k="${k}"] figure.img img`).first();
   await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBeGreaterThan(0);
   await p.locator(`.col[data-k="${k}"] figure.img`).first().click();
@@ -1272,6 +1745,7 @@ test('a large cover is kept as a thumbnail the shelf can show; covers share one 
   const id = await p.locator('.book[data-id]').first().getAttribute('data-id');
   // (the library's own work on the sample's cover done first: it writes it back smaller)
   await expect(p.locator('.cover.img img').first()).toBeVisible();
+  // (that write is the library's own, in the background, and nothing shows it done: a time)
   await p.waitForTimeout(800);
   // a 1600 × 2400 cover, as some publishers ship them
   await p.evaluate(async id => {
@@ -1399,6 +1873,45 @@ test('rich blocks are measured where nothing runs or fetches, never in the page'
   expect(r.left).toBe(0);
 });
 
+test('a reader\'s note resolved: it leaves the page and the rail, kept settled among the readers\' notes, and comes back reopened', async ({ page: p }) => {
+  await openSample(p);
+  // a reader's note on a paragraph of chapter one, sent yesterday
+  const at = await p.evaluate(async () => {
+    const r = (window as any).__vol.reader, b = r.book.sections[3].blocks.find((x: any) => x.t.length > 200);
+    const day = 864e5, f = { format: 'volumen-notes/1', book: { id: r.book.id, title: r.book.title, author: '' }, from: { id: 'anna', name: 'Anna' }, sent: Date.now() - day,
+      notes: [{ id: 'a', kind: 'highlight', key: b.key, s: 10, e: 60, quote: b.t.slice(10, 60), prefix: b.t.slice(0, 10), suffix: b.t.slice(60, 92), note: 'Is this needed?', created: Date.now() - day, updated: Date.now() - day }] };
+    await r.receiveNotes(JSON.stringify(f));
+    return b.key as string;
+  });
+  // (its column, found again whenever the text is set again)
+  const toNote = async () => { await p.evaluate(key => { const r = (window as any).__vol.reader; r.jump(r.strip.resolve({ key, off: 10 })); }, at); await settled(p); };
+  await toNote();
+  await expect(p.locator('.col .fb').first()).toBeVisible();
+  // the rail: her card, with when she wrote it, and Resolve
+  await p.keyboard.press(';');
+  await laidOut(p);
+  await toNote();
+  const card = p.locator('.sn.theirs');
+  await expect(card).toContainText('Is this needed?');
+  await expect(card).toContainText('Yesterday');
+  await card.getByRole('button', { name: 'Resolve' }).click();
+  // (said where it went)
+  await expect(p.locator('.toast.show')).toContainText('among the readers’ notes');
+  // off the page: no underline, no dot, no card
+  await expect(card).toHaveCount(0);
+  await expect(p.locator('.col .fb')).toHaveCount(0);
+  await expect(p.locator('.col .nd.fd')).toHaveCount(0);
+  // among the readers' notes, settled; reopened, it is back on the page
+  await p.keyboard.press('m');
+  await p.getByRole('tab', { name: 'Highlights' }).click();
+  await p.getByRole('button', { name: /^Readers’/ }).click();
+  const done = p.locator('.contents').getByRole('button', { name: 'Done' });
+  await expect(done).toHaveAttribute('aria-pressed', 'true');
+  await done.click();
+  await p.keyboard.press('Escape');
+  await expect(p.locator('.col .fb').first()).toBeVisible();
+});
+
 test('a notes file that is damaged or hostile is refused with a reason, or shown as text, never run', async ({ page: p }) => {
   await openSample(p);
   const said = (text: string) => p.evaluate(t => (window as any).__vol.reader.receiveNotes(t), text);
@@ -1421,7 +1934,7 @@ test('a notes file that is damaged or hostile is refused with a reason, or shown
   expect(await said(JSON.stringify(f))).toMatch(/^Notes from <img src=x onerror="window.__pwned=1">Eve: 1 placed/);
   // shown: her note beside its line, as text
   await p.evaluate(() => { const r = (window as any).__vol.reader; r.jump(r.strip.resolve({ key: r.book.sections[3].blocks.find((x: any) => x.t.length > 120).key, off: 0 })); });
-  await p.waitForTimeout(500);
+  await settled(p);
   await p.keyboard.press(';');
   await expect(p.locator('.sn.theirs').first()).toContainText('<script>window.__pwned=2</script>');
   expect(await p.evaluate(() => (window as any).__pwned)).toBeUndefined();
@@ -1588,9 +2101,11 @@ test('the whole library backed up and restored into a browser with nothing in it
   const q = await ctx.newPage();
   await q.goto('/');
   await q.locator('.book[data-id]').first().waitFor();
+  // (restored, the app starts again: the page's next load)
+  const reloaded = q.waitForEvent('load', { timeout: 30_000 });
   await q.setInputFiles('input[type=file]', { name: 'Volumen library.vbackup', mimeType: 'application/octet-stream', buffer: file });
   await expect(q.locator('.toast')).toContainText('Restored: 1 book added');
-  await q.waitForLoadState('load'); await q.waitForTimeout(2500);
+  await reloaded;
   await expect(q.locator('.book[data-id]')).toHaveCount(2);
   const back = await q.evaluate(() => { const kv = (window as any).__vol.kv; const k = kv.keys('ann.')[0]; return { me: kv.get('me', null)?.id, size: kv.get('settings', {}).size, note: k && kv.get(k, [])[0]?.note }; });
   expect(back).toEqual({ me, size: 22, note: 'Backed up with the book.' });

@@ -2,18 +2,15 @@
   import { touchUI } from './touch';
   import { coverThumb } from './thumb';
   import { fitImage, fitTitle } from './covers';
-  import { backup, restore, isBackup } from '../core/backup';
-  import { shell } from '../core/shell';
   import ShareSheet from './ShareSheet.svelte';
   import InviteSheet from './InviteSheet.svelte';
   import DraftSheet from './DraftSheet.svelte';
   import EpubSheet from './EpubSheet.svelte';
-  import { earlierDraft } from '../reader/draft';
   import { droppedFiles } from './files';
   import { stale } from '../reader/reread';
   import { isTauri } from '../core/shell';
   import { isIOS, isInstalled } from '../core/env';
-  import { removeBook, keepLibrary, collectSoon, rereadStale } from './library';
+  import { removeBook, collectSoon, rereadStale, progressOf, byLastOpened, opened, takeNotes, backUp, restoreFrom, addFiles } from './library';
   import { sharedOf } from '../core/service';
   import type { Core, LibEntry } from '../core/types';
   import { kv } from '../core/kv';
@@ -25,9 +22,6 @@
   import LibraryResults from './LibraryResults.svelte';
   import { fold } from '../reader/notebook';
   import { hint } from '../reader/hints';
-  import { takeNotes as takeNotesIn } from '../reader/intake';
-  import { isNotesMarkdown } from '../reader/notesmd';
-  import { isWebAnno } from '../reader/webanno';
   import { SMART, shelves, loadShelves, onShelf, createShelf, renameShelf, deleteShelf, toggleShelf, addToShelf } from './shelves.svelte';
 
   let { core, reader, hidden }: { core: Core; reader: Reader; hidden: boolean } = $props();
@@ -107,7 +101,7 @@
   async function load() {
     const list = await core.library();
     loadCovers(list);
-    books = list.sort((a, z) => (kv.get<number>('opened.' + z.id, z.added) - kv.get<number>('opened.' + a.id, a.added)));
+    books = byLastOpened(list);
     rereadStale(core, list, () => reader.book?.id);
     collectSoon(core, id => books.find(b => b.id === id)?.title ?? 'a book');
   }
@@ -129,15 +123,6 @@
     el?.focus({ preventScroll: false });
   }
 
-  function progress(b: LibEntry) {
-    const s = kv.get<{ where: string; done: boolean } | null>('state.' + b.id, null);
-    // a writer's book that readers have sent notes on says so
-    const fb = Object.keys(kv.get<Record<string, unknown>>('fb.' + b.id, {})).length;
-    const notes = fb ? ` · notes from ${fb} reader${fb === 1 ? '' : 's'}` : '';
-    if (!s) return 'Not started' + notes;
-    return (s.done ? 'Finished' : s.where) + notes;
-  }
-
   function hue(b: LibEntry) {
     let h = 0;
     for (const ch of b.title) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -146,69 +131,16 @@
 
   function open(b: LibEntry) {
     focusId = b.id;
-    kv.set('lastOpened', b.id);
-    kv.set('opened.' + b.id, Date.now());
+    opened(b.id);
     reader.open(b.id);
   }
 
-  /** Notes files (JSON, Markdown exported from a notebook, Web Annotations): one's own
-   *  notes are put back on their books; another reader's are kept as feedback on theirs. */
-  async function takeNotes(texts: string[], names: string[] = []) {
-    const { said } = await takeNotesIn(core, texts, books, undefined, names);
-    // (putting one's own notes back read their books in the engine; none is open here)
-    if (!reader.book) core.idle?.();
-    toast(said, Math.max(5200, said.length * 60));
-    ui.libVersion++;
-  }
-
-  /** The whole library in one file (core/backup.ts). */
-  async function backUp() {
-    toast('Gathering the library…', 8000);
-    const b = await backup(core);
-    const bytes = new Uint8Array(await b.blob.arrayBuffer());
-    const day = new Date().toISOString().slice(0, 10);
-    if (await shell.saveBytes(`Volumen library ${day}.vbackup`, bytes)) {
-      toast(`Backed up: ${b.books} book${b.books === 1 ? '' : 's'} and everything about them.${b.missing.length ? ` Not their files: ${b.missing.join(', ')} (added before files were kept: add them again).` : ''}`, 6000);
-    }
-  }
-  async function restoreFrom(f: File) {
-    toast('Restoring the library…', 15000);
-    const r = await restore(core, f);
-    if (typeof r === 'string') { toast(r, 5200); return; }
-    toast(`Restored: ${r.books} book${r.books === 1 ? '' : 's'} added${r.failed.length ? `; could not read ${r.failed.join(', ')}` : ''}. Reloading…`, 4000);
-    // (settings, themes and collections are read as the app starts)
-    setTimeout(() => location.reload(), 1600);
-  }
-
-  async function addFiles(files: FileList | File[]) {
-    // books first, then notes: a folder holding a manuscript and its readers' notes is
-    // taken whole
-    const notes: string[] = [], names: string[] = [];
-    for (const f of files) {
-      if (/\.vbackup$/i.test(f.name) || (f.size > 10 && await isBackup(f))) { await restoreFrom(f); return; }
-      if (/\.vnotes$/i.test(f.name)) { notes.push(await f.text()); names.push(f.name); continue; }
-      // notes exported as Markdown (rather than a manuscript), or as Web Annotations
-      if (/\.(md|markdown|txt|json|jsonld)$/i.test(f.name) && f.size < 8e6) {
-        const text = await f.text();
-        if (isNotesMarkdown(text) || isWebAnno(text)) { notes.push(text); names.push(f.name); continue; }
-        if (/\.(json|jsonld)$/i.test(f.name)) { notes.push(text); names.push(f.name); continue; }
-      }
-      toast(`Opening ${f.name}…`, 8000);
-      try {
-        const e = await core.importFile(new Uint8Array(await f.arrayBuffer()), f.name);
-        focusId = e.id;
-        // a new draft of a book here already: offered its notes, feedback and share
-        const before = draftOf ? null : earlierDraft(e, await core.library());
-        if (before) draftOf = { from: before, to: e };
-        if (mine) addToShelf(mine.id, e.id);
-        toast(`Added “${e.title}”.`, 3600);
-        keepLibrary();
-      } catch (err) {
-        const m = `Couldn’t open ${f.name}: ${(err as Error).message}`;
-        toast(m, Math.max(5200, m.length * 70));
-      }
-    }
-    if (notes.length) { await load(); await takeNotes(notes, names); }
+  /** Files given to the library (library.ts's `addFiles`): the last book added focused, a
+   *  new draft offered its notes (one offer at a time). */
+  async function take(files: FileList | File[]) {
+    const r = await addFiles(core, files, mine?.id ?? null, !!reader.book);
+    if (r.last) focusId = r.last.id;
+    if (r.draft && !draftOf) draftOf = r.draft;
     if (draftOf) ui.sheet = 'draft';
     await load();
     restoreFocus();
@@ -217,8 +149,8 @@
   function add() {
     if (core.pick) {
       core.pick().then(async p => {
-        if (p?.kind === 'notes') { takeNotes([p.text]); return; }
-        if (p?.kind === 'backup') { restoreFrom(p.file as File); return; }
+        if (p?.kind === 'notes') { takeNotes(core, [p.text], [], !!reader.book); return; }
+        if (p?.kind === 'backup') { restoreFrom(core, p.file as File); return; }
         const e = p?.entry;
         if (e) { focusId = e.id; if (mine) addToShelf(mine.id, e.id); toast(`Added “${e.title}”.`, 3600); await load(); restoreFocus(); }
       })
@@ -273,7 +205,7 @@
 <section class="shelf" {hidden} aria-label="Library"
   ondragover={e => { e.preventDefault(); dropping = true; }}
   ondragleave={() => (dropping = false)}
-  ondrop={e => { e.preventDefault(); dropping = false; if (e.dataTransfer?.items.length) droppedFiles(e.dataTransfer).then(addFiles); }}
+  ondrop={e => { e.preventDefault(); dropping = false; if (e.dataTransfer?.items.length) droppedFiles(e.dataTransfer).then(take); }}
   class:dropping>
   <header class="head">
     <div class="title">
@@ -317,7 +249,7 @@
     {/if}
     {#each shown as b (b.id)}
       <div class="slot">
-      <button class="book" data-id={b.id} onclick={() => open(b)} oncontextmenu={e => { e.preventDefault(); bookSheet(b); }} aria-label="{b.title}, {progress(b)}. A for collections.">
+      <button class="book" data-id={b.id} onclick={() => open(b)} oncontextmenu={e => { e.preventDefault(); bookSheet(b); }} aria-label="{b.title}, {progressOf(b)}. A for collections.">
         {#if covers[b.id]}
           <div class="cover img lift small" aria-hidden="true"><img src={covers[b.id]} alt="" decoding="async" loading="lazy" use:fitImage /></div>
         {:else}
@@ -327,7 +259,7 @@
             <span class="c-year">{b.year}</span>
           </div>
         {/if}
-        <span class="meta"><span class="t">{b.title}</span><span class="s">{progress(b)}</span></span>
+        <span class="meta"><span class="t">{b.title}</span><span class="s">{progressOf(b)}</span></span>
       </button>
       <button class="more hover-reveal" onclick={() => bookSheet(b)} aria-label="Collections and more for {b.title} (A)" tabindex="-1">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="18" cy="12" r="1.6" /></svg>
@@ -342,11 +274,11 @@
     {/if}
   </div>
   {#if view === 'books'}<LibraryResults bind:this={results} {core} {reader} {query} {books} />{/if}
-  <p class="foot" hidden={view !== 'books'}>Books stay on this device. <button class="link-btn" onclick={backUp}>Back up the library…</button> (Restore one by adding its file.)</p>
+  <p class="foot" hidden={view !== 'books'}>Books stay on this device. <button class="link-btn" onclick={() => backUp(core)}>Back up the library…</button> (Restore one by adding its file.)</p>
   <!-- (a phone's picker greys out what it cannot match to a type it knows, notes files
        among them; there every file may be chosen, and the importer says what it is) -->
   <input type="file" bind:this={file} accept={touchUI() ? undefined : '.epub,.docx,.md,.markdown,.txt,.vnotes,.json,.jsonld,.vbackup,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain'} multiple
-    onchange={e => { const fs = (e.target as HTMLInputElement).files; if (fs?.length) addFiles([...fs]); (e.target as HTMLInputElement).value = ''; }} hidden />
+    onchange={e => { const fs = (e.target as HTMLInputElement).files; if (fs?.length) take([...fs]); (e.target as HTMLInputElement).value = ''; }} hidden />
 </section>
 
 {#if !hidden && ui.sheet === 'help'}

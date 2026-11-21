@@ -5,7 +5,7 @@
   import type { Core } from '../core/types';
   import { embedOpts, embeddedBook, onCommand, tellPage } from '../core/embed';
   import { settings } from '../reader/settings.svelte';
-  import { themeById, themes, parseTheme } from '../reader/themes.svelte';
+  import { onPaper, themeById, themes, parseTheme } from '../reader/themes.svelte';
   import { ui } from '../state.svelte';
   import { reading } from './reading.svelte';
   import { readerKey, type Keyed } from './keys';
@@ -36,6 +36,15 @@
 
   let error = $state('');
   if (embedOpts.theme) useTheme(embedOpts.theme);
+  // the page's own paper: its theme on that paper, read light or dark as the paper is (for
+  // this visit; the reader may choose another in Aa)
+  if (embedOpts.paper) {
+    const on = onPaper(themeById(settings.theme), embedOpts.paper);
+    if (on) {
+      themes.user = [...themes.user.filter(u => u.id !== 'page'), on.theme];
+      settings.theme = 'page'; settings.appearance = on.dark ? 'dark' : 'light';
+    }
+  }
   // svelte-ignore state_referenced_locally
   embeddedBook(core)
     .then(async r => {
@@ -51,7 +60,8 @@
     // (a place named before the whole book is set would be travelled to by estimate)
     await reader.whole;
     if (!reader.strip) return;
-    if (c.type === 'theme') { if (useTheme(c.theme)) reader.themeChanged(); return; }
+    // (a theme is a face and its spacing as much as colours: the text is set again for it)
+    if (c.type === 'theme') { if (useTheme(c.theme)) await reader.settingsChanged('layout'); return; }
     // a chapter (counted from 1, as the page counts them), or a fraction of the book
     const chapters = reader.book.sections.flatMap((s, i) => (s.k === 1 ? [i] : []));
     const sec = c.chapter !== undefined ? chapters[c.chapter - 1] : undefined;

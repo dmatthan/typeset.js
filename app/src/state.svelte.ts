@@ -29,6 +29,14 @@ export const ui = $state({
   cols: 1,
   /** A phone-sized window: one column as a spread, the touch conventions. */
   phone: false,
+  /** The text being set again (a size, the window): the page's number is not shown until
+   *  the whole book's is known (a first pass counts the chapters before by estimate). */
+  settling: false,
+  /** Arrows at the text's sides to turn by (geometry.ts says when). */
+  arrows: false,
+  /** Full screen: the browser's, or (a book on another site's page with none) the page's
+   *  window filled with the book (ui/keys.ts, `toggleFull`). */
+  full: false,
   /** Bumps when a tap asks the reader's bar to show or hide (touch). */
   barToggle: 0,
   colsReduced: false,
@@ -45,8 +53,9 @@ export const ui = $state({
   layoutVersion: 0,
   /** The menu offered on a selection or a highlight: what it is for, and the box it keeps
    *  clear of (`x` its middle, `y` its top, `b` its bottom, in the stage's coordinates);
-   *  `native`, a finger's selection, beside which the system shows a menu of its own. */
-  chip: null as null | { x: number; y: number; b?: number; native?: boolean; sel: Sel | null; ann: string | null },
+   *  `finger`: a finger's (a selection, beside which the system shows a menu of its own, or
+   *  a highlight tapped), which goes in a band of the reader's own (Chip.svelte). */
+  chip: null as null | { x: number; y: number; b?: number; finger?: boolean; sel: Sel | null; ann: string | null },
   /** The annotation whose note is being edited. */
   noteFor: '' as string,
   /** A book note shown beside its marker: its index, and where (stage px). */

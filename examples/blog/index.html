@@ -5,11 +5,24 @@
 <!-- the kit (a release's Volumen-kit.zip) unpacked into /volumen/ on this site -->
 <script type="module" src="/volumen/volumen.js"></script>
 
-<h1>A chapter from a book</h1>
+<!-- the site's own look: a column to read in, light or dark as the reader's device is -->
+<style>
+  :root { color-scheme: light dark; }
+  body { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1rem 4rem; font: 17px/1.6 system-ui, sans-serif; background: #fff; color: #1d1d1f; }
+  h1 { margin: 0 0 .4rem; font-size: 2rem; line-height: 1.2; }
+  p { margin: 0 0 1.5rem; color: #555; }
+  /* the book's box: as wide as the column, as tall as the window allows */
+  volumen-book { height: min(80vh, 46rem); }
+  @media (prefers-color-scheme: dark) { body { background: #161616; color: #ececec; } p { color: #aaa; } }
+</style>
 
-<!-- one chapter of the book, in the site's own box; at its end, a way on -->
-<volumen-book id="book" src="/books/meditations.epub" chapters="3" theme="linen"
-  end-href="/shop" end-label="Buy the book" style="height: 600px"></volumen-book>
+<h1>A chapter from a book</h1>
+<p>The third book of the Meditations, set as the book sets it.</p>
+
+<!-- one chapter of the book, in the site's own box, in Linen's face on the page's own
+     paper; at its end, a way on -->
+<volumen-book id="book" src="/books/meditations.epub" chapters="3" theme="linen" paper="page"
+  end-href="/shop" end-label="Buy the book"></volumen-book>
 
 <script>
   // what the reader says (for a page that wants to know): open, where it is, the end, or

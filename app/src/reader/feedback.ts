@@ -6,16 +6,18 @@ import { isReaction, type Annotation, type Reaction } from './annotations';
 import { chapTitle } from './render';
 import { isNotesMarkdown, parseNotesMarkdown } from './notesmd';
 import { isWebAnno, fromWebAnno } from './webanno';
+import { anchorOfBookmark, type Bookmark } from './bookmarks';
 
 /* ---------- the notes file ---------- */
 
 export const FORMAT = 'volumen-notes/1';
 
 /** One note as it travels: where it is (as `NoteAnchor`), what it is, what it says. A
- *  marked paragraph is anchored to its opening words. */
+ *  marked paragraph is anchored to its opening words; a bookmark to its page's (one's
+ *  own, put back with one's notes; dropped from another reader's: `Feedback.add`). */
 export interface FileNote extends NoteAnchor {
   id: string;
-  kind: 'highlight' | 'mark';
+  kind: 'highlight' | 'mark' | 'bookmark';
   color?: number;
   note?: string;
   /** A reaction. */
@@ -63,10 +65,12 @@ export function fileNotes(book: BookData, ann: Annotation[], marks: Iterable<str
   return notes;
 }
 
-/** Everything this reader added to a book, as a notes file. */
-export function notesFile(book: BookData, ann: Annotation[], marks: Iterable<string>, keyIndex: KeyIndex): NotesFile {
+/** Everything this reader added to a book, as a notes file: their notes, and their
+ *  bookmarks. */
+export function notesFile(book: BookData, ann: Annotation[], marks: Iterable<string>, keyIndex: KeyIndex, bookmarks: Bookmark[] = []): NotesFile {
   const m = me();
-  return { format: FORMAT, book: { id: book.id, title: book.title, author: book.author }, from: { id: m.id, name: m.name }, sent: Date.now(), notes: fileNotes(book, ann, marks, keyIndex) };
+  const bms: FileNote[] = bookmarks.map(b => ({ id: b.id, kind: 'bookmark', ...anchorOfBookmark(b), pos: shareOf(book, keyIndex, b.key), created: b.at, updated: b.at }));
+  return { format: FORMAT, book: { id: book.id, title: book.title, author: book.author }, from: { id: m.id, name: m.name }, sent: Date.now(), notes: [...fileNotes(book, ann, marks, keyIndex), ...bms] };
 }
 
 /** A notes file read back, checked; or why it is not one. A notes file is JSON (sent
@@ -96,7 +100,7 @@ export function parseNotes(text: string, book?: { id: string; title: string; aut
 function checked(v: any): NotesFile | string {
   if (v?.format !== FORMAT) return typeof v?.format === 'string' && v.format.startsWith('volumen-notes/') ? 'These notes come from a newer version of the app.' : 'This is not a notes file.';
   if (!v.book?.id || !v.from?.id || !Array.isArray(v.notes)) return 'This notes file is incomplete.';
-  const ok = (n: any) => n && typeof n.key === 'string' && typeof n.quote === 'string' && Number.isFinite(n.s) && Number.isFinite(n.e) && ['highlight', 'mark'].includes(n.kind);
+  const ok = (n: any) => n && typeof n.key === 'string' && typeof n.quote === 'string' && Number.isFinite(n.s) && Number.isFinite(n.e) && ['highlight', 'mark', 'bookmark'].includes(n.kind);
   const share = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);
   const pr = v.progress && typeof v.progress === 'object' ? { at: share(v.progress.at), furthest: share(v.progress.furthest), where: String(v.progress.where ?? '').slice(0, 80), done: v.progress.done === true } : undefined;
   return { ...v, from: { id: String(v.from.id), name: String(v.from.name || 'A reader').slice(0, 60) }, notes: v.notes.filter(ok).map((n: FileNote) => (n.react === undefined || isReaction(n.react) ? n : { ...n, react: undefined })), progress: pr };
@@ -104,8 +108,11 @@ function checked(v: any): NotesFile | string {
 
 /* ---------- other readers' notes on a book ---------- */
 
-/** A note from another reader, placed on this book. */
-export interface FbNote extends FileNote { lost?: boolean; was?: string; sec?: number }
+/** A note from another reader, placed on this book (never a bookmark: `forWriter`). */
+export interface FbNote extends Omit<FileNote, 'kind'> { kind: 'highlight' | 'mark'; lost?: boolean; was?: string; sec?: number }
+/** What of a reader's file their writer sees: not their bookmarks (where they meant to come
+ *  back to: nothing for the writer). */
+const forWriter = (f: NotesFile) => f.notes.filter((n): n is FbNote => n.kind !== 'bookmark');
 interface FbReader { name: string; sent: number; notes: FbNote[]; progress?: Progress }
 /** Reader colours: the n-th reader of a book is drawn in `--r{n % 6 + 1}`. */
 export const READER_COLOURS = 6;
@@ -117,6 +124,9 @@ export class Feedback {
   /** Readers not shown just now. */
   hidden = new Set<string>();
   private byKey = new Map<string, { r: string; n: FbNote }[]>();
+  /** Notes on a passage the writer has settled (done, or won't change): off the page and
+   *  out of the notes beside it, kept in the readers' list. */
+  private settled = new Set<string>();
 
   constructor(private book: BookData, private keyIndex: KeyIndex) {
     this.readers = kv.get<Record<string, FbReader>>('fb.' + book.id, {});
@@ -153,10 +163,12 @@ export class Feedback {
 
   private index() {
     this.byKey.clear();
+    this.settled.clear();
+    for (const g of this.gathered()) if (this.status[this.passageId(g)]) for (const v of g.voices) this.settled.add(v.rid + '|' + v.n.id);
     for (const [r, rd] of Object.entries(this.readers)) {
       if (this.hidden.has(r)) continue;
       for (const n of rd.notes) {
-        if (n.lost) continue;
+        if (n.lost || this.settled.has(r + '|' + n.id)) continue;
         let a = this.byKey.get(n.key);
         if (!a) this.byKey.set(n.key, (a = []));
         a.push({ r, n });
@@ -169,7 +181,7 @@ export class Feedback {
   add(f: NotesFile): boolean {
     const had = this.readers[f.from.id];
     if (had && had.sent > f.sent) return false;
-    this.readers[f.from.id] = { name: f.from.name || 'A reader', sent: f.sent, notes: f.notes.map(n => ({ ...n })), progress: f.progress };
+    this.readers[f.from.id] = { name: f.from.name || 'A reader', sent: f.sent, notes: forWriter(f).map(n => ({ ...n })), progress: f.progress };
     this.save();
     return true;
   }
@@ -218,6 +230,12 @@ export class Feedback {
 
   /** Notes with something written, in a block: for the gutter's dots and their cards. */
   written(key: string) { return (this.byKey.get(key) ?? []).filter(x => x.n.note && x.n.kind === 'highlight'); }
+  /** Where every readers' note on the page is (those with words: each has a card). */
+  writtenAt(): { key: string; off: number }[] {
+    const out: { key: string; off: number }[] = [];
+    for (const [key, xs] of this.byKey) for (const x of xs) if (x.n.note && x.n.kind === 'highlight') out.push({ key, off: x.n.s });
+    return out;
+  }
   /** Paragraphs readers marked, in a block. */
   marked(key: string) { return (this.byKey.get(key) ?? []).filter(x => x.n.kind === 'mark'); }
 
@@ -232,6 +250,12 @@ export class Feedback {
     const id = this.passageId(g);
     if (st) this.status[id] = st; else delete this.status[id];
     kv.set('fbst.' + this.book.id, this.status);
+    this.index();
+  }
+  /** A note's passage settled from its card beside the text (Resolve): done. */
+  resolve(rid: string) {
+    const g = this.gathered().find(x => x.voices.some(v => v.rid + '|' + v.n.id === rid));
+    if (g) this.setStatus(g, 'done');
   }
 
   /** Passages as `gathered`, with what the writer decided about each. */
@@ -241,7 +265,8 @@ export class Feedback {
    *  block are one entry with every reader's voice. */
   gathered() {
     const all: { r: string; n: FbNote }[] = [];
-    for (const [r, rd] of Object.entries(this.readers)) if (!this.hidden.has(r)) for (const n of rd.notes) if (!n.lost) all.push({ r, n });
+    // (a note not on this version's words, or not yet placed on them, is on no passage)
+    for (const [r, rd] of Object.entries(this.readers)) if (!this.hidden.has(r)) for (const n of rd.notes) if (!n.lost && this.keyIndex.has(n.key)) all.push({ r, n });
     const pos = (x: { n: FbNote }) => { const h = this.keyIndex.get(x.n.key); return h ? readingOrder(h[0], h[1], x.n.s) : Infinity; };
     all.sort((a, b) => pos(a) - pos(b));
     const groups: { key: string; sec: number; where: string; s: number; e: number; quote: string; voices: { reader: string; colour: number; kind: FbNote['kind']; note?: string; react?: Reaction; was?: string; rid: string; n: FbNote }[] }[] = [];
@@ -274,7 +299,7 @@ export function receive(f: NotesFile, bookId: string): boolean {
   const all = kv.get<Record<string, FbReader>>('fb.' + bookId, {});
   const had = all[f.from.id];
   if (had && had.sent > f.sent) return false;
-  all[f.from.id] = { name: f.from.name || 'A reader', sent: f.sent, notes: f.notes, progress: f.progress };
+  all[f.from.id] = { name: f.from.name || 'A reader', sent: f.sent, notes: forWriter(f), progress: f.progress };
   kv.set('fb.' + bookId, all);
   return true;
 }

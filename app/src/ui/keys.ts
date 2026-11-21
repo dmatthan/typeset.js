@@ -1,7 +1,7 @@
 /** The keys of a book being read, the same wherever the reader is shown (the app, another
  *  site's page), less what that page has turned off (`features`). Each shell handles the
  *  keys only it has (the library, quitting) around these. Every key is listed in Help. */
-import { features } from '../core/embed';
+import { features, fullscreenBy, tellPage } from '../core/embed';
 import { shell } from '../core/shell';
 import type { Contents } from '../reader/contents.svelte';
 import type { Reader } from '../reader/reader.svelte';
@@ -19,6 +19,14 @@ export interface Keyed {
 
 /** Focus is in a field: its keys are its own. */
 export const typing = (t: EventTarget | null) => !!(t as Element)?.closest?.('textarea, input:not([type=checkbox]):not([type=radio]), select, [contenteditable]');
+
+/** Full screen and back: the browser's own (the window, or a book's frame on another
+ *  site's page), or the page asked to fill its window with the book where a frame has no
+ *  full screen of its own (core/embed.ts, `fullscreenBy`). */
+export function toggleFull() {
+  if (fullscreenBy() === 'page') { ui.full = !ui.full; tellPage('full', { on: ui.full }); }
+  else shell.toggleFullscreen();
+}
 
 export function openFind(k: Keyed) {
   if (!features.find) return;
@@ -50,7 +58,7 @@ export function readerKey(e: KeyboardEvent, k: Keyed): boolean {
     if (e.key === 'Escape') { (e.target as HTMLElement).blur(); reader.stage?.focus({ preventScroll: true }); return true; }
     return false;
   }
-  if (e.key === 'F11' || (e.key === 'f' && !ui.sheet)) { shell.toggleFullscreen(); return true; }
+  if (e.key === 'F11' || (e.key === 'f' && !ui.sheet)) { toggleFull(); return true; }
   // the open sheet, the contents and the chip handle their own keys
   if (ui.sheet || ui.view !== 'reader') return false;
   if (ui.contents) return contents.key(e);
@@ -58,13 +66,14 @@ export function readerKey(e: KeyboardEvent, k: Keyed): boolean {
   if (reader.input.key(e)) return true;
   switch (e.key) {
     case 'm': case 'M': if (!features.contents) return false; contents.open(); return true;
+    case 'b': case 'B': if (!features.highlights) return false; reader.toggleBookmark(); return true;
     case ']': contents.chapter(1); return true;
     case '[': contents.chapter(-1); return true;
     case 's': case 'S': if (!features.settings) return false; ui.sheet = 'settings'; return true;
     case '?': ui.sheet = 'help'; return true;
     case '/': if (!features.find) return false; openFind(k); return true;
     case 'v': case 'V': if (!features.highlights) return false; reader.cursor.start(); return true;
-    case 'c': case 'C': cycleLayout(reader); return true;
+    case 'c': case 'C': if (!features.settings) return false; cycleLayout(reader); return true;
   }
   return false;
 }

@@ -1,6 +1,6 @@
-/** Selections in the book: where a point on the page is in the text, the word around it,
- *  and a selection's stretch of each paragraph it covers. Selection here is entirely the
- *  reader's own (input.ts): word by word, never the browser's drag. */
+/** Selections in the book: the browser's selection (a mouse's drag, a finger's hold: the
+ *  system's own; input.ts) as places in the text, a selection's stretch of each paragraph
+ *  it covers and its words, and putting it away. */
 import type { BookData } from '../core/types';
 import type { Strip } from './strip';
 

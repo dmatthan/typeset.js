@@ -78,6 +78,13 @@ export function fitContrast(bg: string, fg: string, lo: number, hi: number, maxC
   return fromOklch(far, c, H);
 }
 
+/** `a` taken `t` of the way to `b` (0: `a`, 1: `b`), in sRGB: for colours a small step
+ *  apart, where the space makes no difference to see. */
+export function mix(a: string, b: string, t: number): string {
+  const x = hexToRgb(a), y = hexToRgb(b);
+  return x && y ? rgbToHex(x.map((v, i) => v + (y[i] - v) * t) as RGB) : a;
+}
+
 /** A reading palette from a desktop theme's colours: the background as paper (chroma kept
  *  modest), the foreground near neutral at a comfortable contrast, the accent kept for
  *  headings, highlights and controls but made legible on the paper. */

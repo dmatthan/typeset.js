@@ -1,24 +1,22 @@
 <script module lang="ts">
   /** Where the menu goes, in the stage's coordinates, kept inside it. A mouse's: above what
-   *  it is for, as a system's own menu would be (below, under the bar's band). A finger's
-   *  selection has the system's menu beside it (Copy, Look Up), which goes above it where
-   *  there is room and below it where not, the handles' knobs hanging at its ends: ours goes
-   *  on the other side, or past the system's when that side has no room; never against the
-   *  window's edges, where a browser's own toolbars may be. */
-  const SYS = 64, KNOB = 26, GAP = 12, M = 10;
-  function place(c: { x: number; y: number; b?: number; native?: boolean }, w: number, h: number, W: number, H: number) {
+   *  it is for (below, under the bar's band), its middle over the selection's. A finger's
+   *  selection has the system's menu beside it (Copy, Look Up), above it or below it as the
+   *  system decides (iOS and Android both choose by their own measure, and say nothing of it):
+   *  ours goes in whichever band of the reader's own (`bands`: above the text, where the bar
+   *  is; below it, where the page's number is) is farther from the selection, in the middle
+   *  across, over no text. The system's hugs the selection, so it is never there. A
+   *  highlight a finger taps has its menu there too, the one place a phone's menu is. */
+  const GAP = 12, M = 10;
+  type Band = [number, number];
+  function place(c: { x: number; y: number; b?: number; finger?: boolean }, w: number, h: number, W: number, H: number, bands: { top: Band; foot: Band }) {
     const b = c.b ?? c.y, clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-    let top: number;
-    if (!c.native) {
-      top = c.y - GAP - h;
-      if (top < M + 44) top = b + GAP;
-    } else if (c.y - SYS >= M) {
-      // the system's above: ours below the end's knob, else above the system's
-      top = b + KNOB + h <= H - M ? b + KNOB : c.y - SYS - GAP - h;
-    } else {
-      // the system's below: ours above, else below the system's
-      top = c.y - GAP - h >= M ? c.y - GAP - h : b + KNOB + SYS + GAP;
+    if (c.finger) {
+      const [s, e] = c.y - bands.top[1] >= bands.foot[0] - b ? bands.top : bands.foot;
+      return { left: clamp((W - w) / 2, M, W - M - w), top: clamp((s + e - h) / 2, 0, H - h) };
     }
+    let top = c.y - GAP - h;
+    if (top < M + 44) top = b + GAP;
     return { left: clamp(c.x - w / 2, M, W - M - w), top: clamp(top, M, H - M - h) };
   }
 </script>
@@ -28,6 +26,7 @@
   import { type Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
   import { chapName } from '../reader/render';
+  import { insets } from '../reader/geometry';
   import { unselect } from '../reader/selection';
   import { REACTIONS, REACTION_LABEL, type Reaction } from '../reader/annotations';
   import { kv } from '../core/kv';
@@ -92,8 +91,9 @@
     if (!c || !pop) return;
     requestAnimationFrame(() => {
       const st = pop?.offsetParent as HTMLElement | null;
-      const r = pop?.getBoundingClientRect();
-      if (r && st) at = place(c, r.width, r.height, st.clientWidth, st.clientHeight);
+      const r = pop?.getBoundingClientRect(), M = reader.M, ins = insets();
+      // (the bands the text never uses: above it, where the bar is; below it, the page's number)
+      if (r && st && M) at = place(c, r.width, r.height, st.clientWidth, st.clientHeight, { top: [ins.t, M.y0], foot: [M.y0 + M.colH, st.clientHeight - ins.b] });
     });
   });
 </script>
@@ -105,12 +105,24 @@
       <button class="dot h{n}" class:on={ann?.color === n} onclick={() => color(n)} aria-label="Highlight colour {n}"></button>
     {/each}
     <span class="sep"></span>
-    <button class="act" onclick={note}>{ann?.note ? 'Edit note' : 'Note'}</button>
-    {#if c.ann}<button class="act" onclick={copy}>Copy</button><button class="act" onclick={remove}>Remove</button>{/if}
+    <!-- (the actions as glyphs, named for a screen reader and a pointer's tooltip: the menu
+         in one row on a phone) -->
+    <button class="act" onclick={note} aria-label={ann?.note ? 'Edit note' : 'Note'} title="{ann?.note ? 'Edit note' : 'Note'} (N)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H10l-4 4v-4H5z" /></svg>
+    </button>
+    {#if c.ann}
+      <button class="act" onclick={copy} aria-label="Copy with reference" title="Copy with reference (C)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" /><path d="M15 9V6a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3" /></svg>
+      </button>
+      <button class="act" onclick={remove} aria-label="Remove highlight" title="Remove highlight (X)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10.5 11v5M13.5 11v5" /></svg>
+      </button>
+    {/if}
     {#if asked}
       <div class="reacts" role="group" aria-label="Tell the writer">
+        <span class="rl" aria-hidden="true">For the writer</span>
         {#each REACTIONS as r}
-          <button class="act" aria-pressed={ann?.react === r} onclick={() => react(r)} title={REACTION_LABEL[r]}>{r[0].toUpperCase() + r.slice(1)}</button>
+          <button class="act word" aria-pressed={ann?.react === r} onclick={() => react(r)} title={REACTION_LABEL[r]}>{r[0].toUpperCase() + r.slice(1)}</button>
         {/each}
       </div>
     {/if}
@@ -118,23 +130,27 @@
 {/if}
 
 <style>
-  /* the selection's menu: a dark pill beside it (where: `place`) */
+  /* the selection's menu beside it (where: `place`), on the surface every menu of the
+     reader's has (the theme's, softened: reader.svelte.ts) */
   .chip-pop {
-    position: absolute; z-index: 20;
+    position: absolute; z-index: 27;
     display: flex; align-items: center; gap: 0; padding: 0 6px; min-height: 40px; border-radius: 10px;
-    background: var(--pill); color: oklch(0.96 0.008 80); border: 1px solid oklch(1 0 0 / 0.08);
+    background: var(--surface); color: var(--ink); border: 1px solid var(--rule);
     animation: pop .14s cubic-bezier(.2,.8,.2,1); flex-wrap: wrap;
   }
   /* the reactions for a manuscript's writer: a row of their own */
-  .reacts { flex-basis: 100%; display: flex; justify-content: space-between; gap: 2px; border-top: 1px solid oklch(1 0 0 / 0.14); padding: 2px 0; }
-  .reacts .act[aria-pressed="true"] { background: oklch(1 0 0 / 0.14); }
+  .reacts { flex-basis: 100%; display: flex; justify-content: space-between; gap: 2px; border-top: 1px solid var(--rule); padding: 2px 0; }
+  .reacts .act[aria-pressed="true"] { background: var(--hover); }
+  .rl { align-self: center; padding: 0 8px; font: 500 13px/1 var(--f-ui); color: var(--ink-3); white-space: nowrap; }
   @keyframes pop { from { opacity: 0; } }
   button { appearance: none; cursor: pointer; border: 0; background: none; color: inherit; }
   .dot { width: 32px; height: 40px; display: grid; place-items: center; padding: 0; }
   .dot::before { content: ""; width: 18px; height: 18px; border-radius: 50%; background: var(--c); }
-  .dot.on::before { box-shadow: 0 0 0 2px var(--pill), 0 0 0 4px oklch(0.96 0.008 80); }
+  .dot.on::before { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
   .dot.h1 { --c: var(--hs1); } .dot.h2 { --c: var(--hs2); } .dot.h3 { --c: var(--hs3); } .dot.h4 { --c: var(--hs4); }
-  .sep { width: 1px; height: 20px; background: oklch(1 0 0 / 0.2); margin: 0 6px; }
-  .act { height: 40px; padding: 0 10px; border-radius: 8px; font: 500 var(--t-s)/1 var(--f-ui); display: inline-flex; align-items: center; white-space: nowrap; }
-  :global(html:not(.touchui)) .act:hover, :global(html:not(.touchui)) .dot:hover { background: oklch(1 0 0 / 0.1); }
+  .sep { width: 1px; height: 20px; background: var(--rule); margin: 0 6px; }
+  .act { height: 40px; min-width: 40px; padding: 0; border-radius: 8px; font: 500 var(--t-s)/1 var(--f-ui); display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; color: var(--ink-2); }
+  .act.word { padding: 0 10px; }
+  .act svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  :global(html:not(.touchui)) .act:hover, :global(html:not(.touchui)) .dot:hover { background: var(--hover); color: var(--ink); }
 </style>
