@@ -4,7 +4,7 @@
   "description": "Books on any web page: EPUB, Word and Markdown, typeset and read in place, served from your own site.",
   "license": "MIT",
   "type": "module",
-  "repository": { "type": "git", "url": "git+https://github.com/dmatthan/volumen.git", "directory": "packages/typeset.js" },
+  "repository": { "type": "git", "url": "git+https://github.com/dmatthan/typeset.js.git", "directory": "packages/typeset.js" },
   "homepage": "https://volumen.page",
   "keywords": ["epub", "reader", "ebook", "web-components", "typesetting", "docx", "markdown"],
   "exports": { ".": { "types": "./index.d.ts", "default": "./index.js" } },

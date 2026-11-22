@@ -1,0 +1,45 @@
+# typeset.js to npm, on a tag `typeset.js-v<version>` (the package's own version, checked):
+# the engine and the package's reader built, the package's tests run, then staged as npm's
+# trusted publisher (this workflow, by name, is the one npm accepts: no token is kept
+# anywhere, and npm records where each version was built). A staged version is public only
+# once the owner approves it, with their own second factor: `npm stage list typeset.js`,
+# then `npm stage approve <id>` (or on npmjs.com).
+name: npm
+
+on:
+  push:
+    tags: ["typeset.js-v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  WASM_BINDGEN: "0.2.129"
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: The tag names the package's version
+        run: |
+          want="typeset.js-v$(node -p 'require("./packages/typeset.js/package.json").version')"
+          [ "$GITHUB_REF_NAME" = "$want" ] || { echo "tag $GITHUB_REF_NAME, package $want"; exit 1; }
+      - uses: actions/setup-node@v5
+        with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
+      # (staging came with npm 12)
+      - run: npm install -g npm@12.2.3
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-bindgen@${{ env.WASM_BINDGEN }}" }
+      - run: sudo apt-get update && sudo apt-get install -y binaryen
+      - run: scripts/build-wasm.sh
+      - run: npm --prefix app ci && npm --prefix service ci
+      - run: (cd app && TYPESET_PACKAGE=1 npx vite build --logLevel warn) && node scripts/sizes.mjs
+      - run: npx --prefix app playwright install --with-deps chromium
+      - run: (cd app && npx playwright test --project=package)
+      - run: npm stage publish --access public
+        working-directory: packages/typeset.js

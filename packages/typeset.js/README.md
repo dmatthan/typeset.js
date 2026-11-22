@@ -13,7 +13,8 @@ npx typeset.js public/typeset
 
 `npx typeset.js` puts the reader in a folder of your site, to be served with it (`public/` in
 Vite, Next.js and Astro, `static/` in SvelteKit). With no folder named, `public/typeset`.
-Run it again after an update; it writes over nothing but a reader's folder.
+Run it again after an update; it writes over nothing but a reader's folder. It needs Node 18
+or later; the reader itself is static files, from any web server, with no backend.
 
 ## A book on a page
 
@@ -33,7 +34,17 @@ serveFrom('/static/reader/');   // only if it is served elsewhere, before any bo
 ```
 
 Without npm, unpack `typeset.js.zip` from a
-[release](https://github.com/dmatthan/volumen/releases) into a folder of your site instead.
+[release](https://github.com/dmatthan/typeset.js/releases) into a folder of your site instead.
+
+The package has its types: the elements' (`document.querySelector('typeset-book')` is a
+`TypesetBook`), their events' details, and what `open()` takes.
+
+```ts
+import { open } from 'typeset.js';
+
+const { book } = open({ src: '/books/book.epub', endHref: '/shop' });
+book.addEventListener('typeset-progress', e => console.log(e.detail.at));
+```
 
 ## The elements
 
@@ -102,8 +113,9 @@ A shelf from `[{ "title", "author", "src", "cover" }]`, each book opened in plac
 ## Samples
 
 To put a sample online without the rest of the book, write one with only those chapters:
-Volumen's Save as EPUB, or
-`cargo run -p typeset-ingest --example sample -- book.epub 1-3 sample.epub` in its repository.
+[Volumen](https://volumen.page)'s Save as EPUB, or
+`cargo run -p typeset-ingest --example sample -- book.epub 1-3 sample.epub` in
+[the repository](https://github.com/dmatthan/typeset.js).
 
 ## Security
 

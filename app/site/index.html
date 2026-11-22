@@ -118,7 +118,7 @@
   <section id="developers" class="part" aria-labelledby="dev-h">
     <div class="wrap">
       <h2 id="dev-h" class="label">For developers</h2>
-      <p class="intro">The source is on <a href="https://github.com/dmatthan/volumen">GitHub</a>, under the MIT licence.</p>
+      <p class="intro">The source is on <a href="https://github.com/dmatthan/typeset.js">GitHub</a>, under the MIT licence.</p>
       <div class="three four">
         <div>
           <h3>Static files</h3>
@@ -134,8 +134,10 @@
         </div>
         <div>
           <h3>On your own site</h3>
-          <p>A chapter on a blog, a sample with a way to buy the book, a shelf of books: two elements, fluid in the page’s own layout. Self-hosted with typeset.js, or straight from here (the book’s server must then allow other sites to read it).</p>
-          <pre class="code"><code>&lt;script type="module" src="https://volumen.page/typeset.js"&gt;&lt;/script&gt;
+          <p>A chapter on a blog, a sample with a way to buy the book, a cover that opens the book, a shelf of books: three elements, fluid in the page’s own layout, served from your own site with <a href="https://www.npmjs.com/package/typeset.js">typeset.js</a>.</p>
+          <pre class="code"><code>npx typeset.js public/typeset
+
+&lt;script type="module" src="/typeset/typeset.js"&gt;&lt;/script&gt;
 &lt;typeset-book src="/books/sample.epub" chapters="1-3"
   end-href="/shop" end-label="Buy the book"&gt;&lt;/typeset-book&gt;</code></pre>
         </div>
@@ -168,11 +170,11 @@
           <h3>Desktop app</h3>
           <p>The same reader as a native app for Linux, macOS and Windows, with the computer’s own fonts and full-text search across the whole library from a local database.</p>
           <div class="downloads" id="downloads">
-            <a class="btn" data-os="linux" href="https://github.com/dmatthan/volumen/releases/latest/download/Volumen-linux-x86_64.AppImage"><svg class="os" aria-hidden="true"><use href="#os-linux"/></svg>Linux</a>
-            <a class="btn" data-os="mac" href="https://github.com/dmatthan/volumen/releases/latest/download/Volumen-macos.dmg"><svg class="os" aria-hidden="true"><use href="#os-apple"/></svg>macOS</a>
-            <a class="btn" data-os="windows" href="https://github.com/dmatthan/volumen/releases/latest/download/Volumen-windows-x64-setup.exe"><svg class="os" aria-hidden="true"><use href="#os-windows"/></svg>Windows</a>
+            <a class="btn" data-os="linux" href="https://github.com/dmatthan/typeset.js/releases/latest/download/Volumen-linux-x86_64.AppImage"><svg class="os" aria-hidden="true"><use href="#os-linux"/></svg>Linux</a>
+            <a class="btn" data-os="mac" href="https://github.com/dmatthan/typeset.js/releases/latest/download/Volumen-macos.dmg"><svg class="os" aria-hidden="true"><use href="#os-apple"/></svg>macOS</a>
+            <a class="btn" data-os="windows" href="https://github.com/dmatthan/typeset.js/releases/latest/download/Volumen-windows-x64-setup.exe"><svg class="os" aria-hidden="true"><use href="#os-windows"/></svg>Windows</a>
           </div>
-          <p class="aside">Linux: an AppImage, or a <a href="https://github.com/dmatthan/volumen/releases/latest/download/Volumen-linux-amd64.deb">.deb</a> for Debian and Ubuntu. The installers are not yet signed: macOS asks once to allow Volumen in System Settings, Privacy &amp; Security; Windows shows a SmartScreen notice (More info, then Run anyway). <a href="https://github.com/dmatthan/volumen/releases">All releases</a></p>
+          <p class="aside">Linux: an AppImage, or a <a href="https://github.com/dmatthan/typeset.js/releases/latest/download/Volumen-linux-amd64.deb">.deb</a> for Debian and Ubuntu. The installers are not yet signed: macOS asks once to allow Volumen in System Settings, Privacy &amp; Security; Windows shows a SmartScreen notice (More info, then Run anyway). <a href="https://github.com/dmatthan/typeset.js/releases">All releases</a></p>
         </div>
       </div>
     </div>
@@ -184,7 +186,7 @@
     <span class="name">Volumen</span>
     <a href="/read">The library</a>
     <a href="/privacy">Privacy</a>
-    <a href="https://github.com/dmatthan/volumen">Source code</a>
+    <a href="https://github.com/dmatthan/typeset.js">Source code</a>
     <span>The sample book is Meditations by Marcus Aurelius, translated by George Long, from <a href="https://standardebooks.org/ebooks/marcus-aurelius/meditations/george-long">Standard Ebooks</a>.</span>
   </div>
 </footer>

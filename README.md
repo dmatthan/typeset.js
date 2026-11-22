@@ -1,8 +1,25 @@
-# Volumen
+# typeset.js
 
-A reader for EPUB, Word and Markdown. Books are typeset in columns that move sideways;
-highlights and notes can be sent back to the writer of a shared manuscript. It runs in the
-browser ([volumen.page](https://volumen.page)) and as a desktop app.
+[![npm](https://img.shields.io/npm/v/typeset.js)](https://www.npmjs.com/package/typeset.js)
+[![license](https://img.shields.io/npm/l/typeset.js)](LICENSE)
+
+A malleable e-reader for any web page: EPUB, Word (`.docx`) and Markdown files are typeset into a reflowable reader view, accessible from your domain. Set custom flags and embed it any way you want. Enable what features you need. Supports highlights, bookmarks, Ctrl-F find and beautiful themes out of the box.
+
+```sh
+npm install typeset.js && npx typeset.js public/typeset
+```
+
+```html
+<script type="module" src="/typeset/typeset.js"></script>
+<typeset-book src="/books/book.epub"></typeset-book>
+```
+
+The package's [README](packages/typeset.js) is the reference: the elements, their
+attributes, events and methods, and serving it from your own site.
+
+This repository is also [Volumen](https://volumen.page), the reading app built on it: a
+library in the browser and on the desktop, and manuscripts shared with readers whose
+highlights and notes go back to the writer.
 
 ## Layout
 
@@ -13,11 +30,11 @@ browser ([volumen.page](https://volumen.page)) and as a desktop app.
 | `crates/press` | Typesetting: shaping (HarfRust), paragraph breaking, hyphenation, columns |
 | `crates/engine` | One API over the above: layout cache, find, library search, note anchoring |
 | `crates/wasm` | The engine for the web (wasm-bindgen) |
-| `app` | The reader (Svelte); the engine runs in a worker. `app/site` is volumen.page |
-| `src-tauri` | The desktop app (Tauri): SQLite storage and full-text search, system fonts |
-| `service` | Sharing: a Cloudflare Worker with D1, holding ciphertext only |
+| `app` | The reader (Svelte), and Volumen around it; the engine runs in a worker. `app/site` is volumen.page |
+| `src-tauri` | Volumen's desktop app (Tauri): SQLite storage and full-text search, system fonts |
+| `service` | Volumen's sharing: a Cloudflare Worker with D1, holding ciphertext only |
 | `assets` | Fonts, hyphenation patterns, the sample book, icons |
-| `packages/typeset.js` | The npm package: the elements, their types, and `npx typeset.js`, which puts the reader in a site |
+| `packages/typeset.js` | The npm package: the elements (`src/typeset.js`), their types, and `npx typeset.js`, which puts the reader in a site |
 | `examples` | A chapter on a blog, a library from a list |
 | `scripts` | Build, deploy, and the checks every change passes |
 | `bench` | Measurements (speed, memory, fidelity) and the test books |
@@ -37,12 +54,24 @@ scripts/run.sh                        # desktop app
 npx --prefix app tauri build          # desktop installers (target/release/bundle)
 ```
 
-`TYPESET_PACKAGE=1` builds the package's reader (`packages/typeset.js/reader`). Releases (the desktop app for Linux, macOS
-and Windows, and typeset.js as a zip) are built by `.github/workflows/release.yml` when a `v*` tag is
-pushed.
+`TYPESET_PACKAGE=1` builds the package's reader (`packages/typeset.js/reader`).
 
 `TYPESET_WEB=1 npm --prefix app run build` builds the site as deployed: the reader at
 `/read`, the page at `/`. Without it the reader is at `/`, as the desktop app loads it.
+
+## Releases
+
+```sh
+git tag -a v0.2.0 -m … && git push origin v0.2.0   # the desktop app and typeset.js.zip
+git tag typeset.js-v0.2.0 && git push origin typeset.js-v0.2.0   # typeset.js, staged on npm
+npm stage list typeset.js && npm stage approve <id>   # … and made public, with a second factor
+```
+
+A `v*` tag builds the desktop app for Linux, macOS and Windows and the package as a zip
+(`.github/workflows/release.yml`). A `typeset.js-v*` tag, naming the version in
+`packages/typeset.js/package.json`, builds and tests the package and stages it on npm
+(`.github/workflows/npm.yml`, npm's trusted publisher: no token is kept); it is public once
+a maintainer approves it.
 
 ## Sharing service
 
@@ -61,22 +90,10 @@ A deployment's own values (a custom domain, the database's id, the Turnstile sit
 kept in `service/deploy.env`, never committed; `scripts/deploy.sh` explains them and writes
 the rest itself.
 
-## On other sites
+## Examples
 
-The reader alone, for any site, served from the site itself: the npm package
-[typeset.js](packages/typeset.js) (its README is the reference: the elements, their attributes,
-events and methods).
-
-```sh
-npm install typeset.js && npx typeset.js public/typeset
-```
-
-```html
-<script type="module" src="/typeset/typeset.js"></script>
-<typeset-book src="/books/book.epub"></typeset-book>
-```
-
-See `examples/` for a chapter on a blog and a library from a list.
+`examples/` has a chapter on a blog (with a button that opens the whole book) and a
+library from a list, as a site would serve them.
 
 ## Working on it
 
@@ -91,11 +108,12 @@ node scripts/map.mjs                      # every module, in its own words
 scripts/check.sh                          # everything: lint, crates, Playwright, the press
 npm --prefix app test                     # the browser tests (Chromium; the app, its
                                           # production build, the service, the package)
-npm --prefix app run test:engines         # the reader in Firefox and Safari's engine
+npm --prefix app run test:engines         # the reader in Firefox and Safari's engine (WebKit
+                                          # by hand before a release; CI runs Firefox)
 node scripts/sizes.mjs                    # what a page with typeset.js downloads, against a budget
 ```
 
-The same run on every push (`.github/workflows/ci.yml`). A bug fixed comes with a test that
+The same run on every push (`.github/workflows/ci.yml`), with Firefox after Chromium. A bug fixed comes with a test that
 failed before the fix.
 
 ## License

@@ -1,5 +1,5 @@
 # The desktop app for Linux, macOS and Windows, built on each and attached to a GitHub
-# release under fixed names, so https://github.com/dmatthan/volumen/releases/latest/download/<name>
+# release under fixed names, so https://github.com/dmatthan/typeset.js/releases/latest/download/<name>
 # always gives the newest. Runs for a tag v*, or by hand (a draft, for checking).
 name: Release
 

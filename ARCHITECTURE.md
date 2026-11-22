@@ -1,6 +1,8 @@
-# How Volumen is built
+# How it is built
 
-Three parts, each doing one thing, and the line between them is kept:
+typeset.js is the engine and the reader; Volumen (volumen.page, the desktop app, the
+sharing service) is built on it, in the same repository. Three parts, each doing one thing,
+and the line between them is kept:
 
 - **`crates/` (Rust)** reads books and sets their text.
   - `ingest`: EPUB, Word, Markdown and plain text, made into the model.
@@ -17,12 +19,14 @@ Three parts, each doing one thing, and the line between them is kept:
     service, the browser.
   - `reader/`: reading: laying a book out, putting it on the page, moving it, marking it.
   - `ui/`: the components: they show and ask; what they do lives in `reader/` and `core/`.
-  - Two shells around the reader: `App.svelte` (the library, books by link, sharing) and
-    `Embed.svelte` (one book on another site's page). The reader knows neither.
-- **Around them**: `src-tauri/` (the desktop app: the native engine, SQLite, the system's
-  fonts), `service/` (the sharing service: one Cloudflare Worker, sealed bytes only),
-  `app/typeset.js` (the elements other sites use), published with the reader as the
-  npm package `packages/typeset.js` (`npx typeset.js` puts the reader in a site's own folder).
+  - Two shells around the reader: `App.svelte` (Volumen: the library, books by link,
+    sharing) and `Embed.svelte` (typeset.js: one book on another site's page). The reader
+    knows neither.
+- **Around them**: `packages/typeset.js/` (the npm package: the elements other sites use,
+  in `src/typeset.js`, which put the reader in a frame on the page; their types; `npx
+  typeset.js`, which puts the reader in a site's own folder), `src-tauri/` (Volumen's
+  desktop app: the native engine, SQLite, the system's fonts), `service/` (Volumen's
+  sharing service: one Cloudflare Worker, sealed bytes only).
 
 ## A book's way to the screen
 
@@ -57,5 +61,7 @@ Every file opens by saying what it is. The list, in their own words:
 ## Keeping it so
 
 `scripts/lint.sh` refuses: an import against the layers, a file over 800 lines, copied
-code, unused code, a type error, a function more tangled than 30 branches
-(`scripts/complexity.mjs` lists the most), and a module that does not say what it is.
+code, unused code, a type error (the package's types among them, as a site uses them), a
+function more tangled than 30 branches (`scripts/complexity.mjs` lists the most), and a
+module that does not say what it is. A test of the package holds it to the reader alone:
+every file one the reader loads or a licence, none of the desktop's code.
