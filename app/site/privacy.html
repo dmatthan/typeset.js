@@ -4,50 +4,71 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy · Volumen</title>
-<meta name="description" content="What Volumen keeps, where, and what it cannot see.">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef0f2">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14161a">
+<meta name="description" content="The Volumen Privacy Policy.">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f7f2">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1a17">
 <link rel="icon" href="/app/icon-256.png">
 <link rel="stylesheet" href="/site.css">
 <script src="/site.js"></script>
 </head>
 <body>
 <header class="wrap top">
-  <a class="mark" href="/"><b>Volumen</b> <i lang="la-fonipa">[vo<span class="st">ˈ</span>lu.men]</i></a>
+  <div class="brand">
+    <a class="mark" href="/"><b>Volumen</b> <i lang="la-fonipa">[vo<span class="st">ˈ</span>lu.men]</i></a>
+    <span class="home">home of typeset.js</span>
+  </div>
   <nav aria-label="Site">
-    <a href="/#reading">Reading</a>
-    <a href="/#sharing">Sharing</a>
-    <a href="/#install">Installing</a>
+    <a href="/#embed">Embed</a>
+    <a href="https://www.npmjs.com/package/typeset.js">Docs</a>
+    <a href="https://github.com/dmatthan/typeset.js">GitHub</a>
     <a href="/privacy" aria-current="page">Privacy</a>
   </nav>
 </header>
 
 <main class="wrap prose">
-  <h1>Privacy</h1>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: 22 November 2026</p>
 
-  <h2>Your library</h2>
-  <p>Books, highlights, notes, marks, reading places and settings are kept in your browser's storage on your own device, or in the desktop app's own files. They are not sent anywhere unless you share a book or send your notes on one, and the library can be backed up to a single file that only you hold.</p>
+  <h2>1. Introduction</h2>
+  <p>This Privacy Policy describes how information is collected, used and retained in connection with the Volumen website at volumen.page, the Volumen application available from it, and the associated sharing service (together, the “Service”). By using the Service, you acknowledge the practices described in this Policy.</p>
 
-  <h2>Sharing a book</h2>
-  <p>A book is encrypted on the writer's device before it leaves it. The key is part of the link the writer sends and is never sent to the service: the part of an address after the # stays in the browser. The service keeps the encrypted file, its size, when it was shared and when it expires, and which writer shared it. It cannot read the book, and does not know its title.</p>
-  <p>A shared book is deleted, with every note sent on it, when the writer withdraws the link, or ninety days after it was shared unless the writer keeps it longer.</p>
+  <h2>2. Information Stored on Your Device</h2>
+  <p>Books, highlights, notes, bookmarks, reading positions and settings (“Library Data”) are stored locally in your browser’s storage on your device, or in the files of the desktop application. Library Data is not transmitted to the Service unless you share a book or send notes on a book, as described below. You may export Library Data to a backup file, which remains solely in your possession.</p>
 
-  <h2>Readers' notes</h2>
-  <p>Readers need no account. When a reader sends their notes, they are encrypted on their device with a key from the same link, and kept under an identifier made for that book alone, so one reader's notes on two books cannot be linked. The name a reader gives, their reactions, and how far they have read (unless they turn that off) travel inside the encrypted notes. Only the signed-in writer can fetch them from the service, which cannot open them.</p>
+  <h2>3. Information Collected When a Book Is Shared</h2>
+  <p>Before a book is shared, it is encrypted on the sharing writer’s device. The decryption key forms part of the link provided by the writer and is not transmitted to the Service. The Service stores the encrypted file, its size, the dates on which it was shared and on which it expires, and the identity of the writer who shared it. The Service is unable to access the contents or the title of a shared book.</p>
 
-  <h2>Writers</h2>
-  <p>Writers are invited. A writer's account holds the name they give and the public key of each passkey they sign in with; the passkey itself stays on their device. Signing in sets one cookie, which keeps them signed in for thirty days. Where the passkey allows it, the writer's list of shares is kept too, encrypted with a key that the passkey produces on the writer's devices and that is never sent, so that their other devices can open the same shares.</p>
+  <h2>4. Information Collected When Notes Are Sent</h2>
+  <p>No account is required to read a shared book. Notes sent by a reader are encrypted on the reader’s device using a key derived from the same link, and are stored under an identifier specific to that book, such that notes sent by one reader on different books cannot be associated with one another. The name provided by the reader, any reactions, and reading progress (unless the reader disables this) are contained within the encrypted notes. Encrypted notes are made available only to the signed-in writer who shared the book. The Service is unable to access their contents.</p>
 
-  <h2>The service</h2>
-  <p>Volumen is served by Cloudflare, which handles each visitor's network address to deliver the site and to limit abuse. Volumen counts requests per address for a minute at a time, and keeps no record of addresses or of what was asked for. Cloudflare Turnstile checks that a person is present when an invitation is accepted, when a writer signs in, and the first time a reader sends notes on a book.</p>
-  <p>There are no analytics, advertising or tracking cookies. The fonts are served from this site.</p>
+  <h2>5. Information Collected from Writers</h2>
+  <p>Writer accounts are available by invitation only. A writer account consists of the name provided by the writer and the public key of each passkey used to sign in; passkeys themselves remain on the writer’s devices. Where the writer’s passkey supports it, the Service also stores the writer’s list of shares, encrypted with a key generated by the passkey on the writer’s devices, which is not transmitted to the Service.</p>
+
+  <h2>6. Cookies</h2>
+  <p>The Service sets a single cookie, solely to keep a writer signed in, for a period of thirty days. The Service does not use analytics, advertising or tracking cookies.</p>
+
+  <h2>7. Service Providers</h2>
+  <p>The Service is hosted by Cloudflare, Inc. (“Cloudflare”), which processes the network address of each visitor for the purposes of delivering the Service and preventing abuse. Cloudflare Turnstile is used to verify that a person is present when an invitation is accepted, when a writer signs in, and on the first occasion that a reader sends notes on a book. The use of these services is subject to Cloudflare’s own privacy policy. Fonts are served from the Service itself and not from any third party.</p>
+
+  <h2>8. Use of Network Addresses</h2>
+  <p>The Service counts requests per network address over periods of one minute in order to limit abuse. The Service does not retain records of network addresses or of the requests made.</p>
+
+  <h2>9. Data Retention</h2>
+  <p>A shared book, together with all notes sent on it, is deleted when the writer withdraws the link, or ninety days after the date on which it was shared unless the writer extends this period. Library Data is retained on your device until you delete it.</p>
+
+  <h2>10. Changes to This Policy</h2>
+  <p>This Policy may be updated from time to time. The date at the top of this page indicates when it was last revised. Continued use of the Service following any update constitutes acknowledgement of the revised Policy.</p>
+
+  <h2>11. Contact</h2>
+  <p>Questions regarding this Policy may be raised through the project’s repository at <a href="https://github.com/dmatthan/typeset.js">github.com/dmatthan/typeset.js</a>.</p>
 </main>
 
 <footer class="foot">
   <div class="wrap">
     <span class="name">Volumen</span>
-    <a href="/read">The library</a>
-    <a href="/">Volumen.page</a>
+    <a href="/read">Library</a>
+    <a href="/privacy" aria-current="page">Privacy</a>
+    <a href="https://github.com/dmatthan/typeset.js">Source</a>
   </div>
 </footer>
 </body>

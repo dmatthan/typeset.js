@@ -79,10 +79,11 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show); else show();
 
-  // the book on this page opens on a page that begins with a paragraph, at its top ("Love
-  // the art, poor as it may be…", Book IV): in its box (375 by 650, in Book) that page
-  // holds from 0.2112 to 0.2136 of the book, so the middle of it (a test holds it there)
-  addEventListener('typeset-ready', e => { if (e.target.closest?.('.demo')) e.target.goTo({ at: 0.2124 }); }, { once: true });
+  // the book on this page opens at its Imprint (Standard Ebooks' page, with its picture):
+  // the book's second page, from 0.0016 to 0.0042 of it in its box (493 by 650), so the
+  // middle of that, which is the second page in a book of 290 to 570 pages, whatever the
+  // box a phone gives it (a test holds it there)
+  addEventListener('typeset-ready', e => { if (e.target.closest?.('.demo')) e.target.goTo({ at: 0.0029 }); }, { once: true });
 
   // a snippet's parts (tags, attributes, values, commands) in their colours; the text is
   // the same, so what is copied is too
