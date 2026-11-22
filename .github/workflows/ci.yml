@@ -1,7 +1,7 @@
 # Every push and pull request: the gates a commit passes locally (scripts/lint.sh), the
 # crates' tests, the browser tests (the app, its production build, the sharing service and
-# the kit on an ordinary site; then the reader in Firefox and in Safari's engine), and what a
-# page embedding the kit downloads.
+# the package on an ordinary site; then the reader in Firefox and in Safari's engine), and what a
+# page with typeset.js downloads.
 name: CI
 
 on:
@@ -33,7 +33,7 @@ jobs:
       - run: npm --prefix app ci && npm --prefix service ci
       - run: scripts/lint.sh
       - run: cargo test --workspace
-      - run: (cd app && VOLUMEN_KIT=1 npx vite build --logLevel warn) && node scripts/sizes.mjs
+      - run: (cd app && TYPESET_PACKAGE=1 npx vite build --logLevel warn) && node scripts/sizes.mjs
       - run: npx --prefix app playwright install --with-deps chromium firefox webkit
       - run: npm --prefix app test
       - run: npm --prefix app run test:engines

@@ -3,10 +3,10 @@
 //   node bench/wasm-import.mjs [rounds] file...
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-const wasmBytes = readFileSync(new URL('../app/src/core/pkg/vol_wasm_bg.wasm', import.meta.url));
+const wasmBytes = readFileSync(new URL('../app/src/core/pkg/typeset_wasm_bg.wasm', import.meta.url));
 let k = 0;
 async function fresh() {
-  const m = await import(`../app/src/core/pkg/vol_wasm.js?i=${k++}`);
+  const m = await import(`../app/src/core/pkg/typeset_wasm.js?i=${k++}`);
   const out = m.initSync({ module: wasmBytes });
   m.catchPanics();
   return { m, eng: new m.Engine(), mem: () => out.memory.buffer.byteLength };

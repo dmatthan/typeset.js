@@ -4,7 +4,7 @@
 // rather than charging for it.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "volumen",
+  "name": "typeset",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   // workers.dev here; a domain of your own, the database's id and the Turnstile key are a
@@ -19,7 +19,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "volumen",
+      "database_name": "typeset",
       // filled in by scripts/deploy.sh when it makes the database
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"

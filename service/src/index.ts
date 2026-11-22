@@ -47,7 +47,7 @@ export default {
     } catch (e) {
       if (e instanceof Fail) return json({ error: e.why }, e.status);
       // (nothing about the request or its contents is logged)
-      console.error('volumen: failed', path.replace(/[\w-]{20,}/g, '…'), (e as Error)?.name);
+      console.error('service: failed', path.replace(/[\w-]{20,}/g, '…'), (e as Error)?.name);
       return json({ error: 'The service failed: try again in a moment.' }, 500);
     }
   },

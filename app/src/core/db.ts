@@ -7,7 +7,7 @@ let dbp: Promise<IDBDatabase> | null = null;
 function db(): Promise<IDBDatabase> {
   return (dbp ??= new Promise((res, rej) => {
     // (4: each book's file kept, `sources`, to be read again by a later importer)
-    const q = indexedDB.open('volumen', 4);
+    const q = indexedDB.open('typeset', 4);
     q.onupgradeneeded = () => {
       const d = q.result;
       for (const s of ['books', 'meta', 'covers', 'images', 'sources']) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s);

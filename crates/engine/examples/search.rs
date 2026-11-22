@@ -1,15 +1,15 @@
-//! Library search on corpus books, timed: cargo run --release -p vol-engine --example search -- "query" a.epub b.epub …
+//! Library search on corpus books, timed: cargo run --release -p typeset-engine --example search -- "query" a.epub b.epub …
 use std::time::Instant;
-use vol_engine::search::{fts_rows, in_book};
+use typeset_engine::search::{fts_rows, in_book};
 
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let query = &a[1];
     for path in &a[2..] {
-        let book = vol_ingest::any(&std::fs::read(path).unwrap(), path).unwrap();
+        let book = typeset_ingest::any(&std::fs::read(path).unwrap(), path).unwrap();
         let saved = book.save().unwrap();
         let t = Instant::now();
-        let back = vol_engine::Book::restore(&saved).unwrap();
+        let back = typeset_engine::Book::restore(&saved).unwrap();
         let restore = t.elapsed();
         let t = Instant::now();
         let rows = fts_rows(&back).count();

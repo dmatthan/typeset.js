@@ -1,0 +1,17 @@
+{
+  "name": "typeset.js",
+  "version": "0.2.0",
+  "description": "Books on any web page: EPUB, Word and Markdown, typeset and read in place, served from your own site.",
+  "license": "MIT",
+  "type": "module",
+  "repository": { "type": "git", "url": "git+https://github.com/dmatthan/volumen.git", "directory": "packages/typeset.js" },
+  "homepage": "https://volumen.page",
+  "keywords": ["epub", "reader", "ebook", "web-components", "typesetting", "docx", "markdown"],
+  "exports": { ".": { "types": "./index.d.ts", "default": "./index.js" } },
+  "types": "./index.d.ts",
+  "bin": { "typeset.js": "bin/typeset.mjs" },
+  "files": ["index.js", "index.d.ts", "bin", "reader", "LICENSE"],
+  "sideEffects": true,
+  "engines": { "node": ">=18" },
+  "scripts": { "prepack": "cp ../../LICENSE . && test -f reader/embed.html" }
+}

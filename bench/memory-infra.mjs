@@ -42,7 +42,7 @@ await p.goto(URL0); await p.evaluate(() => localStorage.clear()); await p.goto(U
 await p.locator('.book[data-id]').first().waitFor();
 await dump('library');
 await p.locator('.book[data-id]').first().click();
-await p.waitForFunction(() => { const r = window.__vol?.reader; return r ? r.reading && r.strip && r.strip.layouts.size === r.book.sections.length : !!document.querySelector('.col .ln'); }); await p.waitForTimeout(1500);
+await p.waitForFunction(() => { const r = window.__typeset?.reader; return r ? r.reading && r.strip && r.strip.layouts.size === r.book.sections.length : !!document.querySelector('.col .ln'); }); await p.waitForTimeout(1500);
 for (let i = 0; i < 60; i++) { await p.keyboard.press('ArrowRight'); await p.waitForTimeout(60); }
 await dump('reading, 60 columns on');
 await p.keyboard.press('m'); await p.waitForTimeout(1500);

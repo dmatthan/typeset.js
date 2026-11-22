@@ -2,7 +2,7 @@
  * note), with what the app needs to put them back on the book kept in HTML comments,
  * which Markdown does not show:
  *
- *   <!-- volumen-notes/1 {"book":{…},"from":{…},"sent":…} -->
+ *   <!-- typeset-notes/1 {"book":{…},"from":{…},"sent":…} -->
  *   # The Man Who Was Thursday
  *
  *   G. K. Chesterton
@@ -21,7 +21,7 @@
 import type { FileNote, NotesFile } from './feedback';
 
 
-const BOOK = /^<!-- (volumen-notes\/\d+) (\{.*\}) -->\s*$/;
+const BOOK = /^<!-- (typeset-notes\/\d+) (\{.*\}) -->\s*$/;
 const AT = /^<!-- at (\{.*\}) -->\s*$/;
 
 /** One note as it is shown: under its chapter, its words as the book has them. */
@@ -58,7 +58,7 @@ export function notesMarkdown(books: MdBook[]): string {
 
 /** Whether a text is notes written as Markdown (rather than a manuscript). */
 export function isNotesMarkdown(text: string) {
-  return /^<!-- volumen-notes\/\d+ \{/m.test(text.slice(0, 4000));
+  return /^<!-- typeset-notes\/\d+ \{/m.test(text.slice(0, 4000));
 }
 
 /** Notes written as Markdown, one notes file per book in it (not yet checked: feedback.ts). */

@@ -3,7 +3,7 @@
 
 use crate::heads;
 use crate::{Error, finish_book};
-use vol_model::{Block, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, style};
+use typeset_model::{Block, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, style};
 
 /// A text file's characters: UTF-8 (with or without its mark), UTF-16 with its mark, or
 /// else Windows-1252 (old text files, Latin-1 among them). Nothing if it is not text: NUL
@@ -138,7 +138,7 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
     }
     for s in &mut sections {
         if let Some(b) = s.blocks.iter_mut().find(|b| b.kind == Kind::P) {
-            vol_model::apply_lead_in(b);
+            typeset_model::apply_lead_in(b);
         }
     }
     Ok(finish_book(bytes, meta, sections))

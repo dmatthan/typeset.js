@@ -3,9 +3,9 @@ import { chromium } from '../app/node_modules/playwright/index.mjs';
 import path from 'node:path';
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1280, height: 820 } });
 await p.goto('http://localhost:5193/'); await p.waitForSelector('.book[data-id]');
-await p.click('.book[data-id]'); await p.waitForFunction(() => window.__vol?.reader?.reading); await p.waitForTimeout(300);
+await p.click('.book[data-id]'); await p.waitForFunction(() => window.__typeset?.reader?.reading); await p.waitForTimeout(300);
 const res = await p.evaluate(async () => {
-  const r = window.__vol.reader; const out = [];
+  const r = window.__typeset.reader; const out = [];
   const probe = document.createElement('span');
   for (let k = 3; k < 30; k++) {
     if (!r.roll.linesAt(k)) continue;

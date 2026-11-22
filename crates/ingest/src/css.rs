@@ -318,9 +318,9 @@ pub(crate) fn hidden(e: &ElementRef) -> bool {
     of(e).hidden == Some(true)
 }
 
-/// A style (vol_model::style) as an element's own declarations change it.
+/// A style (typeset_model::style) as an element's own declarations change it.
 pub(crate) fn apply(st: u8, p: Props) -> u8 {
-    use vol_model::style::*;
+    use typeset_model::style::*;
     let mut st = st;
     let mut set = |on: Option<bool>, bit: u8| match on {
         Some(true) => st |= bit,

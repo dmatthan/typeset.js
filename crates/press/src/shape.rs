@@ -9,7 +9,7 @@ use read_fonts::TableProvider;
 use rustc_hash::FxHashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use vol_model::style;
+use typeset_model::style;
 
 /// One font file of a family.
 #[derive(Clone)]

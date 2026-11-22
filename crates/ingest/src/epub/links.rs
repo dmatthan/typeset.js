@@ -7,8 +7,8 @@ use super::*;
 /// reference (Gutenberg's "return"). A note's text runs from its target to the block that
 /// links back (at most a few blocks on). Everything else that lands in the book is a
 /// cross-reference; links to the web are kept as such.
-pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec<vol_model::Note> {
-    use vol_model::{Link, Note, Target};
+pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec<typeset_model::Note> {
+    use typeset_model::{Link, Note, Target};
     // where every block is, in reading order
     let mut order: Vec<(usize, usize)> = Vec::new();
     let mut pos: HashMap<u64, usize> = HashMap::new();
@@ -45,7 +45,7 @@ pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec
         for (s, e, p) in raw {
             let parts: Vec<&str> = p.splitn(3, '|').collect();
             if parts[0] == "u" {
-                if vol_model::outward(parts[1]) {
+                if typeset_model::outward(parts[1]) {
                     links.push(Link { start: *s, end: *e, to: Target::Url(parts[1].to_string()) });
                 }
                 continue;
@@ -92,7 +92,7 @@ pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec
         for (s, e) in sup {
             // a note marker is set as a superscript unless it is already raised
             if !b.spans().any(|(a, z, st)| a < e as usize && z > s as usize && st & (style::SUP | style::SUB) != 0) {
-                vol_model::add_style(b, s, e, style::SUP);
+                typeset_model::add_style(b, s, e, style::SUP);
             }
         }
         b.links = links;
@@ -102,7 +102,7 @@ pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec
 
 /// A note's text from the blocks it is printed in: their text joined by line breaks, with
 /// the link back to the reference and the printed label at its head left out.
-pub(super) fn note_text(sections: &[Section], blocks: &[(usize, usize)], label: &str) -> vol_model::Note {
+pub(super) fn note_text(sections: &[Section], blocks: &[(usize, usize)], label: &str) -> typeset_model::Note {
     let mut b = TextBuilder::new();
     for (n, &(si, bi)) in blocks.iter().enumerate() {
         let blk = &sections[si].blocks[bi];
@@ -147,7 +147,7 @@ pub(super) fn note_text(sections: &[Section], blocks: &[(usize, usize)], label: 
             .into_iter()
             .filter_map(|r| {
                 let (s, e) = (r.start.saturating_sub(cut as u32), r.end.saturating_sub(cut as u32).min(text.len() as u32));
-                (e > s).then_some(vol_model::Run { start: s, end: e, style: r.style })
+                (e > s).then_some(typeset_model::Run { start: s, end: e, style: r.style })
             })
             .collect();
     } else {
@@ -156,5 +156,5 @@ pub(super) fn note_text(sections: &[Section], blocks: &[(usize, usize)], label: 
             r.start < r.end
         });
     }
-    vol_model::Note { label: label.trim().to_string(), text, runs, at: None }
+    typeset_model::Note { label: label.trim().to_string(), text, runs, at: None }
 }

@@ -1,16 +1,16 @@
 //! What a book's notes, links and images came out as:
-//!   cargo run -p vol-ingest --example content -- book.epub [notes to show]
+//!   cargo run -p typeset-ingest --example content -- book.epub [notes to show]
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let bytes = std::fs::read(&a[1]).unwrap();
     let t = std::time::Instant::now();
-    let book = vol_ingest::any(&bytes, &a[1]).unwrap();
+    let book = typeset_ingest::any(&bytes, &a[1]).unwrap();
     let show: usize = a.get(2).and_then(|s| s.parse().ok()).unwrap_or(3);
     let mut n_links = [0usize; 3];
     for s in &book.sections {
         for b in &s.blocks {
             for l in &b.links {
-                n_links[match l.to { vol_model::Target::Note(_) => 0, vol_model::Target::Block(_) => 1, vol_model::Target::Url(_) => 2 }] += 1;
+                n_links[match l.to { typeset_model::Target::Note(_) => 0, typeset_model::Target::Block(_) => 1, typeset_model::Target::Url(_) => 2 }] += 1;
             }
         }
     }
@@ -23,7 +23,7 @@ fn main() {
     // a reference in context
     'outer: for s in &book.sections {
         for b in &s.blocks {
-            if let Some(l) = b.links.iter().find(|l| matches!(l.to, vol_model::Target::Note(_))) {
+            if let Some(l) = b.links.iter().find(|l| matches!(l.to, typeset_model::Target::Note(_))) {
                 let a = b.text[..l.start as usize].char_indices().rev().nth(50).map(|x| x.0).unwrap_or(0);
                 println!("  ref in text: …{}[{}]…", &b.text[a..l.start as usize], &b.text[l.start as usize..l.end as usize]);
                 break 'outer;

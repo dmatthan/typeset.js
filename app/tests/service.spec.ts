@@ -81,7 +81,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await w.getByRole('button', { name: /Make my passkey/ }).click();
   await expect(w.locator('.toast')).toContainText('Welcome, Dana Writer', { timeout: 30000 });
   // the same invitation, again: used
-  const used = await w.request.post('/api/auth/register/begin', { headers: { 'x-volumen': '1' }, data: { invite: inviteLink.split('#invite=')[1], turnstile: 'XXXX.DUMMY.TOKEN.XXXX' } });
+  const used = await w.request.post('/api/auth/register/begin', { headers: { 'x-typeset': '1' }, data: { invite: inviteLink.split('#invite=')[1], turnstile: 'XXXX.DUMMY.TOKEN.XXXX' } });
   expect(used.status()).toBe(403);
 
   // a book of theirs, shared
@@ -99,7 +99,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   const held = await w.request.get(`/api/books/${id}`);
   expect(held.ok()).toBe(true);
   const sealed = Buffer.from(await held.body());
-  expect(sealed.subarray(0, 5).toString()).toBe('VOLS2');
+  expect(sealed.subarray(0, 4).toString()).toBe('TSB1');
   expect(sealed.includes(Buffer.from('Wide tables'))).toBe(false);
   await closeSheet(w);
 
@@ -149,7 +149,7 @@ test('a writer invited shares a book through the service; a reader reads it and 
   expect(puts.length).toBe(1);
 
   // the reader's token is the link's: without it, nothing is taken
-  const forged = await r.request.put(`/api/books/${id}/notes/${'0'.repeat(32)}`, { headers: { 'x-volumen': '1', authorization: `Post ${'A'.repeat(43)}`, 'x-turnstile': 'XXXX.DUMMY.TOKEN.XXXX', 'content-type': 'application/octet-stream' }, data: Buffer.from('VOLN1' + 'x'.repeat(64)) });
+  const forged = await r.request.put(`/api/books/${id}/notes/${'0'.repeat(32)}`, { headers: { 'x-typeset': '1', authorization: `Post ${'A'.repeat(43)}`, 'x-turnstile': 'XXXX.DUMMY.TOKEN.XXXX', 'content-type': 'application/octet-stream' }, data: Buffer.from('TSN1' + 'x'.repeat(64)) });
   expect(forged.status()).toBe(403);
   // the writer's routes are the writer's
   expect((await r.request.get('/api/inbox')).status()).toBe(401);
@@ -165,12 +165,12 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await expect(book).toContainText('notes from 1 reader');
 
   // only sealed books are kept, and not too large ones
-  const plain = await w.request.post('/api/shares', { headers: { 'x-volumen': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' }, data: readFileSync('../bench/fixtures/tables.epub') });
+  const plain = await w.request.post('/api/shares', { headers: { 'x-typeset': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' }, data: readFileSync('../bench/fixtures/tables.epub') });
   expect(plain.status()).toBe(400);
-  const huge = await w.request.post('/api/shares', { headers: { 'x-volumen': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' }, data: Buffer.concat([Buffer.from('VOLS2'), Buffer.alloc(17 * 1048576)]) });
+  const huge = await w.request.post('/api/shares', { headers: { 'x-typeset': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' }, data: Buffer.concat([Buffer.from('TSB1'), Buffer.alloc(17 * 1048576)]) });
   expect(huge.status()).toBe(413);
   // nor from another site
-  const csrf = await w.request.post('/api/shares', { headers: { 'x-volumen': '1', origin: 'https://evil.example', 'x-post': 'a'.repeat(64) }, data: Buffer.from('VOLS2xx') });
+  const csrf = await w.request.post('/api/shares', { headers: { 'x-typeset': '1', origin: 'https://evil.example', 'x-post': 'a'.repeat(64) }, data: Buffer.from('TSB1xx') });
   expect(csrf.status()).toBe(403);
 
   // signing out, and in again with the passkey
@@ -217,7 +217,7 @@ test('a writer’s shares follow their passkey to another device (its PRF secret
   await expect.poll(() => sent.filter(r => r.startsWith('PUT /api/vault')).length).toBe(1);
   // another device: the same (synced) passkey, nothing else
   await ctx.clearCookies();
-  await w.evaluate(async () => { localStorage.clear(); await new Promise(r => { const q = indexedDB.deleteDatabase('volumen'); q.onsuccess = q.onerror = q.onblocked = r; }); });
+  await w.evaluate(async () => { localStorage.clear(); await new Promise(r => { const q = indexedDB.deleteDatabase('typeset'); q.onsuccess = q.onerror = q.onblocked = r; }); });
   await w.goto('/read');
   await expect(w.locator('.book[data-id]')).toHaveCount(1);
   await w.locator('.book[data-id]').first().click({ button: 'right' });

@@ -10,7 +10,7 @@ use crate::{Error, finish_book};
 use scraper::{ElementRef, Html, Node};
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
-use vol_model::{Block, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style};
+use typeset_model::{Block, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style};
 
 mod images;
 mod links;
@@ -320,7 +320,7 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     });
     let cover = cover_item
         .filter(|m| m.media.starts_with("image/") && !m.media.contains("svg"))
-        .and_then(|m| z.bytes(&m.href).map(|b| vol_model::Cover { mime: m.media.clone(), bytes: b }))
+        .and_then(|m| z.bytes(&m.href).map(|b| typeset_model::Cover { mime: m.media.clone(), bytes: b }))
         .filter(|c| c.bytes.len() < 8_000_000);
     let mut book = finish_book(bytes, meta, sections);
     book.cover = cover;

@@ -4,7 +4,7 @@
 //! would set it.
 
 use crate::{Error, finish_book, heads};
-use vol_model::{Block, Kind, Link, Meta, Note, Section, SectionKind, Target, TextBuilder, fnv64};
+use typeset_model::{Block, Kind, Link, Meta, Note, Section, SectionKind, Target, TextBuilder, fnv64};
 
 pub(crate) enum Para {
     /// A heading of this level (1 the highest; a document title is 0).
@@ -142,7 +142,7 @@ pub(crate) fn assemble(source: &[u8], name: &str, mut doc: Doc) -> Result<crate:
     // a manuscript with no headings: parts of about 2,600 words, as plain text
     if sections.len() == 1 && chap.is_none() {
         let all: Vec<Block> = sections.drain(..).flat_map(|s| s.blocks).collect();
-        let long = all.iter().map(|b| vol_model::words(&b.text)).sum::<usize>() > 5000;
+        let long = all.iter().map(|b| typeset_model::words(&b.text)).sum::<usize>() > 5000;
         sections = crate::parts(all, long);
     }
     if sections.is_empty() {
@@ -151,7 +151,7 @@ pub(crate) fn assemble(source: &[u8], name: &str, mut doc: Doc) -> Result<crate:
     for s in &mut sections {
         if s.kind == SectionKind::Chapter
             && let Some(b) = s.blocks.iter_mut().find(|b| b.kind == Kind::P) {
-                vol_model::apply_lead_in(b);
+                typeset_model::apply_lead_in(b);
             }
     }
     let notes = doc

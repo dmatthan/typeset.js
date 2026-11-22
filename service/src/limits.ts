@@ -60,7 +60,7 @@ export async function stored(db: D1Database): Promise<number> {
  *  the browser says, the same origin. */
 export function sameSite(req: Request) {
   if (req.method === 'GET' || req.method === 'HEAD') return;
-  if (req.headers.get('x-volumen') !== '1') throw new Fail(403, 'Requests come from the app.');
+  if (req.headers.get('x-typeset') !== '1') throw new Fail(403, 'Requests come from the app.');
   const origin = req.headers.get('origin');
   if (origin && origin !== new URL(req.url).origin) throw new Fail(403, 'Requests come from the app.');
   const site = req.headers.get('sec-fetch-site');

@@ -4,7 +4,7 @@
 //! "naïve", "dont" does not find "don't" but "don't" finds "don’t", and so on.
 
 use unicode_normalization::char::decompose_compatible;
-use vol_model::Book;
+use typeset_model::Book;
 
 struct FoldedBlock {
     sec: u32,
@@ -175,8 +175,8 @@ mod tests {
     #[test]
     fn finds_at_word_starts_and_maps_back() {
         let text = "In Spain the pain was naïve; “Pain,” he said.".to_string();
-        let block = vol_model::Block::new(1, vol_model::Kind::P, text, vec![]);
-        let sec = vol_model::Section { kind: vol_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![block] };
+        let block = typeset_model::Block::new(1, typeset_model::Kind::P, text, vec![]);
+        let sec = typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![block] };
         let book = Book { id: "t".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], cover: None };
         let ix = Index::build(&book);
         let f = ix.find("pain", 10);

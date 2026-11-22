@@ -380,7 +380,7 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
     let rels = if rels.contains(REL_COMMENTS) {
         rels
     } else {
-        rels.replacen("</Relationships>", &format!("<Relationship Id=\"rIdVolumenComments\" Type=\"{REL_COMMENTS}\" Target=\"comments.xml\"/></Relationships>"), 1)
+        rels.replacen("</Relationships>", &format!("<Relationship Id=\"rIdTypesetComments\" Type=\"{REL_COMMENTS}\" Target=\"comments.xml\"/></Relationships>"), 1)
     };
     let types = if types.contains("/word/comments.xml") {
         types

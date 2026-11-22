@@ -18,8 +18,8 @@ await p.goto('http://localhost:5193/'); await p.evaluate(() => localStorage.clea
 await p.locator('.book[data-id]').first().waitFor();
 await audit('library');
 await p.locator('.book[data-id]').first().click();
-await p.waitForFunction(() => window.__vol.reader.reading);
-await p.evaluate(() => window.__vol.reader.jump(12)); await p.mouse.move(600, 10);
+await p.waitForFunction(() => window.__typeset.reader.reading);
+await p.evaluate(() => window.__typeset.reader.jump(12)); await p.mouse.move(600, 10);
 await audit('reader');
 await p.keyboard.press('s'); await audit('settings'); await p.keyboard.press('Escape');
 await p.keyboard.press('m'); await p.waitForTimeout(400); await audit('contents');

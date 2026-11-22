@@ -1,18 +1,18 @@
 /** Volumen inside another site's page: `<folder>/embed.html#src=<address of a book>&…`
- *  (volumen.page/embed, or the kit's own), in a frame that kit/volumen.js makes. One book,
+ *  (volumen.page/embed, or the package's own), in a frame that typeset.js makes. One book,
  *  read in place: no library, no sharing, nothing added to the host page's history. The
  *  book comes from its own site, which must let other sites read it (CORS:
  *  `Access-Control-Allow-Origin`), and is imported again only when it changes. What the
  *  reader keeps (place, highlights) is in this frame's storage, which browsers keep apart
  *  for each site that embeds it, and only when the page asks (`remember`).
  *
- *  The page and the frame talk in messages `{ volumen: 1, type, … }` (PROTOCOL), each
+ *  The page and the frame talk in messages `{ typeset: 1, type, … }` (PROTOCOL), each
  *  side to the other's origin only:
  *    frame → page   ready { title, chapters }   progress { at: 0…1 }   end   error { message }
  *                   back (the reader's Back, where the page asked for one with no address)
  *                   full { on } (full screen where the browser has none for a frame, as on
  *                   an iPhone: the page fills its window with the book, and gives it back)
- *    page → frame   goto { chapter } | goto { at }   theme { theme: id or volumen-theme/1 }
+ *    page → frame   goto { chapter } | goto { at }   theme { theme: id or typeset-theme/1 }
  *  The page names its origin in the address (`host`); without it the frame says nothing
  *  and takes no commands. */
 import type { Core } from './types';
@@ -41,9 +41,9 @@ export interface Features {
 }
 const FEATURES = ['contents', 'settings', 'find', 'highlights', 'links'] as const satisfies readonly (keyof Features)[];
 
-/** What the page asked for (kit/volumen.js writes these into the address's fragment):
+/** What the page asked for (typeset.js writes these into the address's fragment):
  *  the book (an absolute http(s) address), only some chapters, a theme, the paper (a colour,
- *  the page's own as the kit measured it), a way back (an address, or `history`: the page
+ *  the page's own as typeset.js measured it), a way back (an address, or `history`: the page
  *  goes back its own way), a way on at the end, whether to remember the reader's place in
  *  this browser, how much interface, what is turned off, and the page's own origin. */
 export interface EmbedOptions {
@@ -92,12 +92,12 @@ export const features = embedOpts.features;
 /** Tells the page around the frame (only it: its origin, as it named it). */
 export function tellPage(type: 'ready' | 'progress' | 'end' | 'error' | 'back' | 'full', detail: Record<string, unknown> = {}) {
   if (!embedded || window.parent === window || !embedOpts.host) return;
-  window.parent.postMessage({ volumen: PROTOCOL, type, ...detail }, embedOpts.host);
+  window.parent.postMessage({ typeset: PROTOCOL, type, ...detail }, embedOpts.host);
 }
 
 /** How a book on another site's page goes full screen, with the whole interface: the
  *  browser's own where it allows it; else (an iPhone has none for a frame) the page fills
- *  its window with the book when told (`full`), where the page is one that hears (the kit:
+ *  its window with the book when told (`full`), where the page is one that hears (typeset.js:
  *  it named its origin); else not at all. */
 export function fullscreenBy(): 'browser' | 'page' | null {
   if (!embedded || embedOpts.ui !== 'full') return null;
@@ -128,7 +128,7 @@ export function onCommand(run: (c: Command) => void) {
   addEventListener('message', e => {
     if (e.source !== window.parent || e.origin !== embedOpts.host) return;
     const d = e.data;
-    if (!d || typeof d !== 'object' || d.volumen !== PROTOCOL) return;
+    if (!d || typeof d !== 'object' || d.typeset !== PROTOCOL) return;
     if (d.type === 'goto' && (Number.isInteger(d.chapter) || (typeof d.at === 'number' && d.at >= 0 && d.at <= 1))) run({ type: 'goto', chapter: d.chapter, at: d.at });
     else if (d.type === 'theme') run({ type: 'theme', theme: d.theme });
   });

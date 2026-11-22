@@ -16,11 +16,11 @@ await p.setInputFiles('input[type=file]', file);
 await p.waitForFunction(n => document.querySelectorAll('.book[data-id]').length >= n, 2, { timeout: 60000 });
 await p.click('.book[data-id]:not(:last-of-type)');
 const id = await p.evaluate(() => document.querySelector('.book[data-id]').dataset.id);
-await p.waitForFunction(() => window.__vol?.reader?.reading); await p.waitForTimeout(300);
-await p.waitForFunction(() => { const r = window.__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; }, null, { timeout: 120000 });
+await p.waitForFunction(() => window.__typeset?.reader?.reading); await p.waitForTimeout(300);
+await p.waitForFunction(() => { const r = window.__typeset.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; }, null, { timeout: 120000 });
 for (const theme of themes) {
 const res = await p.evaluate(async theme => {
-  const v = window.__vol, r = v.reader;
+  const v = window.__typeset, r = v.reader;
   v.settings.theme = theme;
   await r.settingsChanged('layout');
   while (r.strip.layouts.size !== r.book.sections.length) await new Promise(f => setTimeout(f, 30));
@@ -52,5 +52,5 @@ const res = await p.evaluate(async theme => {
 }, theme);
 console.log(JSON.stringify(res));
 }
-await p.evaluate(id => window.__vol.reader.core.remove(id), id);
+await p.evaluate(id => window.__typeset.reader.core.remove(id), id);
 await b.close();

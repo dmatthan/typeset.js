@@ -11,12 +11,12 @@ step() { printf '\n== %s\n' "$*"; }
 step "cargo test";              cargo test -q
 step "wasm";                    scripts/build-wasm.sh >/dev/null
 step "lint (scripts/lint.sh)";   scripts/lint.sh
-# (the projects CI runs: the dev build, the production build, the service, the kit)
+# (the projects CI runs: the dev build, the production build, the service, the package)
 step "playwright";              (cd app && npm test -- --reporter=line)
 # the press's numbers on a long novel where there is one (the maintainer's corpus/), else
 # on the fixture
 book=corpus/middlemarch.epub; [[ -f "$book" ]] || book=bench/fixtures/thursday.epub
-step "press: $(basename "$book")"; cargo run -q --release -p vol-press --example setbook -- "$book" 20 610 23 | tail -2
+step "press: $(basename "$book")"; cargo run -q --release -p typeset-press --example setbook -- "$book" 20 610 23 | tail -2
 if [[ " $* " == *" --slow "* ]]; then
   step "playwright, the CPU slowed 4×";   (cd app && npm run -s test:slow -- --reporter=line)
 fi
@@ -24,6 +24,6 @@ if [[ " $* " == *" --app "* ]]; then
   step "desktop self-test (WebKitGTK)"
   cargo build -q -p volumen
   (cd app && npx vite --port 5193 >/dev/null 2>&1 &) ; sleep 2
-  VOLUMEN_SELFTEST=1 timeout 300 ./target/debug/volumen | grep SELFTEST
+  TYPESET_SELFTEST=1 timeout 300 ./target/debug/volumen | grep SELFTEST
 fi
 step "all gates passed"

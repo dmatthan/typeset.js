@@ -2,14 +2,14 @@
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let font = |n: &str| std::fs::read(format!("{}/../../assets/fonts/{n}", env!("CARGO_MANIFEST_DIR"))).unwrap();
-    let mut e = vol_engine::Engine::new();
+    let mut e = typeset_engine::Engine::new();
     e.add_font("Literata", font("Literata.ttf")).unwrap();
     e.add_font("Literata", font("Literata-Italic.ttf")).unwrap();
     e.add_patterns_from(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/hyph")));
     let t = std::time::Instant::now();
     let id = e.import(&std::fs::read(&a[1]).unwrap(), &a[1]).unwrap();
     let t_imp = t.elapsed();
-    let p = vol_engine::Request::plain(19.0, 580.0, 24);
+    let p = typeset_engine::Request::plain(19.0, 580.0, 24);
     let t = std::time::Instant::now();
     let one = e.layout(&id, &[3], &p).unwrap();
     let t_one = t.elapsed();

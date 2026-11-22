@@ -155,7 +155,7 @@ export async function layout(p: Page | Frame, roots: string[], touch: boolean, c
  *  there is one: the app's own pages), and, two frames on (an animation about to start has
  *  started: a sheet's fade, from nothing), every finite animation and transition finished. */
 export async function still(p: Page | Frame) {
-  await p.waitForFunction(() => !(window as any).__vol?.reader?.motion?.moving);
+  await p.waitForFunction(() => !(window as any).__typeset?.reader?.motion?.moving);
   await p.evaluate(async () => {
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     await Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})));

@@ -34,14 +34,14 @@
   shell.watchClose();
   // tests drive the reader directly in development builds
   if (import.meta.env.DEV) {
-    (window as any).__vol = { reader, contents, ui, kv, settings, themes, setOption, resetOptions, themeById, fitStats, resetFitStats, residual };
+    (window as any).__typeset = { reader, contents, ui, kv, settings, themes, setOption, resetOptions, themeById, fitStats, resetFitStats, residual };
     if (isTauri) (async () => {
       const { invoke } = await import('@tauri-apps/api/core');
       if (!(await invoke<boolean>('selftest_mode'))) return;
       const t = await import('../selftest');
       const arg = await invoke<string>('selftest_arg');
       const log = (s: string) => invoke<void>('dev_log', { msg: s });
-      // VOLUMEN_SELFTEST=<name>: one of these; anything else, the full test
+      // TYPESET_SELFTEST=<name>: one of these; anything else, the full test
       const probes: Record<string, () => Promise<unknown>> = {
         wheel: () => t.wheelProbe(reader, log), sheet: () => t.sheetProbe(reader, log), content: () => t.contentProbe(reader, log),
         library: () => t.libraryProbe(reader, log), search: () => t.searchProbe(reader, log), probe: () => t.probeStrings(reader, log), scale: () => t.scaleProbe(reader, log),
@@ -115,7 +115,7 @@
       .then(() => ui.libVersion++)
       .catch(e => toast(`The sample book could not be added (${(e as Error).message}).`, 6000));
   }
-  if (isTauri) import('@tauri-apps/api/event').then(({ listen }) => listen('volumen://desktop', () => readDesktop(core)));
+  if (isTauri) import('@tauri-apps/api/event').then(({ listen }) => listen('typeset://desktop', () => readDesktop(core)));
 
   function onKey(e: KeyboardEvent) {
     if (e.ctrlKey && e.key === 'q' && !e.metaKey && !e.altKey) { e.preventDefault(); reader.flush(); shell.quit(); return; }

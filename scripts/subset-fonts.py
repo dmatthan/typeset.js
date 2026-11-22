@@ -4,7 +4,8 @@ only what a book uses (the engine and the page load the same files).
 
     python3 scripts/subset-fonts.py        (needs fontTools: pip install fonttools)
 
-Reads assets-src/fonts/*.ttf (the fonts as published) and assets/fonts/core-ranges.txt.
+Reads assets-src/fonts/*.ttf (the fonts as published) and crates/engine/core-ranges.txt (the
+engine has the same ranges compiled in).
 Writes assets/fonts/<name>.ttf (the core: Latin, punctuation, symbols) and
 assets/fonts/<name>.ext.ttf (everything else the font has), and
 app/src/styles/fonts.css: an @font-face for each, the core's and the extension's
@@ -34,7 +35,7 @@ FACES = [
 
 def core_ranges():
     out = []
-    for line in open(os.path.join(OUT, 'core-ranges.txt')):
+    for line in open(os.path.join(os.path.dirname(__file__), '../crates/engine/core-ranges.txt')):
         line = line.split('#')[0].strip()
         if not line:
             continue

@@ -131,7 +131,7 @@ fn items(m: &mut Measurer, text: &str, spans: &Spans, sh: &Shape, hyph: Option<&
             if let (Some((gi, lc, sl, ss)), Some(rc)) = (pending.take(), text[cs..].chars().next()) {
                 out[gi].w += m.space_kern(lc, sl, ss, rc, spans.style_at(cs));
                 // and before it, the same (see below)
-                if m.system_set(rc, spans.style_at(cs) & vol_model::style::ITALIC != 0) && !m.system_set(lc, sl & vol_model::style::ITALIC != 0) {
+                if m.system_set(rc, spans.style_at(cs) & typeset_model::style::ITALIC != 0) && !m.system_set(lc, sl & typeset_model::style::ITALIC != 0) {
                     out[gi].w += m.size * 0.05;
                 }
             }
@@ -156,7 +156,7 @@ fn items(m: &mut Measurer, text: &str, spans: &Spans, sh: &Shape, hyph: Option<&
                 pending = Some((out.len() - 1, lc, spans.style_at(ce - lc.len_utf8()), spans.style_at(ce)));
                 // after text set in a system fallback font (CJK), the browser may set the space
                 // and what follows it in that font, whose widths are unknowable here: allow for it
-                if m.system_set(lc, spans.style_at(ce - lc.len_utf8()) & vol_model::style::ITALIC != 0) {
+                if m.system_set(lc, spans.style_at(ce - lc.len_utf8()) & typeset_model::style::ITALIC != 0) {
                     let i = out.len() - 1;
                     out[i].w += m.size * 0.05;
                 }

@@ -26,6 +26,7 @@ if touched "${1:-}" '^app/'; then
   step "app: every module says what it is";             node scripts/map.mjs --check >/dev/null
 fi
 if touched "${1:-}" '^service/'; then
+  step "typeset.js: its types, as a site uses them";       npx --prefix app tsc --noEmit --strict --skipLibCheck --target es2022 --lib es2022,dom --module esnext --moduleResolution bundler packages/typeset.js/types.check.ts
   step "service: types";                                npm --prefix service run -s check
 fi
 if touched "${1:-}" '(\.rs|Cargo\.toml)$'; then

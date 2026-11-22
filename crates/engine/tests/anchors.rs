@@ -3,19 +3,19 @@
 //! place, so everything after an edit gets a new key), and notes made on the first draft
 //! are placed on the second. The revision knows where each note belongs; a note put on
 //! the wrong words is the failure that matters.
-use vol_engine::anchor::{pos_of, Anchor, Anchorer, How};
-use vol_model::Book;
+use typeset_engine::anchor::{pos_of, Anchor, Anchorer, How};
+use typeset_model::Book;
 
 fn book(name: &str) -> Option<Book> {
     let p = format!("{}/../../corpus/{name}", env!("CARGO_MANIFEST_DIR"));
     let bytes = std::fs::read(&p).ok()?;
-    Some(vol_ingest::any(&bytes, &p).unwrap())
+    Some(typeset_ingest::any(&bytes, &p).unwrap())
 }
 
 /// Keys by place, as the importer gives them: a section's file and the block's ordinal.
 fn rekey(b: &mut Book) {
     for (si, sec) in b.sections.iter_mut().enumerate() {
-        let file = vol_model::fnv64(format!("chapter{si}.xhtml").as_bytes());
+        let file = typeset_model::fnv64(format!("chapter{si}.xhtml").as_bytes());
         for (o, blk) in sec.blocks.iter_mut().enumerate() {
             blk.key = file ^ ((o as u64 + 1).wrapping_mul(0x9e3779b97f4a7c15));
         }
@@ -51,8 +51,8 @@ fn revise(v1: &Book, seed: u64) -> (Book, Vec<Vec<(Fate, u64)>>, Vec<Vec<std::co
     let mut touched: Vec<Vec<std::collections::HashSet<usize>>> = v1.sections.iter().map(|s| vec![Default::default(); s.blocks.len()]).collect();
     let filler = ["The rain came down over the town and nobody spoke of it again.", "He waited by the window for a long time, saying nothing at all.", "Later, much later, she would remember the smell of the river."];
     for (si, sec) in v2.sections.iter_mut().enumerate() {
-        let mut out: Vec<(Option<(usize, usize)>, vol_model::Block)> = Vec::new();
-        let mut moved: Vec<(usize, (Option<(usize, usize)>, vol_model::Block))> = Vec::new();
+        let mut out: Vec<(Option<(usize, usize)>, typeset_model::Block)> = Vec::new();
+        let mut moved: Vec<(usize, (Option<(usize, usize)>, typeset_model::Block))> = Vec::new();
         for (bi, blk) in sec.blocks.iter().enumerate() {
             if r.chance(0.08) {
                 let mut nb = blk.clone();
@@ -246,7 +246,7 @@ fn notes_follow_paragraphs_split_joined_and_chapters_reordered() {
         let anchors = notes(&v1);
         let mut v2 = v1.clone();
         for (si, sec) in v2.sections.iter_mut().enumerate() {
-            let mut out: Vec<vol_model::Block> = Vec::new();
+            let mut out: Vec<typeset_model::Block> = Vec::new();
             let mut join_next = false;
             for (bi, blk) in sec.blocks.iter().enumerate() {
                 if join_next

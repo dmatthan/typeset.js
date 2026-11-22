@@ -10,7 +10,7 @@ pub mod shape;
 
 pub use fill::{PLine, Params, SectionLayout, flag};
 pub use shape::{Family, Typeface, Typo};
-use vol_model::Book;
+use typeset_model::Book;
 
 pub struct Press {
     tf: Typeface,
@@ -59,7 +59,7 @@ impl Press {
         // a probe starting "<i>" is measured in italic (diagnostics)
         let w = |m: &mut shape::Measurer, t: &str| -> f32 {
             let (st, t) = match t.strip_prefix("<i>") {
-                Some(r) => (vol_model::style::ITALIC, r),
+                Some(r) => (typeset_model::style::ITALIC, r),
                 None => (0, t),
             };
             let words: Vec<&str> = t.split(' ').collect();

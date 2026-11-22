@@ -19,7 +19,7 @@
   let chip: any = $state();
   const keyed: Keyed = { reader, contents, get chip() { return chip; }, get findBar() { return findBar; } };
 
-  /** A theme by its name, or one the page made (`volumen-theme/1`, checked as any theme
+  /** A theme by its name, or one the page made (`typeset-theme/1`, checked as any theme
    *  file is); for this visit only. False if it is neither. */
   function useTheme(t: unknown): boolean {
     if (typeof t === 'string') {

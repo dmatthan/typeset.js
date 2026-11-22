@@ -2,7 +2,7 @@
 import sys, time
 from evdev import UInput, ecodes as e
 cap = {e.EV_REL: [e.REL_X, e.REL_Y, e.REL_WHEEL, e.REL_WHEEL_HI_RES, e.REL_HWHEEL, e.REL_HWHEEL_HI_RES], e.EV_KEY: [e.BTN_LEFT, e.BTN_RIGHT, e.BTN_MIDDLE]}
-ui = UInput(cap, name='volumen-test-mouse')
+ui = UInput(cap, name='typeset-test-mouse')
 time.sleep(1.0)
 def slow_notch(d=1, parts=8, gap=0.04):
     # a hi-res wheel (Logitech HID++: eight steps a notch) turned slowly

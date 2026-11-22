@@ -1,10 +1,10 @@
 //! A book written out as an EPUB 3, from Volumen's own model: the text with its styles,
 //! headings, quotations, verse, lists, tables, images and notes, in plain XHTML and a
 //! small stylesheet. What it is for first: a sample of a few chapters, so an author puts
-//! only those online (the kit); and it reads back as the same book.
+//! only those online (typeset.js); and it reads back as the same book.
 
 use std::io::Write;
-use vol_model::{Block, Book, Kind, SectionKind, Target, style};
+use typeset_model::{Block, Book, Kind, SectionKind, Target, style};
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
@@ -44,7 +44,7 @@ fn inline(b: &Block, notes: &mut Vec<u32>) -> String {
                 }
                 piece = format!("<a epub:type=\"noteref\" href=\"#n{n}\">{piece}</a>");
             }
-            Some(Target::Url(u)) if vol_model::outward(u) => {
+            Some(Target::Url(u)) if typeset_model::outward(u) => {
                 piece = format!("<a href=\"{}\">{piece}</a>", esc(u));
             }
             _ => {}
@@ -80,11 +80,11 @@ fn table(b: &Block, notes: &mut Vec<u32>) -> String {
 }
 
 /// The runs of a block inside [s, e), counted from s.
-fn shift(b: &Block, s: usize, e: usize) -> Vec<vol_model::Run> {
+fn shift(b: &Block, s: usize, e: usize) -> Vec<typeset_model::Run> {
     b.runs
         .iter()
         .filter(|r| (r.end as usize) > s && (r.start as usize) < e)
-        .map(|r| vol_model::Run { start: (r.start as usize).max(s) as u32 - s as u32, end: (r.end as usize).min(e) as u32 - s as u32, style: r.style })
+        .map(|r| typeset_model::Run { start: (r.start as usize).max(s) as u32 - s as u32, end: (r.end as usize).min(e) as u32 - s as u32, style: r.style })
         .collect()
 }
 
@@ -213,7 +213,7 @@ pub fn epub(book: &Book) -> Result<Vec<u8>, String> {
     );
     let author = if book.meta.author.is_empty() { String::new() } else { format!("<dc:creator>{}</dc:creator>\n", esc(&book.meta.author)) };
     let opf = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\" unique-identifier=\"id\" xml:lang=\"{lang}\">\n<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n<dc:identifier id=\"id\">urn:volumen:{}</dc:identifier>\n<dc:title>{title}</dc:title>\n{author}<dc:language>{lang}</dc:language>\n<meta property=\"dcterms:modified\">2026-01-01T00:00:00Z</meta>\n</metadata>\n<manifest>\n<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>\n<item id=\"css\" href=\"style.css\" media-type=\"text/css\"/>\n{manifest}</manifest>\n<spine>\n{spine}</spine>\n</package>\n",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\" unique-identifier=\"id\" xml:lang=\"{lang}\">\n<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n<dc:identifier id=\"id\">urn:typeset:{}</dc:identifier>\n<dc:title>{title}</dc:title>\n{author}<dc:language>{lang}</dc:language>\n<meta property=\"dcterms:modified\">2026-01-01T00:00:00Z</meta>\n</metadata>\n<manifest>\n<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>\n<item id=\"css\" href=\"style.css\" media-type=\"text/css\"/>\n{manifest}</manifest>\n<spine>\n{spine}</spine>\n</package>\n",
         esc(&book.id)
     );
 

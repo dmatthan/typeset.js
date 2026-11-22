@@ -3,13 +3,11 @@
   "entry": [
     "src/selftest.ts",
     "sw.js",
-    "kit/volumen.js",
     "site/site.js",
     "tests/**/*.ts"
   ],
   "project": [
     "src/**/*.{ts,svelte}",
-    "kit/**/*.js",
     "site/**/*.js"
   ],
   "ignoreDependencies": [

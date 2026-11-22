@@ -1,7 +1,7 @@
 //! Readers' notes put into the writer's Word file as Word comments (src/annotate.rs): found
 //! by their words, placed on exactly those words, the text left as it was.
 use std::io::Read;
-use vol_ingest::annotate::{Comment, annotate};
+use typeset_ingest::annotate::{Comment, annotate};
 
 fn fixture() -> Vec<u8> {
     std::fs::read(format!("{}/../../bench/fixtures/manuscript.docx", env!("CARGO_MANIFEST_DIR"))).unwrap()
@@ -25,7 +25,7 @@ fn note_on(text: &str, words: &str, author: &str, said: &str) -> Comment {
 #[test]
 fn notes_become_word_comments_on_their_words() {
     let src = fixture();
-    let book = vol_ingest::docx(&src, "manuscript.docx").unwrap();
+    let book = typeset_ingest::docx(&src, "manuscript.docx").unwrap();
     let blocks = &book.sections[0].blocks;
     let (a, b) = (&blocks[0].text, &blocks[3].text);
     // across a formatting change (the italic "forty years"), at a paragraph's start, within one run
@@ -39,8 +39,8 @@ fn notes_become_word_comments_on_their_words() {
     ];
     let out = annotate(&src, &notes).unwrap();
     assert_eq!(out.placed, 3);
-    // (VOLUMEN_DUMP=dir: the annotated file, to open in Word or LibreOffice)
-    if let Ok(d) = std::env::var("VOLUMEN_DUMP") { std::fs::write(format!("{d}/annotated.docx"), &out.bytes).unwrap(); }
+    // (TYPESET_DUMP=dir: the annotated file, to open in Word or LibreOffice)
+    if let Ok(d) = std::env::var("TYPESET_DUMP") { std::fs::write(format!("{d}/annotated.docx"), &out.bytes).unwrap(); }
     assert_eq!(out.unplaced, vec![3]);
 
     // the comments, by their readers, escaped
@@ -56,8 +56,8 @@ fn notes_become_word_comments_on_their_words() {
     assert!(part(&out.bytes, "[Content_Types].xml").contains("/word/comments.xml"));
 
     // the text is exactly as it was: the same book read from the annotated file
-    let again = vol_ingest::docx(&out.bytes, "manuscript.docx").unwrap();
-    let texts = |b: &vol_model::Book| b.sections.iter().flat_map(|s| s.blocks.iter().map(|x| (x.text.clone(), x.runs.clone()))).collect::<Vec<_>>();
+    let again = typeset_ingest::docx(&out.bytes, "manuscript.docx").unwrap();
+    let texts = |b: &typeset_model::Book| b.sections.iter().flat_map(|s| s.blocks.iter().map(|x| (x.text.clone(), x.runs.clone()))).collect::<Vec<_>>();
     assert_eq!(texts(&again), texts(&book));
 
     // each comment spans its words: the text between its marks is the quote

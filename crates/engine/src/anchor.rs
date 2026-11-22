@@ -14,7 +14,7 @@
 use crate::find::{fold_block, fold_str};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use vol_model::Book;
+use typeset_model::Book;
 
 #[derive(Deserialize, Serialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
@@ -406,8 +406,8 @@ mod tests {
     use super::*;
 
     fn book(texts: &[&str]) -> Book {
-        let blocks = texts.iter().enumerate().map(|(i, t)| vol_model::Block::new(i as u64 + 1, vol_model::Kind::P, t.to_string(), vec![])).collect();
-        Book { id: "b".into(), meta: Default::default(), sections: vec![vol_model::Section { kind: vol_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks }], notes: vec![], images: vec![], cover: None }
+        let blocks = texts.iter().enumerate().map(|(i, t)| typeset_model::Block::new(i as u64 + 1, typeset_model::Kind::P, t.to_string(), vec![])).collect();
+        Book { id: "b".into(), meta: Default::default(), sections: vec![typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks }], notes: vec![], images: vec![], cover: None }
     }
 
     #[test]

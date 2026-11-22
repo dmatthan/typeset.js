@@ -1,7 +1,7 @@
 //! Books of kinds a reader meets less often (bench/fixtures/unusual.py makes fuller ones):
 //! writing without spaces, pictures only, locked by a shop.
 use std::io::Write;
-use vol_model::Kind;
+use typeset_model::Kind;
 
 /// A PNG's header, 600 × 800 (the importer reads a picture's size, and leaves out one
 /// smaller than 24 pixels as a spacer; nothing here draws it).
@@ -36,7 +36,7 @@ fn a_chinese_chapter_of_a_few_paragraphs_is_a_chapter() {
     // fifteen paragraphs was taken for a title page)
     let p = "<p>子曰：「學而時習之，不亦說乎？有朋自遠方來，不亦樂乎？人不知而不慍，不亦君子乎？」</p>";
     let ch: Vec<String> = (1..=3).map(|i| format!("<h1>學而第{i}</h1>{}", p.repeat(3))).collect();
-    let b = vol_ingest::epub(&epub("zh-Hant", &ch, &[])).unwrap();
+    let b = typeset_ingest::epub(&epub("zh-Hant", &ch, &[])).unwrap();
     assert_eq!(b.sections.len(), 3);
     assert!(b.words() > 90, "{} words", b.words());
 }
@@ -44,7 +44,7 @@ fn a_chinese_chapter_of_a_few_paragraphs_is_a_chapter() {
 #[test]
 fn a_book_of_pictures_keeps_its_pages() {
     let ch: Vec<String> = (0..6).map(|_| r#"<div><img src="p.png" alt=""/></div>"#.to_string()).collect();
-    let b = vol_ingest::epub(&epub("en", &ch, &[])).unwrap();
+    let b = typeset_ingest::epub(&epub("en", &ch, &[])).unwrap();
     // pages with no names of their own go on from the first
     assert_eq!(b.sections.len(), 1);
     assert_eq!(b.sections[0].blocks.iter().filter(|b| b.kind == Kind::Image).count(), 6);
@@ -54,7 +54,7 @@ fn a_book_of_pictures_keeps_its_pages() {
 fn a_picture_on_a_title_page_is_still_left_out_of_a_book_of_words() {
     let mut ch = vec![r#"<div><img src="p.png" alt=""/></div>"#.to_string()];
     ch.extend((1..=2).map(|i| format!("<h1>Chapter {i}</h1><p>{}</p>", "Words of a chapter long enough to be one. ".repeat(40))));
-    let b = vol_ingest::epub(&epub("en", &ch, &[])).unwrap();
+    let b = typeset_ingest::epub(&epub("en", &ch, &[])).unwrap();
     assert_eq!(b.sections.len(), 2);
     assert!(b.sections.iter().flat_map(|s| &s.blocks).all(|b| b.kind != Kind::Image));
 }
@@ -64,10 +64,10 @@ fn a_book_locked_by_its_shop_says_so() {
     let ch = vec![format!("<h1>One</h1><p>{}</p>", "Ciphertext, as far as anyone can tell. ".repeat(40))];
     let adept = br#"<?xml version="1.0"?><encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#"><EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/><CipherData><CipherReference URI="OEBPS/c0.xhtml"/></CipherData></EncryptedData></encryption>"#;
     for extra in [&[("META-INF/encryption.xml", &adept[..])][..], &[("META-INF/sinf.xml", &b"<fairplay/>"[..])][..]] {
-        let e = vol_ingest::any(&epub("en", &ch, extra), "b.epub").unwrap_err().to_string();
+        let e = typeset_ingest::any(&epub("en", &ch, extra), "b.epub").unwrap_err().to_string();
         assert!(e.contains("DRM"), "{e}");
     }
     // fonts obfuscated for their licence are not a lock
     let fonts = br#"<?xml version="1.0"?><encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><enc:EncryptedData xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/><enc:CipherData><enc:CipherReference URI="OEBPS/f.ttf"/></enc:CipherData></enc:EncryptedData></encryption>"#;
-    assert!(vol_ingest::any(&epub("en", &ch, &[("META-INF/encryption.xml", fonts)]), "b.epub").is_ok());
+    assert!(typeset_ingest::any(&epub("en", &ch, &[("META-INF/encryption.xml", fonts)]), "b.epub").is_ok());
 }

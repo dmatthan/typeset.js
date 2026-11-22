@@ -335,7 +335,7 @@ export async function readDesktop(core: Core) {
 
 /* ---------- import, export, and the brief for an AI ---------- */
 
-export const FORMAT = 'volumen-theme/1';
+export const FORMAT = 'typeset-theme/1';
 
 export function exportTheme(t: Theme): string {
   const p = (x: Palette | null, mode: 'light' | 'dark') => x ?? STOCK[mode];

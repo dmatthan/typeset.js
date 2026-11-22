@@ -21,7 +21,8 @@ Three parts, each doing one thing, and the line between them is kept:
     `Embed.svelte` (one book on another site's page). The reader knows neither.
 - **Around them**: `src-tauri/` (the desktop app: the native engine, SQLite, the system's
   fonts), `service/` (the sharing service: one Cloudflare Worker, sealed bytes only),
-  `app/kit/volumen.js` (the elements other sites use).
+  `app/typeset.js` (the elements other sites use), published with the reader as the
+  npm package `packages/typeset.js` (`npx typeset.js` puts the reader in a site's own folder).
 
 ## A book's way to the screen
 

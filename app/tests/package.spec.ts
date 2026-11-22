@@ -1,17 +1,21 @@
 import { devices, type Page } from '@playwright/test';
 import { test, expect } from './base';
 import { layout, still } from './audit';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-/* The kit: the reader alone, put in a folder of an ordinary site
+/* typeset.js: the reader alone, put in a folder of an ordinary site
  * (served here by Python's http.server, nothing of ours), placed on its pages by
- * kit/volumen.js. The pages are the repository's examples/. */
+ * typeset.js. The pages are the repository's examples/. */
 
 test('a chapter on a blog: only that chapter, the page told where the reader is, a way on at the end', async ({ page: p }) => {
   await p.goto('/');
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   // only Book III: its own title page, then its text
-  await p.locator('volumen-book').click({ position: { x: 300, y: 300 } });
+  await p.locator('typeset-book').click({ position: { x: 300, y: 300 } });
   await p.keyboard.press('Space');
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
   // reading on to the end: the page hears where the reader is, then the end
@@ -27,12 +31,12 @@ test('a chapter on a blog: only that chapter, the page told where the reader is,
   // nothing of the site taken over: no service worker anywhere
   expect(await p.evaluate(() => navigator.serviceWorker.getRegistrations().then(r => r.length))).toBe(0);
   // and nothing kept unless asked: the frame's storage is empty
-  expect(await f.locator('body').evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('volumen.')).length)).toBe(0);
+  expect(await f.locator('body').evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('typeset.')).length)).toBe(0);
 });
 
 test('the reader runs under its own policy on the host\'s origin: nothing from elsewhere but books', async ({ page: p }) => {
   await p.goto('/');
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   const policy = await f.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
   expect(policy).toContain("default-src 'self'");
@@ -51,7 +55,7 @@ test('the reader runs under its own policy on the host\'s origin: nothing from e
 
 test('a library on a page: a shelf from a list, each book opened in place', async ({ page: p }) => {
   await p.goto('/library/');
-  const shelf = p.locator('volumen-library');
+  const shelf = p.locator('typeset-library');
   await expect(shelf.getByRole('button', { name: /Meditations/ })).toBeVisible();
   await expect(shelf.getByRole('button')).toHaveCount(2);
   // the list names no covers: Meditations shows its EPUB's own (this server sends files
@@ -59,7 +63,7 @@ test('a library on a page: a shelf from a list, each book opened in place', asyn
   await expect(shelf.locator('.c.own')).toHaveCount(1);
   await expect(shelf.locator('.c').nth(1)).toHaveText('Tables and Figures');
   await shelf.getByRole('button', { name: /Tables and Figures/ }).click();
-  await expect(p.frameLocator('volumen-library volumen-book iframe').getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
+  await expect(p.frameLocator('typeset-library typeset-book iframe').getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   await shelf.getByRole('button', { name: '← All books' }).click();
   await expect(shelf.getByRole('button', { name: /Meditations/ })).toBeVisible();
 });
@@ -76,13 +80,13 @@ test('a shelf reads an EPUB\'s cover by ranges, not the whole book, where the ho
     return r.fulfill({ status: 206, headers: { 'content-range': `bytes ${a}-${z}/${body.length}` }, body: body.subarray(a, z + 1) });
   });
   await p.goto('/library/');
-  const shelf = p.locator('volumen-library');
+  const shelf = p.locator('typeset-library');
   await expect(shelf.locator('.c.own')).toHaveCount(1);
   expect(whole).toEqual([]);
 });
 
-/** A page of this site (or of another, at `origin`, with the kit from KIT) with `body` on
- *  it and the kit's element script; what its book says is collected in `heard`. */
+/** A page of this site (or of another, at `origin`, with the package from OTHER) with `body` on
+ *  it and the package's element script; what its book says is collected in `heard`. */
 // (the pages as they come: an embed's storage is what the test of it checks; base.ts)
 test.use({ motion: null });
 
@@ -90,20 +94,20 @@ test.use({ motion: null });
 const { defaultBrowserType: _, ...phone } = devices['iPhone 13'];
 
 async function hostPage(p: Page, body: string, origin = '') {
-  const kit = origin ? `${KIT}/volumen/volumen.js` : '/volumen/volumen.js';
+  const elements = origin ? `${OTHER}/typeset/typeset.js` : '/typeset/typeset.js';
   const url = origin ? `${origin}/` : '/t/page.html';
   // (a page as authors make them: sized for the device it is read on)
   await p.route(origin ? url : '**' + url, r => r.fulfill({ contentType: 'text/html', body: `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-    <script type="module" src="${kit}"></script>${body}
-    <script>window.heard = []; for (const t of ['ready', 'progress', 'end', 'error', 'back', 'full']) addEventListener('volumen-' + t, e => heard.push([t, e.detail]));</script>` }));
+    <script type="module" src="${elements}"></script>${body}
+    <script>window.heard = []; for (const t of ['ready', 'progress', 'end', 'error', 'back', 'full']) addEventListener('typeset-' + t, e => heard.push([t, e.detail]));</script>` }));
   await p.goto(url);
 }
-/** The kit's site as two sites on the web see it: a public address (a page on one may not
+/** The package's site as two sites on the web see it: a public address (a page on one may not
  *  frame a local address), its files from this test's server. */
-const KIT = 'http://kit.test';
+const OTHER = 'http://other.test';
 async function kitSite(p: Page) {
-  await p.context().route(`${KIT}/**`, async r => {
-    const res = await r.fetch({ url: r.request().url().replace(KIT, 'http://127.0.0.1:8791') });
+  await p.context().route(`${OTHER}/**`, async r => {
+    const res = await r.fetch({ url: r.request().url().replace(OTHER, 'http://127.0.0.1:8791') });
     // (the element script crosses sites as a module: only with leave)
     await r.fulfill({ response: res, headers: { ...res.headers(), 'access-control-allow-origin': '*' } });
   });
@@ -112,8 +116,8 @@ const heardOf = (p: Page, type: string) => p.evaluate(t => (window as any).heard
 /** The reader's bar brought up as a reader would: the pointer to its band, or (a finger)
  *  a tap in the middle of the page while it is away (a tap while it shows puts it away). */
 async function barUp(p: Page, touch = false) {
-  const f = p.frameLocator('volumen-book iframe'), bar = f.locator('.bar');
-  const box = (await p.locator('volumen-book').boundingBox())!;
+  const f = p.frameLocator('typeset-book iframe'), bar = f.locator('.bar');
+  const box = (await p.locator('typeset-book').boundingBox())!;
   if (!touch) { await p.mouse.move(box.x + box.width / 2, box.y + 10); await expect(bar).not.toHaveClass(/away/); return; }
   await expect(async () => {
     if (/away/.test((await bar.getAttribute('class')) ?? '')) await p.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
@@ -124,7 +128,7 @@ async function barUp(p: Page, touch = false) {
  *  (A finger taps where a thing is drawn: Playwright's own tap scrolls the page first, by
  *  its own reckoning, which no finger does.) */
 async function fromMenu(p: Page, name: string, touch = false) {
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await barUp(p, touch);
   const more = f.getByRole('button', { name: 'More' }), it = f.getByRole('menuitem', { name });
   const tap = async (l: typeof more) => { await expect(l).toBeVisible(); const b = (await l.boundingBox())!; await p.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); };
@@ -132,7 +136,7 @@ async function fromMenu(p: Page, name: string, touch = false) {
 }
 /** The full-screen button at the foot (as a finger taps it, where it is drawn). */
 async function fullButton(p: Page, name: string, touch = false) {
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await barUp(p, touch);
   const b = f.getByRole('button', { name });
   await expect(b).toBeVisible();
@@ -142,36 +146,83 @@ async function fullButton(p: Page, name: string, touch = false) {
 }
 const ready = (p: Page) => expect.poll(() => heardOf(p, 'ready'), { timeout: 30000 }).toHaveLength(1);
 
+test('the package holds the reader and nothing else: no desktop code, no build inputs, nothing only the app shows', () => {
+  const root = join(process.cwd(), '../packages/typeset.js/reader');
+  const files = (function walk(d: string): string[] { return readdirSync(join(root, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]); })('');
+  // what the reader loads, and the faces' and patterns' licences
+  const kinds = [/^embed\.html$/, /^typeset\.js$/, /^assets\/[\w-]+\.(js|css|wasm)$/, /^fonts\/[\w-]+(\.ext)?\.ttf$/, /^fonts\/[\w]+-OFL\.txt$/, /^hyph\/[\w-]+\.bin$/, /^hyph\/LICENSE-[\w-]+$/, /^ui\/shadow-(12|16)\.png$/];
+  expect(files.filter(f => !kinds.some(k => k.test(f)))).toEqual([]);
+  // the desktop app's own code (its engine, its windows), which a browser never runs
+  expect(files.filter(f => f.endsWith('.js') && /__TAURI|tauri/i.test(readFileSync(join(root, f), 'utf8')))).toEqual([]);
+  // the reader's page names only what is there, and nothing of the app's (installing it, its name)
+  const page = readFileSync(join(root, 'embed.html'), 'utf8');
+  expect([...page.matchAll(/(?:href|src)="\.\/([^"#?]+)"/g)].map(m => m[1]).filter(f => !files.includes(f))).toEqual([]);
+  expect(page).not.toMatch(/manifest|apple-|theme-color|Volumen/);
+});
+
+test('npx typeset.js puts the reader in a folder of the site, puts it there again over itself, and writes over nothing else', () => {
+  const bin = join(process.cwd(), '../packages/typeset.js/bin/typeset.mjs'), site = mkdtempSync(join(tmpdir(), 'typeset-'));
+  const run = (...args: string[]) => execFileSync('node', [bin, ...args], { cwd: site, stdio: 'pipe' }).toString();
+  // (no folder named: public/typeset, served as /typeset/, what the package's entry expects)
+  const said = run();
+  expect(existsSync(join(site, 'public/typeset/embed.html')) && existsSync(join(site, 'public/typeset/typeset.js'))).toBe(true);
+  expect(said).toContain('<script type="module" src="/typeset/typeset.js"></script>');
+  // again (a newer version): what is gone from it goes from the folder too
+  writeFileSync(join(site, 'public/typeset/assets/old-1234.js'), '');
+  run('public/typeset');
+  expect(existsSync(join(site, 'public/typeset/assets/old-1234.js'))).toBe(false);
+  // a folder with anything else in it is left as it is
+  mkdirSync(join(site, 'public/books'));
+  writeFileSync(join(site, 'public/books/index.html'), 'mine');
+  expect(() => run('public/books')).toThrow(/not a reader/);
+  expect(readdirSync(join(site, 'public/books'))).toEqual(['index.html']);
+  expect(readFileSync(join(site, 'public/books/index.html'), 'utf8')).toBe('mine');
+});
+
+test('the package\'s entry, bundled into a site\'s own script, finds the reader where npx typeset.js put it, or where serveFrom says', async ({ page: p }) => {
+  for (const [script, at] of [
+    [`import { open } from '/pkg/typeset.js/index.js'; window.vol = open;`, '/typeset/'],
+    [`import { serveFrom } from '/pkg/typeset.js/index.js'; serveFrom('/pkg/typeset.js/reader/');`, '/pkg/typeset.js/reader/'],
+  ]) {
+    await p.route('**/t/app.html', r => r.fulfill({ contentType: 'text/html', body: `<!doctype html><meta charset="utf-8"><script type="module">${script}</script>
+      <typeset-book src="/books/meditations.epub" style="height: 500px"></typeset-book>
+      <script>window.heard = []; addEventListener('typeset-ready', e => heard.push(['ready', e.detail]));</script>` }));
+    await p.goto('/t/app.html');
+    await ready(p);
+    expect(new URL((await p.locator('typeset-book iframe').getAttribute('src'))!).pathname).toBe(at + 'embed.html');
+  }
+});
+
 test('the page hears the reader open and moves it: to a chapter, to a place, into a theme of its own', async ({ page: p }) => {
-  await hostPage(p, '<volumen-book id="b" src="/books/meditations.epub" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book id="b" src="/books/meditations.epub" style="height: 600px"></typeset-book>');
   await ready(p);
   expect((await heardOf(p, 'ready'))[0].chapters).toBeGreaterThan(3);
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await p.evaluate(() => (document.getElementById('b') as any).goTo({ chapter: 3 }));
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
   await p.evaluate(() => (document.getElementById('b') as any).goTo({ at: 1 }));
   await expect.poll(() => heardOf(p, 'progress').then(a => a.at(-1)?.at), { timeout: 10000 }).toBe(1);
   // a theme the page made, as Volumen exports one: checked as any theme file is
-  await p.evaluate(() => (document.getElementById('b') as any).setTheme({ format: 'volumen-theme/1', name: 'Shop', light: { paper: '#f4ecd8', ink: '#2b2118' }, dark: { paper: '#1d1a16', ink: '#e8dcc4' } }));
+  await p.evaluate(() => (document.getElementById('b') as any).setTheme({ format: 'typeset-theme/1', name: 'Shop', light: { paper: '#f4ecd8', ink: '#2b2118' }, dark: { paper: '#1d1a16', ink: '#e8dcc4' } }));
   await expect.poll(() => f.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--paper').trim())).toMatch(/^#f4ecd8|#1d1a16$/);
 });
 
 test('a page shows as much of the reader as it wants, and turns off what it does not offer', async ({ page: p }) => {
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" ui="none" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" ui="none" style="height: 600px"></typeset-book>');
   await ready(p);
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await expect(f.locator('.col .ln').first()).toBeVisible();
   await expect(f.locator('.bar')).toHaveCount(0);
 
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" ui="minimal" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" ui="minimal" style="height: 600px"></typeset-book>');
   await ready(p);
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   await expect(f.locator('.bar button')).toHaveCount(0);
 
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" off="contents settings find" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" off="contents settings find" style="height: 600px"></typeset-book>');
   await ready(p);
   await expect(f.getByRole('button', { name: /^Contents$|Type and appearance|Find in the book/ })).toHaveCount(0);
-  await p.locator('volumen-book').click({ position: { x: 300, y: 300 } });
+  await p.locator('typeset-book').click({ position: { x: 300, y: 300 } });
   for (const k of ['m', 's', '/']) await p.keyboard.press(k);
   // (what they would open would show within two frames)
   await f.locator('body').evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -185,15 +236,15 @@ const near = (a: string, b: string) => channels(a).every((v, i) => Math.abs(v - 
 
 test('on an author\'s page: the page\'s own paper, Back only when asked for, full screen; nothing of Volumen\'s own', async ({ page: p }) => {
   // inline, as most pages have it: the page is the way back, and the reader carries no brand
-  await hostPage(p, '<div style="background: #f3ece0; padding: 20px"><volumen-book src="/books/meditations.epub" paper="page" style="height: 600px"></volumen-book></div>');
+  await hostPage(p, '<div style="background: #f3ece0; padding: 20px"><typeset-book src="/books/meditations.epub" paper="page" style="height: 600px"></typeset-book></div>');
   await ready(p);
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await expect(f.locator('.col .ln').first()).toBeVisible();
   await expect(f.locator('a[href*="volumen.page"]')).toHaveCount(0);
   await expect(f.getByRole('link', { name: 'Back' })).toHaveCount(0);
   await expect(f.getByRole('button', { name: 'Back' })).toHaveCount(0);
   // nor the app's sharing: a highlight's exports, but no "Send my notes" (it would open nothing)
-  await p.locator('volumen-book').click({ position: { x: 300, y: 300 } });
+  await p.locator('typeset-book').click({ position: { x: 300, y: 300 } });
   for (const k of ['ArrowRight', 'ArrowRight', 'v', 'h', 'Escape']) await p.keyboard.press(k);
   await p.keyboard.press('m');
   await f.getByRole('tab', { name: 'Highlights' }).click();
@@ -205,7 +256,7 @@ test('on an author\'s page: the page\'s own paper, Back only when asked for, ful
   await expect.poll(async () => near(await paper(), '#f3ece0')).toBe(true);
   expect(await f.locator('.reader').evaluate(el => el.classList.contains('dark-paper'))).toBe(false);
   // a dark page's: the book reads dark on it, its ink light enough to read
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" paper="#1e1c19" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" paper="#1e1c19" style="height: 600px"></typeset-book>');
   await ready(p);
   await expect.poll(async () => near(await paper(), '#1e1c19')).toBe(true);
   expect(await f.locator('.reader').evaluate(el => el.classList.contains('dark-paper'))).toBe(true);
@@ -215,28 +266,28 @@ test('on an author\'s page: the page\'s own paper, Back only when asked for, ful
   await fullButton(p, 'Leave full screen');
   await expect.poll(() => f.locator('html').evaluate(() => !!document.fullscreenElement)).toBe(false);
   // Back to an address the page names: a link out of the frame, in the page's own window
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" back="/shelf" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" back="/shelf" style="height: 600px"></typeset-book>');
   await ready(p);
   await expect(f.getByRole('link', { name: 'Back' })).toHaveAttribute('href', /\/shelf$/);
   await expect(f.getByRole('link', { name: 'Back' })).toHaveAttribute('target', '_top');
   // Back where the reader came from: the page is told, and may go its own way ...
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" back style="height: 600px"></volumen-book><script>addEventListener("volumen-back", e => e.preventDefault())</script>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" back style="height: 600px"></typeset-book><script>addEventListener("typeset-back", e => e.preventDefault())</script>');
   await ready(p);
   await f.getByRole('button', { name: 'Back' }).click();
   await expect.poll(() => heardOf(p, 'back')).toHaveLength(1);
   expect(p.url()).toMatch(/\/t\/page\.html$/);
-  // ... or, left to the kit, it goes back in the page's history
+  // ... or, left to typeset.js, it goes back in the page's history
   await p.goto('/');
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" back style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" back style="height: 600px"></typeset-book>');
   await ready(p);
   await f.getByRole('button', { name: 'Back' }).click();
   await expect(p).toHaveURL(/:8791\/$/);
 });
 
 test('on an author\'s page, quiet arrows at its sides turn it for a mouse; not in full screen, nor with less of the reader', async ({ page: p }) => {
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" style="height: 560px; width: 640px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" style="height: 560px; width: 640px"></typeset-book>');
   await ready(p);
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   const prev = f.getByRole('button', { name: 'Previous page' }), next = f.getByRole('button', { name: 'Next page' });
   const at = () => f.getByRole('slider', { name: 'Place in the book' }).getAttribute('aria-valuetext');
   await expect(next).toBeVisible();
@@ -254,7 +305,7 @@ test('on an author\'s page, quiet arrows at its sides turn it for a mouse; not i
   await prev.click();
   await expect.poll(at).toBe(first);
   // at the end, the way on is dim
-  await p.evaluate(() => (document.querySelector('volumen-book') as any).goTo({ at: 1 }));
+  await p.evaluate(() => (document.querySelector('typeset-book') as any).goTo({ at: 1 }));
   await expect(next).toBeDisabled();
   await expect(prev).toBeEnabled();
   // full screen is the reader as it is meant to be: none
@@ -267,14 +318,14 @@ test('on an author\'s page, quiet arrows at its sides turn it for a mouse; not i
   // a box narrower than a desktop's spread has them too, while the text keeps a measure the
   // layout would take; one narrower still keeps its measure instead
   for (const [w, shown] of [[560, 1], [440, 0]] as const) {
-    await hostPage(p, `<volumen-book src="/books/meditations.epub" style="height: 560px; width: ${w}px"></volumen-book>`);
+    await hostPage(p, `<typeset-book src="/books/meditations.epub" style="height: 560px; width: ${w}px"></typeset-book>`);
     await ready(p);
     await expect(f.locator('.col .ln').first()).toBeVisible();
     await expect(f.getByRole('button', { name: 'Next page' })).toHaveCount(shown);
   }
   // nor where the page asked for less of the reader
   for (const ui of ['minimal', 'none']) {
-    await hostPage(p, `<volumen-book src="/books/meditations.epub" ui="${ui}" style="height: 560px"></volumen-book>`);
+    await hostPage(p, `<typeset-book src="/books/meditations.epub" ui="${ui}" style="height: 560px"></typeset-book>`);
     await ready(p);
     await expect(f.locator('.col .ln').first()).toBeVisible();
     await expect(f.getByRole('button', { name: 'Next page' })).toHaveCount(0);
@@ -283,23 +334,23 @@ test('on an author\'s page, quiet arrows at its sides turn it for a mouse; not i
 
 test('the reader opened as a page of its own: Back goes where the reader came from', async ({ page: p }) => {
   await p.goto('/');
-  await p.goto('/volumen/embed.html#src=' + encodeURIComponent('http://127.0.0.1:8791/books/meditations.epub'));
+  await p.goto('/typeset/embed.html#src=' + encodeURIComponent('http://127.0.0.1:8791/books/meditations.epub'));
   const back = p.getByRole('button', { name: 'Back' });
   await expect(back).toBeVisible({ timeout: 30000 });
   await back.click();
   await expect(p).toHaveURL(/:8791\/$/);
   // the same with `back` asked for and no page around it to ask: its own history
-  await p.goto('/volumen/embed.html#back=history&src=' + encodeURIComponent('http://127.0.0.1:8791/books/meditations.epub'));
+  await p.goto('/typeset/embed.html#back=history&src=' + encodeURIComponent('http://127.0.0.1:8791/books/meditations.epub'));
   await expect(back).toBeVisible({ timeout: 30000 });
   await back.click();
   await expect(p).toHaveURL(/:8791\/$/);
 });
 
 test('Help lists the keys of what the page offers, and only those', async ({ page: p }) => {
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" off="contents settings find highlights" style="height: 600px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" off="contents settings find highlights" style="height: 600px"></typeset-book>');
   await ready(p);
-  const f = p.frameLocator('volumen-book iframe');
-  await p.locator('volumen-book').click({ position: { x: 300, y: 300 } });
+  const f = p.frameLocator('typeset-book iframe');
+  await p.locator('typeset-book').click({ position: { x: 300, y: 300 } });
   await p.keyboard.press('?');
   const help = f.getByRole('dialog');
   await expect(help).toBeVisible();
@@ -315,53 +366,56 @@ test('Help lists the keys of what the page offers, and only those', async ({ pag
 });
 
 test('a book that cannot be read is said so, to the reader and the page', async ({ page: p }) => {
-  await hostPage(p, '<volumen-book src="/books/missing.epub" style="height: 400px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/missing.epub" style="height: 400px"></typeset-book>');
   await expect.poll(() => heardOf(p, 'error'), { timeout: 30000 }).toHaveLength(1);
   expect((await heardOf(p, 'error'))[0].message).toMatch(/answered 404/);
-  await expect(p.frameLocator('volumen-book iframe').locator('.embed-wait')).toHaveText(/answered 404/);
+  await expect(p.frameLocator('typeset-book iframe').locator('.embed-wait')).toHaveText(/answered 404/);
 });
 
 test('across sites: the page hears its reader, and a reader obeys only the page it was told of', async ({ page: p }) => {
   await kitSite(p);
-  await hostPage(p, `<volumen-book id="b" src="${KIT}/books/meditations.epub" style="height: 600px"></volumen-book>`, 'http://host.test');
+  await hostPage(p, `<typeset-book id="b" src="${OTHER}/books/meditations.epub" style="height: 600px"></typeset-book>`, 'http://host.test');
   await ready(p);
   await p.evaluate(() => (document.getElementById('b') as any).goTo({ chapter: 3 }));
-  await expect(p.frameLocator('volumen-book iframe').getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
+  await expect(p.frameLocator('typeset-book iframe').getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book III/, { timeout: 10000 });
   // a frame that names another page: it says nothing to this one, and takes no orders from it
-  const said = await p.evaluate(kit => new Promise<number>(res => {
+  const said = await p.evaluate(site => new Promise<number>(res => {
     let n = 0;
     const f = document.createElement('iframe');
     addEventListener('message', e => { if (e.source === f.contentWindow) n++; });
     f.id = 'other';
     f.style.cssText = 'width: 900px; height: 600px';
-    f.src = `${kit}/volumen/embed.html#` + new URLSearchParams({ src: `${kit}/books/meditations.epub`, host: 'https://elsewhere.example' });
+    f.src = `${site}/typeset/embed.html#` + new URLSearchParams({ src: `${site}/books/meditations.epub`, host: 'https://elsewhere.example' });
     document.body.append(f);
     setTimeout(() => res(n), 8000);
-  }), KIT);
+  }), OTHER);
   expect(said).toBe(0);
   const other = p.frameLocator('#other');
   await expect(other.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
   const before = await other.getByRole('slider', { name: 'Place in the book' }).getAttribute('aria-valuetext');
-  await p.evaluate(() => (document.getElementById('other') as HTMLIFrameElement).contentWindow!.postMessage({ volumen: 1, type: 'goto', chapter: 3 }, '*'));
+  await p.evaluate(() => (document.getElementById('other') as HTMLIFrameElement).contentWindow!.postMessage({ typeset: 1, type: 'goto', chapter: 3 }, '*'));
   // (an ignored command leaves nothing to wait for: the time one heard takes to move it)
   await p.waitForTimeout(1500);
   await expect(other.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', before!);
 });
 
 test('in a box narrower than its menu (a sidebar), the selection\'s menu stays inside it', async ({ page: p }) => {
-  await hostPage(p, '<volumen-book src="/books/meditations.epub" style="width: 170px; height: 520px"></volumen-book>');
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" style="width: 170px; height: 520px"></typeset-book>');
   await ready(p);
   const fr = p.frames().find(f => f.url().includes('embed.html'))!;
-  const f = p.frameLocator('volumen-book iframe');
+  const f = p.frameLocator('typeset-book iframe');
   await expect(f.locator('.col .ln').first()).toBeVisible();
-  // a few words selected, as the system would
-  await fr.evaluate(() => {
-    const ln = [...document.querySelectorAll<HTMLElement>('.col .ln[data-b]')].find(l => (l.textContent ?? '').split(/\s+/).length > 3)!;
-    const t = [...ln.childNodes].find(n => n.nodeType === 3 && /\S+\s+\S+/.test(n.textContent!)) as Text;
-    const w = [...t.data.matchAll(/\S+/g)];
-    getSelection()!.setBaseAndExtent(t, w[0].index!, t, w[1].index! + w[1][0].length);
-  });
-  await expect(f.locator('.chip-pop')).toBeVisible();
+  // a few words selected, as the system would: once it rests, its menu (selected again if
+  // the text was set again under it, the reader's first moments on a slow machine)
+  await expect(async () => {
+    await fr.evaluate(() => {
+      const ln = [...document.querySelectorAll<HTMLElement>('.col .ln[data-b]')].find(l => (l.textContent ?? '').split(/\s+/).length > 3)!;
+      const t = [...ln.childNodes].find(n => n.nodeType === 3 && /\S+\s+\S+/.test(n.textContent!)) as Text;
+      const w = [...t.data.matchAll(/\S+/g)];
+      getSelection()!.setBaseAndExtent(t, w[0].index!, t, w[1].index! + w[1][0].length);
+    });
+    await expect(f.locator('.chip-pop')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15000 });
   await still(fr);
   expect(await layout(fr, ['.chip-pop'], false)).toEqual([]);
 });
@@ -371,9 +425,9 @@ test.describe('a phone, whose frames have no full screen', () => {
   test('Read full screen fills the page\'s window with the book, and Leave gives the page back as it was', async ({ page: p }) => {
     // (as an iPhone: no full screen for a frame)
     await p.addInitScript(() => Object.defineProperty(Document.prototype, 'fullscreenEnabled', { get: () => false }));
-    await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><volumen-book src="/books/meditations.epub" style="height: 460px"></volumen-book><p style="height: 1400px">After.</p>');
+    await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><typeset-book src="/books/meditations.epub" style="height: 460px"></typeset-book><p style="height: 1400px">After.</p>');
     await ready(p);
-    const f = p.frameLocator('volumen-book iframe'), book = p.locator('volumen-book'), frame = p.locator('volumen-book iframe');
+    const f = p.frameLocator('typeset-book iframe'), book = p.locator('typeset-book'), frame = p.locator('typeset-book iframe');
     await p.evaluate(() => scrollTo(0, 120));
     const was = (await book.boundingBox())!;
     const vp = p.viewportSize()!;
@@ -395,9 +449,9 @@ test.describe('a phone, whose frames have no full screen', () => {
 });
 
 test('a book opened from the page\'s own button: the reader over the whole window, Back (or the browser\'s) gives the page back as it was', async ({ page: p }) => {
-  await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><volumen-open src="/books/meditations.epub" chapters="3"><button id="go">Read chapter three</button></volumen-open><p style="height: 1400px">After.</p>');
+  await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><typeset-open src="/books/meditations.epub" chapters="3"><button id="go">Read chapter three</button></typeset-open><p style="height: 1400px">After.</p>');
   await p.evaluate(() => scrollTo(0, 120));
-  const vp = p.viewportSize()!, book = p.locator('volumen-book'), f = p.frameLocator('volumen-book iframe');
+  const vp = p.viewportSize()!, book = p.locator('typeset-book'), f = p.frameLocator('typeset-book iframe');
   await expect(book).toHaveCount(0);
   await p.locator('#go').click();
   // over the whole window, the page held still behind it
@@ -419,22 +473,22 @@ test('a book opened from the page\'s own button: the reader over the whole windo
 });
 
 test('a book\'s cover that opens it (the element with nothing in it), and open() for a page\'s own code', async ({ page: p }) => {
-  await hostPage(p, '<volumen-open src="/books/meditations.epub" title="Meditations"></volumen-open>');
+  await hostPage(p, '<typeset-open src="/books/meditations.epub" title="Meditations"></typeset-open>');
   const cover = p.getByRole('button', { name: 'Read Meditations' });
   await expect(cover).toBeVisible();
   // the EPUB's own cover, read from the file
   await expect.poll(() => cover.evaluate(b => getComputedStyle(b.querySelector('.c')!).backgroundImage)).toMatch(/^url\(/);
   await cover.click();
   await ready(p);
-  await expect(p.locator('volumen-book')).toHaveCount(1);
+  await expect(p.locator('typeset-book')).toHaveCount(1);
   await p.goBack();
-  await expect(p.locator('volumen-book')).toHaveCount(0);
+  await expect(p.locator('typeset-book')).toHaveCount(0);
   // the same from a page's script: a handle to close it by
-  await p.evaluate(async () => { const { open } = await import('/volumen/volumen.js' as string); (window as any).h = open({ src: '/books/meditations.epub', chapters: '3' }); });
-  await expect(p.locator('volumen-book')).toHaveCount(1);
+  await p.evaluate(async () => { const { open } = await import('/typeset/typeset.js' as string); (window as any).h = open({ src: '/books/meditations.epub', chapters: '3' }); });
+  await expect(p.locator('typeset-book')).toHaveCount(1);
   await expect.poll(() => heardOf(p, 'ready')).toHaveLength(2);
   await p.evaluate(() => (window as any).h.close());
-  await expect(p.locator('volumen-book')).toHaveCount(0);
+  await expect(p.locator('typeset-book')).toHaveCount(0);
 });
 
 // The embed's own views, held to the layout's rules (tests/audit.ts) as the app's are
@@ -443,17 +497,17 @@ for (const [size, use] of [['desktop', { viewport: { width: 1280, height: 800 } 
   test.use(use);
   test(`holds its shape: reading, its bar, Aa, Help (${size})`, async ({ page: p }) => {
     const touch = size === 'phone';
-    await hostPage(p, '<volumen-book src="/books/meditations.epub" back="/shelf" paper="page" style="height: 100vh"></volumen-book>');
+    await hostPage(p, '<typeset-book src="/books/meditations.epub" back="/shelf" paper="page" style="height: 100vh"></typeset-book>');
     await ready(p);
     const fr = p.frames().find(f => f.url().includes('embed.html'))!;
-    const f = p.frameLocator('volumen-book iframe');
+    const f = p.frameLocator('typeset-book iframe');
     const found: string[] = [];
     const check = async (where: string, roots: string[]) => { await still(fr); for (const x of await layout(fr, roots, touch)) found.push(`${where}: ${x}`); };
     await expect(f.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
     // (a finger taps the page's outer fifth to turn it: no arrows on a phone)
     await expect(f.getByRole('button', { name: 'Next page' })).toHaveCount(touch ? 0 : 1);
     await check('reading', ['.bar', '.progress', '.arrow']);
-    const box = (await p.locator('volumen-book').boundingBox())!;
+    const box = (await p.locator('typeset-book').boundingBox())!;
     if (touch) await p.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
     else await p.mouse.move(box.x + box.width / 2, box.y + 10);
     await expect(f.locator('.bar')).not.toHaveClass(/away/);

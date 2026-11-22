@@ -3,10 +3,10 @@ use super::*;
 
 /// Reads and measures the images the walk met. Ones that cannot be shown, or are mere
 /// icons (Gutenberg's "enlarge" buttons, ornaments under 24 px), lose their blocks.
-pub(super) fn load_images(z: &mut Zip, found: &[(String, String, f32)], rich: &[String], sections: &mut [Section]) -> Vec<vol_model::Image> {
+pub(super) fn load_images(z: &mut Zip, found: &[(String, String, f32)], rich: &[String], sections: &mut [Section]) -> Vec<typeset_model::Image> {
     // only images whose blocks survived shaping (a dropped title page takes its art along)
     let used: HashSet<u32> = sections.iter().flat_map(|s| &s.blocks).filter_map(|b| b.image).collect();
-    let mut out: Vec<vol_model::Image> = Vec::new();
+    let mut out: Vec<typeset_model::Image> = Vec::new();
     let mut remap: Vec<Option<u32>> = Vec::with_capacity(found.len());
     for (i, (path, alt, density)) in found.iter().enumerate() {
         let img = (|| {
@@ -15,7 +15,7 @@ pub(super) fn load_images(z: &mut Zip, found: &[(String, String, f32)], rich: &[
             }
             // a rich block: its XHTML, its size not known until a browser draws it
             if let Some(n) = path.strip_prefix("rich:").and_then(|n| n.parse::<usize>().ok()) {
-                return Some(vol_model::Image { mime: vol_model::RICH.into(), w: 0, h: 0, alt: alt.clone(), bytes: rich.get(n)?.clone().into_bytes() });
+                return Some(typeset_model::Image { mime: typeset_model::RICH.into(), w: 0, h: 0, alt: alt.clone(), bytes: rich.get(n)?.clone().into_bytes() });
             }
             if path.to_ascii_lowercase().contains("enlarge") {
                 return None;
@@ -38,7 +38,7 @@ pub(super) fn load_images(z: &mut Zip, found: &[(String, String, f32)], rich: &[
             }
             // Gutenberg names images by number and repeats it as their description
             let alt = if alt.chars().all(|c| c.is_ascii_digit() || c.is_whitespace() || c == '_') { String::new() } else { alt.clone() };
-            Some(vol_model::Image { mime: mime.into(), w, h, alt, bytes })
+            Some(typeset_model::Image { mime: mime.into(), w, h, alt, bytes })
         })();
         remap.push(img.map(|i| {
             out.push(i);

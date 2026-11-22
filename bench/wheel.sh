@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${2:-python3}"
 OUT=$(mktemp)
-VOLUMEN_SELFTEST=wheel timeout 90 ./target/debug/volumen >"$OUT" 2>/dev/null &
+TYPESET_SELFTEST=wheel timeout 90 ./target/debug/volumen >"$OUT" 2>/dev/null &
 APP=$!
 for _ in $(seq 1 80); do grep -q "SELFTEST ready" "$OUT" && break; sleep 0.25; done
 grep -q "SELFTEST ready" "$OUT" || { echo "the app never became ready"; kill $APP; exit 1; }

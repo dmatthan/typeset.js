@@ -4,10 +4,10 @@
 use tauri::Emitter;
 
 /// Opens an address a book links to in the system's browser (or mail app): web and mail
-/// addresses only (`vol_model::outward`), handed over as one argument, never through a shell.
+/// addresses only (`typeset_model::outward`), handed over as one argument, never through a shell.
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
-    if !vol_engine::outward(&url) || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+    if !typeset_engine::outward(&url) || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err("Only web and mail addresses are opened.".into());
     }
     #[cfg(target_os = "linux")]
@@ -63,7 +63,7 @@ pub fn watch_desktop(app: tauri::AppHandle) {
             let now = stamp();
             if now != last {
                 last = now;
-                let _ = app.emit("volumen://desktop", ());
+                let _ = app.emit("typeset://desktop", ());
             }
         }
     });
@@ -71,15 +71,15 @@ pub fn watch_desktop(app: tauri::AppHandle) {
 
 /// On the proprietary nvidia driver WebKitGTK's DMA-BUF renderer paints nothing. With it
 /// off, GPU compositing works (WebKitGTK 2.52, tested 2026-10-13): smoother, vsynced.
-/// `VOLUMEN_SAFE_GPU=1` also turns compositing off, the older workaround.
+/// `TYPESET_SAFE_GPU=1` also turns compositing off, the older workaround.
 #[cfg(target_os = "linux")]
 pub fn webkit_workarounds() {
     let nvidia = std::path::Path::new("/proc/driver/nvidia/version").exists();
-    if !nvidia || std::env::var_os("VOLUMEN_KEEP_GPU").is_some() {
+    if !nvidia || std::env::var_os("TYPESET_KEEP_GPU").is_some() {
         return;
     }
     let mut vars = vec!["WEBKIT_DISABLE_DMABUF_RENDERER"];
-    if std::env::var_os("VOLUMEN_SAFE_GPU").is_some() {
+    if std::env::var_os("TYPESET_SAFE_GPU").is_some() {
         vars.push("WEBKIT_DISABLE_COMPOSITING_MODE");
     }
     for k in vars {

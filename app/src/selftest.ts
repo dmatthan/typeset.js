@@ -1,5 +1,5 @@
 // Development self-test, run inside whichever webview hosts the app (the Tauri shell sets
-// VOLUMEN_SELFTEST). Measures rendering fidelity and frame timing, reports, then quits.
+// TYPESET_SELFTEST). Measures rendering fidelity and frame timing, reports, then quits.
 import type { Reader } from './reader/reader.svelte';
 import { settings } from './reader/settings.svelte';
 
@@ -192,7 +192,7 @@ export async function wheelProbe(reader: Reader, log: (s: string) => Promise<voi
   await log(JSON.stringify({ events: ev, positions: pos.filter((_, i) => i % 3 === 0 || i === pos.length - 1), cur: reader.cur }));
 }
 
-/** Frame times while the settings sheet scrolls (VOLUMEN_SELFTEST=sheet). */
+/** Frame times while the settings sheet scrolls (TYPESET_SELFTEST=sheet). */
 export async function sheetProbe(reader: Reader, log: (s: string) => Promise<void>) {
   await wait(800);
   await openTestBook(reader);
@@ -220,7 +220,7 @@ export async function sheetProbe(reader: Reader, log: (s: string) => Promise<voi
   await log(JSON.stringify(res));
 }
 
-/** Notes, images and fit on books that have them, in WebKitGTK (VOLUMEN_SELFTEST=content). */
+/** Notes, images and fit on books that have them, in WebKitGTK (TYPESET_SELFTEST=content). */
 export async function contentProbe(reader: Reader, log: (s: string) => Promise<void>) {
   const { invoke } = await import('@tauri-apps/api/core');
   const { ui } = await import('./state.svelte');
@@ -286,7 +286,7 @@ export async function contentProbe(reader: Reader, log: (s: string) => Promise<v
   await log(JSON.stringify(out));
 }
 
-/** Library search on the desktop's full-text index (VOLUMEN_SELFTEST=search): how long
+/** Library search on the desktop's full-text index (TYPESET_SELFTEST=search): how long
  *  queries take over the self-test's library (the corpus books, and the generated ones if
  *  the library probe ran), once the indexer has caught up. */
 export async function searchProbe(reader: Reader, log: (s: string) => Promise<void>) {
@@ -319,7 +319,7 @@ export async function searchProbe(reader: Reader, log: (s: string) => Promise<vo
   await log(JSON.stringify(out));
 }
 
-/** Frame times while a large library scrolls (VOLUMEN_SELFTEST=library). Adds generated
+/** Frame times while a large library scrolls (TYPESET_SELFTEST=library). Adds generated
  *  books to the self-test's own library until it holds 200. */
 export async function libraryProbe(reader: Reader, log: (s: string) => Promise<void>) {
   const { ui } = await import('./state.svelte');
@@ -355,7 +355,7 @@ export async function libraryProbe(reader: Reader, log: (s: string) => Promise<v
 }
 
 /** Press against webview, string by string, for diagnosing a model gap
- *  (VOLUMEN_SELFTEST=probe). A probe starting "<i>" is set in italic. */
+ *  (TYPESET_SELFTEST=probe). A probe starting "<i>" is set in italic. */
 export async function probeStrings(reader: Reader, log: (s: string) => Promise<void>) {
   await wait(800);
   await openTestBook(reader);
@@ -383,7 +383,7 @@ export async function probeStrings(reader: Reader, log: (s: string) => Promise<v
   await log(JSON.stringify({ round: (reader as any).round, rows }));
 }
 
-/** Fit under display scaling (VOLUMEN_SELFTEST=scale): the webview zoomed to 125% and 150%,
+/** Fit under display scaling (TYPESET_SELFTEST=scale): the webview zoomed to 125% and 150%,
  *  every theme laid out again and every line checked. */
 export async function scaleProbe(reader: Reader, log: (s: string) => Promise<void>) {
   const { invoke } = await import('@tauri-apps/api/core');

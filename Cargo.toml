@@ -36,13 +36,13 @@ debug = "line-tables-only"
 # The engine is the hot path: optimise it even in development builds.
 [profile.dev.package."*"]
 opt-level = 3
-[profile.dev.package.vol-press]
+[profile.dev.package.typeset-press]
 opt-level = 3
-[profile.dev.package.vol-ingest]
+[profile.dev.package.typeset-ingest]
 opt-level = 3
-[profile.dev.package.vol-engine]
+[profile.dev.package.typeset-engine]
 opt-level = 3
-[profile.dev.package.vol-model]
+[profile.dev.package.typeset-model]
 opt-level = 3
 
 # clippy as a gate (scripts/lint.sh, -D warnings), less three lints this code disagrees

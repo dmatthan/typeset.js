@@ -1,5 +1,5 @@
 {
-  "name": "volumen-app",
+  "name": "typeset-app",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "playwright test --project=chromium --project=build --project=service --project=kit",
-    "test:slow": "CPU=4 playwright test --project=chromium --project=build --project=kit",
+    "test": "playwright test --project=chromium --project=build --project=service --project=package",
+    "test:slow": "CPU=4 playwright test --project=chromium --project=build --project=package",
     "test:firefox": "playwright test --project=firefox",
     "test:webkit": "playwright test --project=webkit",
     "test:engines": "playwright test --project=firefox --project=webkit"

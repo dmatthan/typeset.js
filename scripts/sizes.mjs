@@ -1,14 +1,14 @@
-// What a page that embeds the reader downloads before the book: the kit's code (scripts,
+// What a page that embeds the reader downloads before the book: typeset.js's code (scripts,
 // styles, the engine), brotli-compressed as a server sends it, against a budget. Fonts and
 // hyphenation patterns are left out: they come with each book, as its languages and theme
 // need them.
 //
-//   node scripts/sizes.mjs [dir] [budget in KB]     defaults: app/dist-kit, 1100
+//   node scripts/sizes.mjs [dir] [budget in KB]     defaults: packages/typeset.js/reader, 1100
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 
-const dir = process.argv[2] ?? 'app/dist-kit';
+const dir = process.argv[2] ?? new URL('../packages/typeset.js/reader', import.meta.url).pathname;
 const budget = Number(process.argv[3] ?? 1100) * 1024;
 
 function* files(d) {

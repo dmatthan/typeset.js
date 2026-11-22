@@ -2,7 +2,7 @@
 //! chooses, and the conversions that go from a file to a file (an extract as an EPUB,
 //! readers' notes as Word comments).
 use crate::{App, Held, Res, add, guarded};
-use vol_engine::percent_decode;
+use typeset_engine::percent_decode;
 use crate::store::LibEntry;
 use tauri::State;
 use tauri::ipc::{Request, Response};
@@ -29,7 +29,7 @@ pub enum Picked {
 /// Or notes as W3C Web Annotations (app/src/reader/webanno.ts), from here or another tool.
 fn is_notes_markdown(bytes: &[u8]) -> bool {
     let head = String::from_utf8_lossy(&bytes[..bytes.len().min(4000)]);
-    head.lines().any(|l| l.starts_with("<!-- volumen-notes/")) || head.contains("http://www.w3.org/ns/anno.jsonld")
+    head.lines().any(|l| l.starts_with("<!-- typeset-notes/")) || head.contains("http://www.w3.org/ns/anno.jsonld")
 }
 
 #[tauri::command]
@@ -38,7 +38,7 @@ pub async fn pick_book(window: tauri::Window, app: State<'_, App>) -> Res<Option
     let picked = window.dialog().file().add_filter("Books, manuscripts, notes and backups", &["epub", "docx", "md", "markdown", "txt", "vnotes", "json", "jsonld", "vbackup"]).blocking_pick_file();
     let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    if bytes.starts_with(b"VOLBK1") {
+    if bytes.starts_with(b"TSBK1") {
         // (kept for the page to read: only the file just chosen can be read this way)
         *app.picked.held() = Some(bytes);
         return Ok(Some(Picked::Backup));
@@ -50,7 +50,7 @@ pub async fn pick_book(window: tauri::Window, app: State<'_, App>) -> Res<Option
     guarded(|| add(&app, &bytes, &name, false)).map(|e| Some(Picked::Book(e)))
 }
 
-/// Chapters of a file as an EPUB of their own (`vol_engine::epub_of`): the file in the
+/// Chapters of a file as an EPUB of their own (`typeset_engine::epub_of`): the file in the
 /// body, its name and the chapters in headers.
 #[tauri::command]
 pub async fn epub_of(request: Request<'_>) -> Res<Response> {
@@ -58,10 +58,10 @@ pub async fn epub_of(request: Request<'_>) -> Res<Response> {
     let h = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok()).map(percent_decode).unwrap_or_default();
     let (from, to) = (h("x-from").parse().unwrap_or(1), h("x-to").parse().unwrap_or(usize::MAX));
     let name = h("x-name");
-    Ok(Response::new(guarded(|| vol_engine::epub_of(bytes, &name, from, to))?))
+    Ok(Response::new(guarded(|| typeset_engine::epub_of(bytes, &name, from, to))?))
 }
 
-/// Readers' notes put into a Word file as Word comments (`vol_engine::annotate_docx`).
+/// Readers' notes put into a Word file as Word comments (`typeset_engine::annotate_docx`).
 /// Both ways one body: a u32 length (big-endian), that much JSON (the notes; the
 /// report), then the Word file.
 #[tauri::command]
@@ -70,7 +70,7 @@ pub async fn annotate_docx(request: Request<'_>) -> Res<Response> {
     let n = body.get(..4).map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize).ok_or("damaged request")?;
     let notes = std::str::from_utf8(body.get(4..4 + n).ok_or("damaged request")?).map_err(|e| e.to_string())?;
     let docx = &body[4 + n..];
-    let (out, report) = guarded(|| vol_engine::annotate_docx(docx, notes))?;
+    let (out, report) = guarded(|| typeset_engine::annotate_docx(docx, notes))?;
     let mut answer = (report.len() as u32).to_be_bytes().to_vec();
     answer.extend_from_slice(report.as_bytes());
     answer.extend_from_slice(&out);

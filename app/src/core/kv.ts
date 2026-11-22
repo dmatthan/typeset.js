@@ -4,7 +4,7 @@
  *  before quitting. */
 import { isTauri } from './shell';
 
-const P = 'volumen.';
+const P = 'typeset.';
 const mem = new Map<string, string>();
 const dirty = new Map<string, string | null>();
 let flushT = 0;

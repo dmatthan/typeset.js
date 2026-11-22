@@ -39,12 +39,12 @@ async function at(step) {
   if (cdp) await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
   await p.waitForTimeout(300);
   const heap = cdp ? (await cdp.send('Runtime.getHeapUsage')).usedSize / 1048576 : null;
-  const { wasm, nodes } = await p.evaluate(async () => ({ wasm: window.__vol ? (await window.__vol.reader.core.memory?.())?.wasm / 1048576 : null, nodes: document.getElementsByTagName('*').length }));
+  const { wasm, nodes } = await p.evaluate(async () => ({ wasm: window.__typeset ? (await window.__typeset.reader.core.memory?.())?.wasm / 1048576 : null, nodes: document.getElementsByTagName('*').length }));
   const all = pss();
   rows.push({ step, browserMB: +all.toFixed(0), ...Object.fromEntries(Object.entries(kinds).filter(([, v]) => v > 8).map(([k, v]) => [k.slice(0, 14), +v.toFixed(0)])), jsHeapMB: heap && +heap.toFixed(1), wasmMB: wasm && +wasm.toFixed(0), nodes });
 }
 // (a production build has no test hooks: there, text on the page and a moment for the rest)
-const ready = () => p.waitForFunction(() => { const r = window.__vol?.reader; return r ? r.reading && r.strip && r.strip.layouts.size === r.book.sections.length : !!document.querySelector('.col .ln') && !document.querySelector('.reader[hidden]'); }, null, { timeout: 60000 }).then(() => p.waitForTimeout(1500));
+const ready = () => p.waitForFunction(() => { const r = window.__typeset?.reader; return r ? r.reading && r.strip && r.strip.layouts.size === r.book.sections.length : !!document.querySelector('.col .ln') && !document.querySelector('.reader[hidden]'); }, null, { timeout: 60000 }).then(() => p.waitForTimeout(1500));
 await p.goto('about:blank'); await p.waitForTimeout(1500); pss();
 rows.push({ step: 'empty page', browserMB: +pss().toFixed(0), ...Object.fromEntries(Object.entries(kinds).filter(([, v]) => v > 8).map(([k, v]) => [k.slice(0, 14), +v.toFixed(0)])) });
 await p.goto(URL0); await p.evaluate(() => localStorage.clear()); await p.goto(URL0);

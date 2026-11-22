@@ -1,8 +1,8 @@
 /** The web build's engine, in a Web Worker: the WASM engine, asked by message. Books'
  *  bytes live in IndexedDB here, so the page never holds or parses a whole book. */
 /// <reference lib="webworker" />
-import init, { Engine, LibrarySearch, catchPanics, lastPanic, faultForTest, importerVersion, annotateDocx, epubOf } from './pkg/vol_wasm.js';
-import wasmUrl from './pkg/vol_wasm_bg.wasm?url';
+import init, { Engine, LibrarySearch, catchPanics, lastPanic, faultForTest, importerVersion, annotateDocx, epubOf } from './pkg/typeset_wasm.js';
+import wasmUrl from './pkg/typeset_wasm_bg.wasm?url';
 import type { BookHits, FamilyLoad, LibEntry, Summary } from './types';
 import { bundledFiles } from './fonts';
 import { at } from './root';
@@ -82,7 +82,7 @@ const ops: Record<string, (...a: any[]) => Promise<unknown>> = {
    *  web.ts); the library's list is the reading worker's (`addEntry`). */
   async importFile(bytes: Uint8Array, name: string, sample = false, chapters?: [number, number]): Promise<LibEntry> {
     await ready;
-    // (an extract of some chapters, for a page: kit/volumen.js)
+    // (an extract of some chapters, for a page: typeset.js)
     const id = chapters ? eng.import_chapters(bytes, name, chapters[0], chapters[1]) : eng.import(bytes, name);
     await tx('books', 'readwrite', s => s.put(eng.save(id)!, id));
     // its file, to be read again by a later importer (an extract is made again instead)
@@ -189,7 +189,7 @@ function fault(err: unknown): string | null {
   if (!(err instanceof WebAssembly.RuntimeError)) return null;
   const p = lastPanic();
   const m = /panicked at (?:.*[\\/])?([^\\/:]+:\d+):\d+:\s*([\s\S]*)/.exec(p);
-  if (m) return `Volumen hit a bug of its own (${m[2].trim()}, ${m[1]}).`;
+  if (m) return `The reader hit a bug of its own (${m[2].trim()}, ${m[1]}).`;
   const mb = Math.round(wasm.memory.buffer.byteLength / 1048576);
-  return `Volumen’s engine stopped (${(err as Error).message}; ${mb} MB in use).`;
+  return `The reader’s engine stopped (${(err as Error).message}; ${mb} MB in use).`;
 }

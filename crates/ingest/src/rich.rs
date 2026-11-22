@@ -217,7 +217,7 @@ fn is_colour_name(w: &str) -> bool {
 /// A rich block as stored: the element and its styles, in one XHTML fragment.
 pub(crate) fn fragment(e: &ElementRef, rules: &[(String, String)]) -> String {
     let css = styles_for(e, rules);
-    format!("<div class=\"vol-rich\"><style>{}</style>{}</div>", esc(&css, false).replace("&gt;", ">"), xhtml(e))
+    format!("<div class=\"typeset-rich\"><style>{}</style>{}</div>", esc(&css, false).replace("&gt;", ">"), xhtml(e))
 }
 
 #[cfg(test)]

@@ -2,7 +2,9 @@
 target/
 node_modules/
 app/dist*/
-app/kit-site/
+app/package-site/
+packages/typeset.js/reader/
+packages/typeset.js/LICENSE
 app/src/core/pkg/
 src-tauri/gen/
 test-results/

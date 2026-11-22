@@ -63,7 +63,7 @@ with zipfile.ZipFile(out, 'w') as z:
     spine = ''.join(f'<itemref idref="c{i}"/>' for i in range(len(chapters)))
     z.writestr('OEBPS/content.opf', f'''<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
-<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">volumen-fixture-rich</dc:identifier>
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">typeset-fixture-rich</dc:identifier>
 <dc:title>Houses and Figures</dc:title><dc:creator>Volumen</dc:creator><dc:language>en</dc:language></metadata>
 <manifest>{items}<item id="css" href="style.css" media-type="text/css"/></manifest><spine>{spine}</spine></package>''')
     z.writestr('OEBPS/style.css', css)

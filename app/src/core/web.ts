@@ -52,7 +52,7 @@ export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<Lib
     // so a worker that cannot start fails each call once rather than looping)
     me.onerror = ev => {
       ev.preventDefault();
-      const err = new Error(`Volumen’s engine stopped (${ev.message || 'it could not start'}).`);
+      const err = new Error(`The reader’s engine stopped (${ev.message || 'it could not start'}).`);
       me.terminate();
       if (w === me) w = null;
       for (const [id, c] of pending) { pending.delete(id); c.rej(err); }
@@ -73,7 +73,7 @@ export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<Lib
       const iw = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
       const end = () => iw.terminate();
       iw.onmessage = e => { end(); e.data.ok ? res(e.data.value) : rej(new Error(e.data.error)); };
-      iw.onerror = ev => { ev.preventDefault(); end(); rej(new Error(`Volumen’s engine stopped (${ev.message || 'it could not start'}).`)); };
+      iw.onerror = ev => { ev.preventDefault(); end(); rej(new Error(`The reader’s engine stopped (${ev.message || 'it could not start'}).`)); };
       iw.postMessage({ n: 0, op: 'importFile', args: [bytes, name, sample, chapters] }, [bytes.buffer]);
     })).then(async read => {
       // (a book read again keeps its date and its place among the samples)

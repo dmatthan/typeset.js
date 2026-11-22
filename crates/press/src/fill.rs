@@ -5,8 +5,8 @@
 use crate::brk::{Shape, break_lines};
 use crate::hyph::Patterns;
 use crate::shape::{Measurer, Mono, Typo};
-use vol_model::js::U16Cursor;
-use vol_model::{Image, Kind, Section, SectionKind, style};
+use typeset_model::js::U16Cursor;
+use typeset_model::{Image, Kind, Section, SectionKind, style};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Params {
@@ -98,7 +98,7 @@ const EM_VERSE_HANG: f32 = 1.3;
 /// A block's style spans, with `add` styles. When the renderer shapes each inline element
 /// on its own (`Params::link_runs`: WebKit), spans are also cut at link edges, so text on
 /// either side is measured apart, as it will be drawn (no kerning across the edge).
-fn spans_with(b: &vol_model::Block, add: u8, link_runs: bool) -> Vec<(usize, usize, u8)> {
+fn spans_with(b: &typeset_model::Block, add: u8, link_runs: bool) -> Vec<(usize, usize, u8)> {
     let mut out: Vec<(usize, usize, u8)> = b.spans().map(|(s, e, st)| (s, e, st | add)).collect();
     if link_runs && !b.links.is_empty() {
         let mut cuts: Vec<usize> = b.links.iter().flat_map(|l| [l.start as usize, l.end as usize]).collect();
@@ -352,7 +352,7 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
 /// the maxima fit the measure they are used, else the room between minima and maxima is
 /// shared out, else the minima are scaled down and words break. Every cell is set by the
 /// breaker in its column's width, ragged, so a table obeys the same rules as text.
-fn set_table(m: &mut Measurer, b: &vol_model::Block, bi: u32, p: &Params, lang: Option<&Patterns>) -> Vec<Para> {
+fn set_table(m: &mut Measurer, b: &typeset_model::Block, bi: u32, p: &Params, lang: Option<&Patterns>) -> Vec<Para> {
     let shape = b.table.clone().unwrap_or_default();
     let em = p.typo.size;
     let spans = spans_with(b, 0, p.link_runs);
@@ -498,7 +498,7 @@ fn set_table(m: &mut Measurer, b: &vol_model::Block, bi: u32, p: &Params, lang: 
         x[i + 1] = x[i] + widths[i] + gutter;
     }
     let table_w = (x[n] - gutter).min(p.measure);
-    let mut cur = vol_model::js::U16Cursor::new(&b.text);
+    let mut cur = typeset_model::js::U16Cursor::new(&b.text);
     let mut out: Vec<Para> = Vec::new();
     let nrows = cells.iter().map(|c| c.0).max().map(|r| r + 1).unwrap_or(0);
     for r in 0..nrows {
@@ -634,7 +634,7 @@ pub fn layout_section(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: 
 mod tests {
     use super::*;
     use crate::shape::Typeface;
-    use vol_model::{Block, Section, SectionKind};
+    use typeset_model::{Block, Section, SectionKind};
 
     fn face(files: &[&str]) -> Typeface {
         let d = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/fonts/");
@@ -697,7 +697,7 @@ mod tests {
     }
 
     fn table(text: &str, cols: u32) -> Section {
-        let block = Block { key: 1, kind: Kind::Table, text: text.into(), runs: vec![], links: vec![], image: None, table: Some(vol_model::TableShape { cols, header_rows: 0, spans: vec![] }) };
+        let block = Block { key: 1, kind: Kind::Table, text: text.into(), runs: vec![], links: vec![], image: None, table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }) };
         Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block] }
     }
 

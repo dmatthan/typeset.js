@@ -4,13 +4,13 @@ const out = process.argv[2];
 const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1440, height: 860 } });
 await p.goto('http://localhost:5193/'); await p.evaluate(() => localStorage.clear()); await p.goto('http://localhost:5193/');
-await p.click('.book[data-id]'); await p.waitForFunction(() => window.__vol?.reader?.reading);
-await p.waitForFunction(() => { const r = window.__vol.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
-await p.evaluate(() => { const r = window.__vol.reader; let k = Math.floor(r.strip.N * 0.31); while (r.strip.itemAt(k)?.type !== 'sect') k++; r.jump(k); });
+await p.click('.book[data-id]'); await p.waitForFunction(() => window.__typeset?.reader?.reading);
+await p.waitForFunction(() => { const r = window.__typeset.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
+await p.evaluate(() => { const r = window.__typeset.reader; let k = Math.floor(r.strip.N * 0.31); while (r.strip.itemAt(k)?.type !== 'sect') k++; r.jump(k); });
 const shots = (process.argv[3] || 'panel').split(',');
 for (const mode of ['light', 'dark']) {
-  await p.evaluate(m => { window.__vol.settings.appearance = m; window.__vol.settings.theme = 'warm'; }, mode);
-  await p.evaluate(() => window.__vol.reader.settingsChanged('layout'));
+  await p.evaluate(m => { window.__typeset.settings.appearance = m; window.__typeset.settings.theme = 'warm'; }, mode);
+  await p.evaluate(() => window.__typeset.reader.settingsChanged('layout'));
   await p.waitForTimeout(1200);
   if (shots.includes('panel')) {
     await p.keyboard.press('s'); await p.waitForTimeout(400);

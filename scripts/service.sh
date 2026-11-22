@@ -25,7 +25,7 @@ if [[ "${1:-}" == --local ]]; then
 fi
 # the deployed database is named in the config scripts/deploy.sh wrote
 if [[ "${where[0]}" == --remote && -f wrangler.local.jsonc ]]; then W="npx wrangler -c wrangler.local.jsonc"; fi
-sql() { $W d1 execute volumen "${where[@]}" --json --command "$1" 2>/dev/null; }
+sql() { $W d1 execute typeset "${where[@]}" --json --command "$1" 2>/dev/null; }
 q() { printf "%s" "$1" | sed "s/'/''/g"; }
 id_ok() { [[ "$1" =~ ^[A-Za-z0-9_-]{22}$ ]] || { echo "not a writer id: $1" >&2; exit 1; }; }
 

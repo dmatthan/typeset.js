@@ -1,7 +1,7 @@
 //! Some chapters of a book as an EPUB of their own: a sample to put online.
 //!
-//!   cargo run -p vol-ingest --example sample -- book.epub 1-3 sample.epub
-//!   cargo run -p vol-ingest --example sample -- manuscript.docx all manuscript.epub
+//!   cargo run -p typeset-ingest --example sample -- book.epub 1-3 sample.epub
+//!   cargo run -p typeset-ingest --example sample -- manuscript.docx all manuscript.epub
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
     let [src, range, out] = &a[..] else {
@@ -16,7 +16,7 @@ fn main() {
         },
     };
     let bytes = std::fs::read(src).expect("the book");
-    match vol_ingest::write::sample(&bytes, src, from, to) {
+    match typeset_ingest::write::sample(&bytes, src, from, to) {
         Ok(epub) => { std::fs::write(out, epub).expect("written"); eprintln!("{out}"); }
         Err(e) => { eprintln!("{e}"); std::process::exit(1); }
     }

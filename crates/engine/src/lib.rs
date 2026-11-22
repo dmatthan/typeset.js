@@ -9,12 +9,12 @@ pub mod anchor;
 use rustc_hash::{FxHashMap, FxHasher};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-pub use vol_model::{Book, SectionKind, outward, percent_decode};
-pub use vol_press::Params;
-/// What the importer makes of a file, as a number (`vol_ingest::VERSION`).
-pub const IMPORTER_VERSION: u32 = vol_ingest::VERSION;
-use vol_press::hyph::Patterns;
-use vol_press::{Family, Press, SectionLayout, Typeface, Typo};
+pub use typeset_model::{Book, SectionKind, outward, percent_decode};
+pub use typeset_press::Params;
+/// What the importer makes of a file, as a number (`typeset_ingest::VERSION`).
+pub const IMPORTER_VERSION: u32 = typeset_ingest::VERSION;
+use typeset_press::hyph::Patterns;
+use typeset_press::{Family, Press, SectionLayout, Typeface, Typo};
 
 /// What the reader asks a layout for: the page geometry and the theme's type.
 #[derive(serde::Deserialize, Clone, Debug, PartialEq)]
@@ -58,10 +58,10 @@ pub struct Request {
 }
 
 fn body() -> f32 {
-    vol_press::shape::BODY_WGHT
+    typeset_press::shape::BODY_WGHT
 }
 fn bold() -> f32 {
-    vol_press::shape::BOLD_WGHT
+    typeset_press::shape::BOLD_WGHT
 }
 
 impl Request {
@@ -138,7 +138,7 @@ pub struct Engine {
     cache: FxHashMap<String, (u64, FxHashMap<u32, SectionLayout>)>,
     /// Folded text for find, built on a book's first search.
     finders: FxHashMap<String, find::Index>,
-    /// Hyphenation patterns by language code (`vol_press::hyph`).
+    /// Hyphenation patterns by language code (`typeset_press::hyph`).
     patterns: FxHashMap<&'static str, Patterns>,
 }
 
@@ -156,7 +156,7 @@ impl Engine {
 
     /// Adds a language's hyphenation patterns (`assets/hyph/<code>.bin`).
     pub fn add_patterns(&mut self, code: &str, bytes: Vec<u8>) -> Result<(), String> {
-        let code = vol_press::hyph::LANGS.iter().copied().find(|l| *l == code).ok_or_else(|| format!("no patterns for {code}"))?;
+        let code = typeset_press::hyph::LANGS.iter().copied().find(|l| *l == code).ok_or_else(|| format!("no patterns for {code}"))?;
         let pat = Patterns::new(bytes).ok_or("unreadable hyphenation patterns")?;
         self.patterns.insert(code, pat);
         // layouts made without them are stale
@@ -167,7 +167,7 @@ impl Engine {
     /// Every language's patterns from a directory (native tools and tests).
     #[cfg(not(target_arch = "wasm32"))]
     pub fn add_patterns_from(&mut self, dir: &std::path::Path) {
-        for code in vol_press::hyph::LANGS {
+        for code in typeset_press::hyph::LANGS {
             if let Ok(b) = std::fs::read(dir.join(format!("{code}.bin"))) {
                 self.add_patterns(code, b).ok();
             }
@@ -177,7 +177,7 @@ impl Engine {
     /// The language whose patterns a book needs and the engine lacks, if any (the web
     /// build fetches them before the first layout).
     pub fn patterns_wanted(&self, id: &str) -> Option<&'static str> {
-        let code = vol_press::hyph::lang_code(&self.books.get(id)?.meta.lang)?;
+        let code = typeset_press::hyph::lang_code(&self.books.get(id)?.meta.lang)?;
         (!self.patterns.contains_key(code)).then_some(code)
     }
 
@@ -201,7 +201,7 @@ impl Engine {
         self.families.get(family).is_some_and(|f| !f.files.is_empty())
     }
 
-    pub fn family_files(&self, family: &str) -> &[vol_press::shape::FontFile] {
+    pub fn family_files(&self, family: &str) -> &[typeset_press::shape::FontFile] {
         self.families.get(family).map(|f| f.files.as_slice()).unwrap_or(&[])
     }
 
@@ -239,14 +239,14 @@ impl Engine {
 
     /// Reads an EPUB or text file; returns the new book's id.
     pub fn import(&mut self, bytes: &[u8], name: &str) -> Result<String, String> {
-        let book = vol_ingest::any(bytes, name).map_err(|e| e.to_string())?;
+        let book = typeset_ingest::any(bytes, name).map_err(|e| e.to_string())?;
         Ok(self.insert(book))
     }
 
     /// Reads a file and keeps only chapters `from` to `to` (counted from 1): an extract for
-    /// a page, a sample (the kit). Its own id, so it never stands in for the whole book.
+    /// a page, a sample (typeset.js). Its own id, so it never stands in for the whole book.
     pub fn import_chapters(&mut self, bytes: &[u8], name: &str, from: usize, to: usize) -> Result<String, String> {
-        let mut book = vol_ingest::any(bytes, name).map_err(|e| e.to_string())?;
+        let mut book = typeset_ingest::any(bytes, name).map_err(|e| e.to_string())?;
         book.keep_chapters(from, to)?;
         book.id = format!("{}-{from}-{to}", book.id);
         Ok(self.insert(book))
@@ -272,7 +272,7 @@ impl Engine {
     }
 
     /// The cover found at import (only until the book is saved and restored).
-    pub fn cover(&self, id: &str) -> Option<&vol_model::Cover> {
+    pub fn cover(&self, id: &str) -> Option<&typeset_model::Cover> {
         self.books.get(id).and_then(|b| b.cover.as_ref())
     }
 
@@ -291,7 +291,7 @@ impl Engine {
         true
     }
 
-    pub fn image(&self, id: &str, idx: usize) -> Option<&vol_model::Image> {
+    pub fn image(&self, id: &str, idx: usize) -> Option<&typeset_model::Image> {
         self.books.get(id).and_then(|b| b.images.get(idx)).filter(|i| !i.bytes.is_empty())
     }
 
@@ -317,7 +317,7 @@ impl Engine {
     /// The book as the frontend reads it (JSON, UTF-16 offsets).
     pub fn book_json(&self, id: &str) -> Option<String> {
         let b = self.books.get(id)?;
-        let mut js = vol_model::js::to_js(b);
+        let mut js = typeset_model::js::to_js(b);
         js.ext = beyond_core(b);
         serde_json::to_string(&js).ok()
     }
@@ -338,7 +338,7 @@ impl Engine {
                 }
             }
         });
-        let pre = b.sections.iter().any(|s| s.blocks.iter().any(|x| x.kind == vol_model::Kind::Pre));
+        let pre = b.sections.iter().any(|s| s.blocks.iter().any(|x| x.kind == typeset_model::Kind::Pre));
         serde_json::to_string(&serde_json::json!({ "fallback": fallback, "pre": pre })).ok()
     }
 
@@ -390,7 +390,7 @@ impl Engine {
         };
         if !missing.is_empty() {
             let book = self.books.remove(id).ok_or("missing book")?;
-            let hyph = vol_press::hyph::lang_code(&book.meta.lang).and_then(|c| self.patterns.get(c)).cloned();
+            let hyph = typeset_press::hyph::lang_code(&book.meta.lang).and_then(|c| self.patterns.get(c)).cloned();
             let res = self.press(&r.font).map(|press| lay(press, &book, &missing, &p, hyph.as_ref()));
             self.books.insert(id.to_string(), book);
             let entry = self.cache.get_mut(id).unwrap();
@@ -402,7 +402,7 @@ impl Engine {
         let entry = &self.cache[id];
         let want: Vec<u32> = if sections.is_empty() { (0..book.sections.len() as u32).collect() } else { sections.to_vec() };
         let refs: Vec<(u32, &SectionLayout)> = want.iter().filter_map(|s| entry.1.get(s).map(|l| (*s, l))).collect();
-        Ok(vol_press::encode(&refs))
+        Ok(typeset_press::encode(&refs))
     }
 }
 
@@ -425,11 +425,11 @@ fn lay(press: &mut Press, book: &Book, secs: &[u32], p: &Params, hyph: Option<&P
     order.par_iter().map_init(|| Press::new(tf.clone()).with_mono(mono.clone()), |pr, &s| (s, pr.section(book, s as usize, p, hyph))).collect()
 }
 
-/// The core files' ranges (`assets/fonts/core-ranges.txt`).
+/// The core files' ranges (`core-ranges.txt`, which scripts/subset-fonts.py splits the faces by).
 fn core_ranges() -> &'static [(u32, u32)] {
     static R: std::sync::OnceLock<Vec<(u32, u32)>> = std::sync::OnceLock::new();
     R.get_or_init(|| {
-        include_str!("../../../assets/fonts/core-ranges.txt")
+        include_str!("../core-ranges.txt")
             .lines()
             .map(|l| l.split('#').next().unwrap_or("").trim())
             .filter(|l| !l.is_empty())
@@ -456,7 +456,7 @@ fn beyond_core(b: &Book) -> String {
     out
 }
 
-/// A reader's note to put into a Word file as a comment (`vol_ingest::annotate`).
+/// A reader's note to put into a Word file as a comment (`typeset_ingest::annotate`).
 #[derive(serde::Deserialize)]
 struct WordComment {
     quote: String,
@@ -474,17 +474,17 @@ struct WordComment {
 /// `{"placed": n, "unplaced": [indices]}`. One function for both shells.
 pub fn annotate_docx(docx: &[u8], comments_json: &str) -> Result<(Vec<u8>, String), String> {
     let cs: Vec<WordComment> = serde_json::from_str(comments_json).map_err(|e| e.to_string())?;
-    let cs: Vec<vol_ingest::annotate::Comment> = cs
+    let cs: Vec<typeset_ingest::annotate::Comment> = cs
         .into_iter()
-        .map(|c| vol_ingest::annotate::Comment { quote: c.quote, prefix: c.prefix, suffix: c.suffix, author: c.author, text: c.text, date: c.date })
+        .map(|c| typeset_ingest::annotate::Comment { quote: c.quote, prefix: c.prefix, suffix: c.suffix, author: c.author, text: c.text, date: c.date })
         .collect();
-    let a = vol_ingest::annotate::annotate(docx, &cs).map_err(|e| e.to_string())?;
+    let a = typeset_ingest::annotate::annotate(docx, &cs).map_err(|e| e.to_string())?;
     let report = format!("{{\"placed\":{},\"unplaced\":{:?}}}", a.placed, a.unplaced);
     Ok((a.bytes, report))
 }
 
-/// Chapters `from` to `to` of a file as an EPUB of their own (`vol_ingest::write`): a
+/// Chapters `from` to `to` of a file as an EPUB of their own (`typeset_ingest::write`): a
 /// sample to put online, or a Word or Markdown manuscript as an EPUB (all its chapters).
 pub fn epub_of(bytes: &[u8], name: &str, from: usize, to: usize) -> Result<Vec<u8>, String> {
-    vol_ingest::write::sample(bytes, name, from, to)
+    typeset_ingest::write::sample(bytes, name, from, to)
 }

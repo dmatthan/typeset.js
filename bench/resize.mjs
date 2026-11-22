@@ -11,14 +11,14 @@ if (process.argv[3]) {
   await p.waitForFunction(() => document.querySelectorAll('.book[data-id]').length >= 2, null, { timeout: 60000 });
 }
 await p.locator('.book[data-id]').first().click();
-await p.waitForFunction(() => { const r = window.__vol.reader; return r.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
-await p.evaluate(() => { const r = window.__vol.reader; r.jump(Math.floor(r.strip.N * 0.4)); });
+await p.waitForFunction(() => { const r = window.__typeset.reader; return r.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
+await p.evaluate(() => { const r = window.__typeset.reader; r.jump(Math.floor(r.strip.N * 0.4)); });
 await p.waitForTimeout(800);
 const out = [];
 // one step at a time, as the size control moves
 for (const size of [21, 22, 21, 20, 19, 20]) {
   out.push(await p.evaluate(async size => {
-    const v = window.__vol, r = v.reader;
+    const v = window.__typeset, r = v.reader;
     const t0 = performance.now();
     v.settings.size = size;
     await r.settingsChanged('layout');

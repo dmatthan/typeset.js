@@ -1,7 +1,7 @@
 //! Feeds the importers damaged copies of real files (cut short, bytes changed, runs of bytes
 //! dropped or overwritten) and reports every panic: a bad file must give an error, never a crash.
 //!
-//!     cargo run -p vol-ingest --example fuzz -- [rounds] file...
+//!     cargo run -p typeset-ingest --example fuzz -- [rounds] file...
 //!
 //! (Not with --release: the release profile aborts on a panic, so none could be counted.)
 use std::panic;
@@ -29,7 +29,7 @@ fn main() {
         }
         for (how, b) in tries {
             for n in [name.clone(), name.replace('.', "_") + ".txt"] {
-                let r = panic::catch_unwind(|| vol_ingest::any(&b, &n).map(|bk| bk.sections.len()));
+                let r = panic::catch_unwind(|| typeset_ingest::any(&b, &n).map(|bk| bk.sections.len()));
                 if let Err(e) = r {
                     let msg = e.downcast_ref::<String>().cloned().or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string())).unwrap_or_default();
                     let ent = found.entry(msg).or_insert((0, format!("{name} as {n}: {how}")));

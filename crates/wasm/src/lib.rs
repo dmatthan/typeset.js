@@ -1,7 +1,7 @@
 //! The engine for the web build, run inside a Web Worker.
 
 use std::sync::Mutex;
-use vol_engine::{Engine as Inner, Request};
+use typeset_engine::{Engine as Inner, Request};
 use wasm_bindgen::prelude::*;
 
 /// The last panic's message and place. The build aborts on a panic (the instance traps,
@@ -15,10 +15,10 @@ extern "C" {
     fn console_error(s: &str);
 }
 
-/// The importer's version (`vol_ingest::VERSION`).
+/// The importer's version (`typeset_ingest::VERSION`).
 #[wasm_bindgen(js_name = importerVersion)]
 pub fn importer_version() -> u32 {
-    vol_engine::IMPORTER_VERSION
+    typeset_engine::IMPORTER_VERSION
 }
 
 /// Records panics (see `PANIC`); called once, after the module is loaded.
@@ -154,14 +154,14 @@ impl Engine {
         self.0.find(id, query, limit)
     }
 
-    /// Places notes on a book: `anchors` and the result are JSON (see `vol_engine::anchor`).
+    /// Places notes on a book: `anchors` and the result are JSON (see `typeset_engine::anchor`).
     pub fn place(&self, id: &str, anchors: &str) -> Result<String, JsError> {
-        let a: Vec<vol_engine::anchor::Anchor> = serde_json::from_str(anchors).map_err(|e| JsError::new(&e.to_string()))?;
+        let a: Vec<typeset_engine::anchor::Anchor> = serde_json::from_str(anchors).map_err(|e| JsError::new(&e.to_string()))?;
         let p = self.0.place(id, &a).ok_or_else(|| JsError::new("missing book"))?;
         serde_json::to_string(&p).map_err(|e| JsError::new(&e.to_string()))
     }
 
-    /// What a library lists about a book (`vol_engine::Summary`), as JSON.
+    /// What a library lists about a book (`typeset_engine::Summary`), as JSON.
     pub fn summary(&self, id: &str) -> Option<String> {
         self.0.summary(id).and_then(|s| serde_json::to_string(&s).ok())
     }
@@ -181,12 +181,12 @@ impl Engine {
 
 /// Library search over saved books, one at a time (the web build has no full-text index,
 /// and holds one book's bytes at once): each book's matches are kept, and `finish` ranks
-/// them as the desktop does (`vol_engine::search::rank`).
+/// them as the desktop does (`typeset_engine::search::rank`).
 #[wasm_bindgen]
 pub struct LibrarySearch {
     query: String,
     keep: usize,
-    found: Vec<vol_engine::search::BookHits>,
+    found: Vec<typeset_engine::search::BookHits>,
 }
 
 #[wasm_bindgen]
@@ -198,13 +198,13 @@ impl LibrarySearch {
 
     /// A saved book (`Engine::save`'s bytes) looked through.
     pub fn add(&mut self, bytes: &[u8]) {
-        let Ok(book) = vol_engine::Book::restore(bytes) else { return };
-        self.found.extend(vol_engine::search::in_book(&book, None, &self.query, self.keep));
+        let Ok(book) = typeset_engine::Book::restore(bytes) else { return };
+        self.found.extend(typeset_engine::search::in_book(&book, None, &self.query, self.keep));
     }
 
     /// The matches, ranked, as JSON.
     pub fn finish(self) -> String {
-        serde_json::to_string(&vol_engine::search::rank(self.found)).unwrap_or_else(|_| "[]".into())
+        serde_json::to_string(&typeset_engine::search::rank(self.found)).unwrap_or_else(|_| "[]".into())
     }
 }
 
@@ -215,7 +215,7 @@ pub fn fault_for_test() {
 }
 
 /// The writer's Word file with readers' notes as Word comments, and what was placed
-/// (`vol_engine::annotate_docx`).
+/// (`typeset_engine::annotate_docx`).
 #[wasm_bindgen]
 pub struct Annotated {
     bytes: Vec<u8>,
@@ -236,12 +236,12 @@ impl Annotated {
 
 #[wasm_bindgen(js_name = annotateDocx)]
 pub fn annotate_docx(docx: &[u8], comments: &str) -> Result<Annotated, JsError> {
-    let (bytes, report) = vol_engine::annotate_docx(docx, comments).map_err(|e| JsError::new(&e))?;
+    let (bytes, report) = typeset_engine::annotate_docx(docx, comments).map_err(|e| JsError::new(&e))?;
     Ok(Annotated { bytes, report })
 }
 
-/// Chapters of a file as an EPUB of their own (`vol_engine::epub_of`).
+/// Chapters of a file as an EPUB of their own (`typeset_engine::epub_of`).
 #[wasm_bindgen(js_name = epubOf)]
 pub fn epub_of(bytes: &[u8], name: &str, from: u32, to: u32) -> Result<Vec<u8>, JsError> {
-    vol_engine::epub_of(bytes, name, from as usize, to as usize).map_err(|e| JsError::new(&e))
+    typeset_engine::epub_of(bytes, name, from as usize, to as usize).map_err(|e| JsError::new(&e))
 }

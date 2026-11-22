@@ -7,7 +7,7 @@ const p = await b.newPage({ viewport: { width: W, height: H }, deviceScaleFactor
 const cdp = await p.context().newCDPSession(p);
 await p.goto('http://localhost:5193/'); await p.evaluate(() => localStorage.clear()); await p.goto('http://localhost:5193/');
 await p.locator('.book[data-id]').first().click();
-await p.waitForFunction(() => { const r = window.__vol.reader; return r.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
+await p.waitForFunction(() => { const r = window.__typeset.reader; return r.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
 for (let i = 0; i < 20; i++) { await p.keyboard.press('ArrowRight'); await p.waitForTimeout(80); }
 await p.waitForTimeout(1500);
 if (process.env.NOSTRIPS) await p.evaluate(() => document.querySelectorAll('.edge-strip').forEach(e => e.remove()));

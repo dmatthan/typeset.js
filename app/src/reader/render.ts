@@ -272,7 +272,7 @@ export function leafHTML(strip: Strip, it: Item, ctx: LeafCtx): string {
         </div>
       </section>`;
     case 'colophon':
-      // an extract on someone else's page, with a way on (kit/volumen.js: end-href)
+      // an extract on someone else's page, with a way on (typeset.js: end-href)
       if (embedOpts.endHref) return `<section class="leaf colophon">
         <p class="eyebrow">The end of this extract</p>
         <p class="co-title">${esc(b.title)}</p>

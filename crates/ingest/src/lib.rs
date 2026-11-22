@@ -11,7 +11,7 @@ mod markdown;
 mod rich;
 mod text;
 
-pub use vol_model::Book;
+pub use typeset_model::Book;
 
 /// What this importer makes of a file, as a number: raised whenever a book read again
 /// would come out differently, so books read by an earlier one are read again from their
@@ -22,9 +22,9 @@ pub use vol_model::Book;
 /// 4: writing without spaces (Chinese, Japanese) counted fairly, so its short chapters
 /// are not taken for title pages; a book of pictures keeps its pages. 5: rich blocks keep
 /// only what draws (rich.rs's lists); links out of a book only to the web and mail
-/// (`vol_model::outward`), and Markdown's kept.
+/// (`typeset_model::outward`), and Markdown's kept.
 pub const VERSION: u32 = 5;
-use vol_model::{Block, Kind, Meta, Section, SectionKind};
+use typeset_model::{Block, Kind, Meta, Section, SectionKind};
 
 #[derive(Debug)]
 pub enum Error {
@@ -126,7 +126,7 @@ fn is_docx(bytes: &[u8]) -> bool {
 }
 
 pub(crate) fn finish_book(source: &[u8], meta: Meta, sections: Vec<Section>) -> Book {
-    Book { id: format!("{:016x}", vol_model::fnv64(source)), meta, sections, notes: vec![], images: vec![], cover: None }
+    Book { id: format!("{:016x}", typeset_model::fnv64(source)), meta, sections, notes: vec![], images: vec![], cover: None }
 }
 
 /// One long unbroken text (no headings to cut it by) in parts of about 2,600 words, named
@@ -141,7 +141,7 @@ pub(crate) fn parts(blocks: Vec<Block>, cut: bool) -> Vec<Section> {
             out.push(Section { kind: SectionKind::Chapter, part: String::new(), label: if cut { format!("Part {n}") } else { String::new() }, num: n.to_string(), title: String::new(), blocks: Vec::new() });
             w = 0;
         }
-        w += vol_model::words(&b.text);
+        w += typeset_model::words(&b.text);
         out.last_mut().unwrap().blocks.push(b);
     }
     out

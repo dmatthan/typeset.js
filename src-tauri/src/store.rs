@@ -8,7 +8,7 @@ use std::path::Path;
 pub struct LibEntry {
     pub id: String,
     #[serde(flatten)]
-    pub about: vol_engine::Summary,
+    pub about: typeset_engine::Summary,
     pub added: u64,
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub sample: bool,

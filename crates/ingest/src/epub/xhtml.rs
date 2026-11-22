@@ -51,7 +51,7 @@ pub(super) struct Extractor {
     /// Links as found, per block key: range and payload (see `Inl::link`).
     pub(super) raw_links: HashMap<u64, Vec<(u32, u32, String)>>,
     /// Footnotes printed nowhere in the flow (EPUB 3 asides): `path#id` → text.
-    pub(super) asides: HashMap<String, (String, Vec<vol_model::Run>, Vec<(u32, u32, String)>)>,
+    pub(super) asides: HashMap<String, (String, Vec<typeset_model::Run>, Vec<(u32, u32, String)>)>,
     /// Images to read once the walk is done: path, description, pixel density.
     pub(super) images: Vec<(String, String, f32)>,
     /// Images met inside a paragraph, set after it.
@@ -358,7 +358,7 @@ impl Extractor {
         }
         rows_of(e, &mut rows);
         let mut b = TextBuilder::new();
-        let mut shape = vol_model::TableShape::default();
+        let mut shape = typeset_model::TableShape::default();
         let mut first_row = true;
         for tr in rows {
             let cells: Vec<ElementRef> = tr.child_elements().filter(|c| is(c, "td") || is(c, "th")).collect();
@@ -553,7 +553,7 @@ pub(super) fn contains_target(e: &ElementRef, targets: &HashMap<String, String>)
     e.value().id().is_some_and(|id| targets.contains_key(id)) || e.descendent_elements().any(|d| d.value().id().is_some_and(|id| targets.contains_key(id)))
 }
 
-pub(super) fn push_slice(b: &mut TextBuilder, text: &str, runs: &[vol_model::Run], from: usize, to: usize) {
+pub(super) fn push_slice(b: &mut TextBuilder, text: &str, runs: &[typeset_model::Run], from: usize, to: usize) {
     let mut at = from;
     for r in runs {
         let (s, e) = ((r.start as usize).max(from), (r.end as usize).min(to));

@@ -1,21 +1,21 @@
-//! For the self-tests (VOLUMEN_SELFTEST, debug builds only): which test, the test books,
+//! For the self-tests (TYPESET_SELFTEST, debug builds only): which test, the test books,
 //! display scaling, and a log the test runner reads.
 use crate::Res;
 use tauri::ipc::Response;
 
 #[tauri::command]
 pub fn selftest_mode() -> bool {
-    cfg!(debug_assertions) && std::env::var_os("VOLUMEN_SELFTEST").is_some()
+    cfg!(debug_assertions) && std::env::var_os("TYPESET_SELFTEST").is_some()
 }
 
-/// Which self-test to run (`VOLUMEN_SELFTEST=wheel` records wheel input; anything else
+/// Which self-test to run (`TYPESET_SELFTEST=wheel` records wheel input; anything else
 /// runs the full test).
 #[tauri::command]
 pub fn selftest_arg() -> String {
     if !selftest_mode() {
         return String::new();
     }
-    std::env::var("VOLUMEN_SELFTEST").unwrap_or_default()
+    std::env::var("TYPESET_SELFTEST").unwrap_or_default()
 }
 
 /// A corpus book for the self-test (debug builds only).

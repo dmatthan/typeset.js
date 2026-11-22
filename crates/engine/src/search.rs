@@ -5,7 +5,7 @@
 
 use crate::find::{fold_block, fold_str, phrase_in, words_in};
 use serde::Serialize;
-use vol_model::Book;
+use typeset_model::Book;
 
 /// One match, with the words around it.
 #[derive(Serialize, Clone, Debug)]
@@ -190,8 +190,8 @@ mod tests {
     use super::*;
 
     fn book() -> Book {
-        let mk = |k: u64, t: &str| vol_model::Block::new(k, vol_model::Kind::P, t.to_string(), vec![]);
-        let sec = |label: &str, blocks| vol_model::Section { kind: vol_model::SectionKind::Chapter, part: String::new(), label: label.into(), num: "1".into(), title: String::new(), blocks };
+        let mk = |k: u64, t: &str| typeset_model::Block::new(k, typeset_model::Kind::P, t.to_string(), vec![]);
+        let sec = |label: &str, blocks| typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: label.into(), num: "1".into(), title: String::new(), blocks };
         Book {
             id: "b".into(),
             meta: Default::default(),

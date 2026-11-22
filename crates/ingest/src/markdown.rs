@@ -6,7 +6,7 @@
 use crate::doc::{Doc, Para, assemble};
 use crate::Error;
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-use vol_model::{Meta, TextBuilder, style};
+use typeset_model::{Meta, TextBuilder, style};
 
 pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
     let src = crate::text::decode(bytes).ok_or(Error::Unreadable("it is not text"))?.replace("\r\n", "\n");
@@ -105,7 +105,7 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             Event::Start(Tag::Strong) => st |= style::BOLD,
             Event::End(TagEnd::Strong) => st &= !style::BOLD,
             Event::Start(Tag::Link { dest_url, .. }) => {
-                if let Some(b) = cur.as_mut().filter(|_| vol_model::outward(&dest_url)) {
+                if let Some(b) = cur.as_mut().filter(|_| typeset_model::outward(&dest_url)) {
                     b.begin_link(format!("u:{dest_url}"));
                     linked = true;
                 }

@@ -32,7 +32,7 @@ export function service(fresh = false): Promise<ServiceConfig | null> {
 }
 
 async function call<T = unknown>(method: string, path: string, body?: Uint8Array | object, headers: Record<string, string> = {}, keepalive = false): Promise<T> {
-  const h: Record<string, string> = { 'x-volumen': '1', ...headers };
+  const h: Record<string, string> = { 'x-typeset': '1', ...headers };
   let b: BodyInit | undefined;
   if (body instanceof Uint8Array) { b = body as BlobPart as BodyInit; h['content-type'] = 'application/octet-stream'; }
   else if (body) { b = JSON.stringify(body); h['content-type'] = 'application/json'; }
@@ -142,11 +142,11 @@ export async function signOut() {
  * fetched into that library. Without PRF (some browsers, some security keys), a writer
  * opens a link once on each device instead.
  *
- *    vault = "VOLV1" | iv | AES-256-GCM( { v: 1, shares: { bookId: Shared } } )
+ *    vault = "TSV1" | iv | AES-256-GCM( { v: 1, shares: { bookId: Shared } } )
  */
 
-const PRF_SALT = new TextEncoder().encode('volumen vault 1');
-const VAULT = new TextEncoder().encode('VOLV1');
+const PRF_SALT = new TextEncoder().encode('typeset vault 1');
+const VAULT = new TextEncoder().encode('TSV1');
 
 function withPrf<T extends PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions>(o: T): T {
   return { ...o, extensions: { ...(o.extensions ?? {}), prf: { eval: { first: PRF_SALT } } } as AuthenticationExtensionsClientInputs };
@@ -157,7 +157,7 @@ function prfOf(c: PublicKeyCredential): ArrayBuffer | null {
 }
 async function keepVaultKey(prf: ArrayBuffer) {
   const base = await crypto.subtle.importKey('raw', prf, 'HKDF', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('volumen/1'), info: new TextEncoder().encode('vault') }, base, 256);
+  const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('typeset/1'), info: new TextEncoder().encode('vault') }, base, 256);
   kv.set('vault.key', b64url(bits));
 }
 const vaultKey = async () => {

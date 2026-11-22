@@ -1,5 +1,8 @@
 /** Window-level actions that differ between the desktop app and a browser tab. */
-export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+import { PACKAGE } from './root';
+
+/** In the desktop app (never the package's reader, whose build then leaves the desktop's code out). */
+export const isTauri = !PACKAGE && typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 /** A browser tab saves a file by following a link to it. */
 function download(blob: Blob, name: string) {
@@ -65,6 +68,6 @@ export const shell = {
   async watchClose() {
     if (!isTauri) return;
     const { listen } = await import('@tauri-apps/api/event');
-    await listen('volumen://closing', () => shell.quit());
+    await listen('typeset://closing', () => shell.quit());
   },
 };

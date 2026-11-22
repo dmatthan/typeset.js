@@ -6,7 +6,7 @@ import './styles/reader.css';
 import { makeCore } from './core';
 import type { Core } from './core/types';
 import { initKV } from './core/kv';
-import { at, KIT } from './core/root';
+import { at, PACKAGE } from './core/root';
 import { embedded, embedOpts } from './core/embed';
 import { watchTouch, noPageZoom, followKeyboard } from './ui/touch';
 
@@ -21,21 +21,21 @@ try {
   await initKV({ memory: embedded && !embedOpts.remember });
   core = await makeCore();
   // the app, or one book in another site's page: each its own shell, loaded alone (the
-  // kit is only ever the second, and its build leaves the app out)
-  const { default: Shell } = embedded || import.meta.env.VOLUMEN_KIT ? await import('./ui/Embed.svelte') : await import('./ui/App.svelte');
+  // package's reader is only ever the second, and its build leaves the app out)
+  const { default: Shell } = embedded || import.meta.env.TYPESET_PACKAGE ? await import('./ui/Embed.svelte') : await import('./ui/App.svelte');
   mount(Shell, { target: document.getElementById('app')!, props: { core } });
 } catch (e) {
   // never a blank page: what went wrong, and what to try
   const p = document.createElement('p');
   p.className = 'failed';
-  p.textContent = `Volumen could not start (${(e as Error)?.message || e}). Reloading the page usually helps.`;
+  p.textContent = `The reader could not start (${(e as Error)?.message || e}). Reloading the page usually helps.`;
   document.getElementById('app')!.append(p);
   throw e;
 }
 
 // the web build works offline once visited (sw.js); never in development or the desktop app
-// (not the kit: a service worker would take a part of someone else's site)
-if (import.meta.env.PROD && !KIT && 'serviceWorker' in navigator && !('__TAURI_INTERNALS__' in window)) {
+// (not the package's: a service worker would take a part of someone else's site)
+if (import.meta.env.PROD && !PACKAGE && 'serviceWorker' in navigator && !('__TAURI_INTERNALS__' in window)) {
   navigator.serviceWorker.register(at('sw.js')).catch(() => {});
   // tell it what was fetched before it was in charge; and again now and then, as books
   // open (it keeps only what it lacks)

@@ -24,7 +24,7 @@ const SIZES = [
 /** A word in the column in view selected as the hand would: a double click, or (a touch
  *  screen's selection being the system's own) the selection the system would make. */
 async function selectWord(p: Page, touch: boolean, line = 4) {
-  const k = await p.evaluate(() => (window as any).__vol.reader.cur);
+  const k = await p.evaluate(() => (window as any).__typeset.reader.cur);
   const lns = p.locator(`.col[data-k="${k}"] .ln[data-b]`);
   const n = Math.min(line, (await lns.count()) - 1);
   if (!touch) {
@@ -74,10 +74,10 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
 
     // the book: at rest, then the bar
     await p.locator('.book[data-id]').first().click();
-    await p.waitForFunction(() => { const r = (window as any).__vol.reader; return r?.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
+    await p.waitForFunction(() => { const r = (window as any).__typeset.reader; return r?.reading && r.strip && r.strip.layouts.size === r.book.sections.length; });
     // a full page of text (past the title and the chapter's opening), whatever the size
     await p.evaluate(() => {
-      const r = (window as any).__vol.reader;
+      const r = (window as any).__typeset.reader;
       for (let k = 12; k < r.strip.N; k++) { r.jump(k); if (document.querySelectorAll(`.col[data-k="${k}"] .ln[data-b]`).length >= 8) return; }
     });
     // reading, once the bar has gone (the head and the page's number have no paper of their
@@ -125,7 +125,7 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await p.keyboard.press('Escape');
     await expect(p.locator('.chip-pop')).toHaveCount(0);
     await p.evaluate(() => {
-      const r = (window as any).__vol.reader;
+      const r = (window as any).__typeset.reader;
       const lns = document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`), ln = lns[Math.min(9, lns.length - 1)];
       const sec = r.strip.itemAt(r.cur).sec, b = r.book.sections[sec].blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
       r.ann.add(b.key, s0, Math.min(b.t.length, s0 + 40), 3, 'A second.');
@@ -135,8 +135,8 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     // the notes: the rail where there is room, else over the text
     // (set again for the rail, the page where the first note is)
     await p.keyboard.press(';');
-    await p.evaluate(async () => { const r = (window as any).__vol.reader; await r.whole; const a = r.ann.list[0]; r.jump(r.strip.resolve({ key: a.key, off: a.s })); });
-    const railed = await p.evaluate(() => (window as any).__vol.ui.railed);
+    await p.evaluate(async () => { const r = (window as any).__typeset.reader; await r.whole; const a = r.ann.list[0]; r.jump(r.strip.resolve({ key: a.key, off: a.s })); });
+    const railed = await p.evaluate(() => (window as any).__typeset.ui.railed);
     // (no rail: the move to the note put the notes away; ; shows those in view now)
     if (!railed) await p.keyboard.press(';');
     await expect(p.locator('.sn').first()).toBeVisible();
@@ -148,7 +148,7 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
       await check('rail-writing', ['.sns']);
       await p.keyboard.press('Escape');
       await p.keyboard.press(';');
-      await p.evaluate(() => (window as any).__vol.reader.whole);
+      await p.evaluate(() => (window as any).__typeset.reader.whole);
     } else await p.keyboard.press('Escape');
     await expect(p.locator('.sn')).toHaveCount(0);
 
@@ -172,7 +172,7 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await expect(p.locator('.sheet')).toBeVisible();
     await check('theme-editor', ['.sheet']);
     await esc('.sheet');
-    await p.evaluate(() => { (window as any).__vol.ui.sheet = null; });
+    await p.evaluate(() => { (window as any).__typeset.ui.sheet = null; });
 
     // help, find, sending one's notes
     await p.keyboard.press('?');
@@ -184,7 +184,7 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await expect(p.locator('.find')).toBeVisible();
     await check('find', ['.find']);
     await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
-    await p.evaluate(() => { (window as any).__vol.ui.sheet = 'send'; });
+    await p.evaluate(() => { (window as any).__typeset.ui.sheet = 'send'; });
     await expect(p.locator('.sheet')).toBeVisible();
     await check('send', ['.sheet']);
 
@@ -202,7 +202,7 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     };
     // a note at its marker: the book's longest, so that it scrolls
     await openFile(p, '../bench/fixtures/artofwar.epub', 'Art of War');
-    const i = await p.evaluate(() => { const ns = (window as any).__vol.reader.book.notes as { t: string }[]; return ns.reduce((m, n, j) => (n.t.length > ns[m].t.length ? j : m), 0); });
+    const i = await p.evaluate(() => { const ns = (window as any).__typeset.reader.book.notes as { t: string }[]; return ns.reduce((m, n, j) => (n.t.length > ns[m].t.length ? j : m), 0); });
     const k = await firstCol(p, `a.nr[data-n="${i}"]`);
     await still(p);
     const nr = p.locator(`.col[data-k="${k}"] a.nr[data-n="${i}"]`).first();

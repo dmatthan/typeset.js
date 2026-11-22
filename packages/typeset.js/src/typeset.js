@@ -1,14 +1,15 @@
-// Volumen on any page: <volumen-book>, <volumen-open> and <volumen-library>.
+// Volumen on any page: <typeset-book>, <typeset-open> and <typeset-library>.
 //
-//   <script type="module" src="/volumen/volumen.js"></script>
-//   <volumen-book src="/books/sample.epub"></volumen-book>
+//   <script type="module" src="/typeset/typeset.js"></script>
+//   <typeset-book src="/books/sample.epub"></typeset-book>
 //
 // The element fills the box the page gives it (by default the width of its column, and
 // 70% of the window's height; style it as anything else). The reader runs in a frame
-// from the folder this file is in: self-hosted, it is the site's own; from
-// https://volumen.page/volumen.js, the book's server must allow other sites to read it.
+// from the folder this file is in, the site's own (`npx typeset.js public/typeset` puts it
+// there); a copy of this file bundled into the site's own script is told where that
+// folder is served: serveFrom('/typeset/') (the package's entry, index.js, says so).
 //
-// <volumen-book> attributes:
+// <typeset-book> attributes:
 //   src        the book: EPUB, Word (.docx) or Markdown, by its address
 //   chapters   only these, as "3" or "1-3" (the book's chapters, counted from 1)
 //   theme      book (the default), slate, linen, clear, warm or open
@@ -16,7 +17,7 @@
 //              element); the theme's ink is kept where it reads on it, and a dark paper
 //              reads dark. Without it, the theme's own paper
 //   back       a way back, shown as Back: an address (opened in this page's window), or
-//              with no value this page's own history ("volumen-back", which the page may
+//              with no value this page's own history ("typeset-back", which the page may
 //              cancel to go its own way). Without it, none: the page is the way back
 //   end-href   at the end, a way on ("Continue reading" by default: end-label)
 //   end-label
@@ -24,30 +25,35 @@
 //   ui         how much of the reader's own interface shows: full (the default), minimal
 //              (the book's title above and the page's number below, alone) or none
 //   off        what the reader does not offer, any of: contents settings find highlights links
-// Events: "volumen-ready" (detail.title, detail.chapters), "volumen-progress" (detail.at,
-// 0 to 1), "volumen-end", "volumen-error" (detail.message), "volumen-back" (cancelable),
-// "volumen-full" (detail.on: the book filling the window, where a frame has no full screen).
+// Events: "typeset-ready" (detail.title, detail.chapters), "typeset-progress" (detail.at,
+// 0 to 1), "typeset-end", "typeset-error" (detail.message), "typeset-back" (cancelable),
+// "typeset-full" (detail.on: the book filling the window, where a frame has no full screen).
 // Methods, once ready: goTo({ chapter }) or goTo({ at }) (0 to 1); setTheme(name, or a
-// theme as Volumen exports one: { format: "volumen-theme/1", … }).
+// theme as Volumen exports one: { format: "typeset-theme/1", … }).
 //
-// <volumen-open src="/books/sample.epub">…</volumen-open>: what it holds (the page's own
+// <typeset-open src="/books/sample.epub">…</typeset-open>: what it holds (the page's own
 //   button, a picture, any element) opens the book over the whole window; holding
 //   nothing, it shows the book's cover (an EPUB's own, read from the file; "cover" names
 //   another, "title" the book). The reader opens with Back, which, as the browser's back
-//   does, gives the page back as it was. Attributes as <volumen-book>'s. Events:
-//   "volumen-open", "volumen-close"; the reader's own come from the <volumen-book> it
+//   does, gives the page back as it was. Attributes as <typeset-book>'s. Events:
+//   "typeset-open", "typeset-close"; the reader's own come from the <typeset-book> it
 //   opens (its "book", while open).
 // open({ src, chapters, theme, … }): the same from a page's own script (import it from
 //   this file); returns { book, close() }.
+// serveFrom(path): where the reader's folder is served, when this file is not in it;
+//   before any book is shown.
 //
-// <volumen-library src="/books.json">: a shelf from a list of books,
+// <typeset-library src="/books.json">: a shelf from a list of books,
 //   [{ "title", "author", "src", "cover" }], each opened in place. A book with no cover
 //   named shows its EPUB's own, read from the file as its tile comes into view (a few
 //   small range requests; a host that does not take them sends the file whole, read
 //   only up to 4 MB).
 
-const here = new URL('.', import.meta.url);
-const reader = new URL('embed.html', here);
+// (named apart: a bundler takes `new URL('…', import.meta.url)` with a literal for a file of
+// its own to copy, and the reader is not one)
+const EMBED = 'embed.html';
+let reader = new URL(EMBED, import.meta.url);
+export function serveFrom(path) { reader = new URL(EMBED, new URL(path.replace(/\/?$/, '/'), location.href)); }
 // the messages between this page and the reader's frame: their version (app/src/core/embed.ts)
 const PROTOCOL = 1;
 
@@ -63,7 +69,7 @@ const css = `
   :host([open]) { position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; z-index: 2147483647 !important; }
 `;
 
-class VolumenBook extends HTMLElement {
+class TypesetBook extends HTMLElement {
   static observedAttributes = ['src', 'chapters', 'theme', 'paper', 'back', 'end-href', 'end-label', 'remember', 'ui', 'off'];
 
   constructor() {
@@ -75,12 +81,12 @@ class VolumenBook extends HTMLElement {
     this.onMessage = e => {
       if (e.source !== this.frame.contentWindow || e.origin !== reader.origin) return;
       const d = e.data;
-      if (!d || typeof d !== 'object' || d.volumen !== PROTOCOL) return;
-      const { volumen, type, ...detail } = d;
+      if (!d || typeof d !== 'object' || d.typeset !== PROTOCOL) return;
+      const { typeset, type, ...detail } = d;
       if (!['ready', 'progress', 'end', 'error', 'back', 'full'].includes(type)) return;
       if (type === 'ready') this.ready = true;
       if (type === 'full') this.fill(!!detail.on);
-      const go = this.dispatchEvent(new CustomEvent('volumen-' + type, { detail, bubbles: true, cancelable: type === 'back' }));
+      const go = this.dispatchEvent(new CustomEvent('typeset-' + type, { detail, bubbles: true, cancelable: type === 'back' }));
       // the reader's Back, with no address named: where the reader came from, unless the page
       // goes its own way
       if (type === 'back' && go) history.back();
@@ -103,8 +109,8 @@ class VolumenBook extends HTMLElement {
   setTheme(theme) { this.send({ type: 'theme', theme }); }
 
   send(command) {
-    if (!this.ready) throw new Error('The book is not open yet: wait for volumen-ready.');
-    this.frame.contentWindow.postMessage({ volumen: PROTOCOL, ...command }, reader.origin);
+    if (!this.ready) throw new Error('The book is not open yet: wait for typeset-ready.');
+    this.frame.contentWindow.postMessage({ typeset: PROTOCOL, ...command }, reader.origin);
   }
 
   connectedCallback() { addEventListener('message', this.onMessage); this.load(); }
@@ -211,11 +217,11 @@ async function epubCover(src) {
   return img && URL.createObjectURL(new Blob([img], { type: item.getAttribute('media-type') || 'image/jpeg' }));
 }
 
-/** A book's cover as a shelf or a <volumen-open> shows it: its picture, or its title on a
+/** A book's cover as a shelf or a <typeset-open> shows it: its picture, or its title on a
  *  plain board. */
 const COVER = `.c { box-sizing: border-box; width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; background: color-mix(in oklab, currentColor 7%, transparent) center / cover no-repeat; box-shadow: 0 1px 2px rgb(0 0 0 / .18); display: grid; place-items: center; padding: 14px; text-align: center; font-size: 1.05em; line-height: 1.25; font-family: Georgia, serif; text-wrap: balance; }`;
 
-class VolumenLibrary extends HTMLElement {
+class TypesetLibrary extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -281,7 +287,7 @@ class VolumenLibrary extends HTMLElement {
       .back { all: unset; cursor: pointer; display: inline-block; margin: 0 0 12px; font: inherit; text-decoration: underline; text-underline-offset: .2em; }
       .back:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
     </style><button class="back">← All books</button>`;
-    const book = document.createElement('volumen-book');
+    const book = document.createElement('typeset-book');
     book.setAttribute('src', new URL(b.src, document.baseURI).href);
     book.setAttribute('title', b.title ?? 'A book');
     for (const k of ['theme', 'remember', 'ui', 'off']) if (this.hasAttribute(k)) book.setAttribute(k, this.getAttribute(k) || '');
@@ -290,19 +296,19 @@ class VolumenLibrary extends HTMLElement {
   }
 }
 
-/** A book opened over the whole window, from `attrs` as <volumen-book> takes them (named as
+/** A book opened over the whole window, from `attrs` as <typeset-book> takes them (named as
  *  written or in camelCase: `endHref`), with Back (the reader's, or the browser's: a
  *  history entry is added for it) giving the page back as it was: its scroll, and the
- *  focus where it was. Returns the <volumen-book> and how to close it. */
+ *  focus where it was. Returns the <typeset-book> and how to close it. */
 export function open(attrs = {}, onclose) {
-  const book = document.createElement('volumen-book');
+  const book = document.createElement('typeset-book');
   for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) book.setAttribute(k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()), v === true ? '' : String(v));
   book.setAttribute('back', '');
   book.setAttribute('open', '');
   const s = document.documentElement.style, was = { overflow: s.overflow, x: scrollX, y: scrollY, focus: document.activeElement };
   s.overflow = 'hidden';
   document.body.append(book);
-  history.pushState({ volumen: 'open' }, '');
+  history.pushState({ typeset: 'open' }, '');
   requestAnimationFrame(() => book.frame.focus());
   let done = false;
   const close = byHistory => {
@@ -314,16 +320,16 @@ export function open(attrs = {}, onclose) {
     scrollTo(was.x, was.y);
     was.focus?.focus?.({ preventScroll: true });
     // (closed by the reader's Back or the page: the entry it added goes too)
-    if (!byHistory && history.state?.volumen === 'open') history.back();
+    if (!byHistory && history.state?.typeset === 'open') history.back();
     onclose?.();
   };
   const back = () => close(true);
   addEventListener('popstate', back);
-  book.addEventListener('volumen-back', e => { e.preventDefault(); close(false); });
+  book.addEventListener('typeset-back', e => { e.preventDefault(); close(false); });
   return { book, close: () => close(false) };
 }
 
-class VolumenOpen extends HTMLElement {
+class TypesetOpen extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' }).innerHTML = `<style>
@@ -359,11 +365,14 @@ class VolumenOpen extends HTMLElement {
     const attrs = {};
     for (const k of ['src', 'chapters', 'theme', 'paper', 'end-href', 'end-label', 'remember', 'ui', 'off', 'title']) if (this.hasAttribute(k)) attrs[k] = this.getAttribute(k) || true;
     attrs.src = new URL(attrs.src, document.baseURI).href;
-    this.opened = open(attrs, () => { this.opened = null; this.dispatchEvent(new CustomEvent('volumen-close', { bubbles: true })); });
-    this.dispatchEvent(new CustomEvent('volumen-open', { bubbles: true, detail: { book: this.opened.book } }));
+    this.opened = open(attrs, () => { this.opened = null; this.dispatchEvent(new CustomEvent('typeset-close', { bubbles: true })); });
+    this.dispatchEvent(new CustomEvent('typeset-open', { bubbles: true, detail: { book: this.opened.book } }));
   }
 }
 
-if (!customElements.get('volumen-book')) customElements.define('volumen-book', VolumenBook);
-if (!customElements.get('volumen-open')) customElements.define('volumen-open', VolumenOpen);
-if (!customElements.get('volumen-library')) customElements.define('volumen-library', VolumenLibrary);
+// (once the script importing this has run: a serveFrom of its comes before any frame)
+queueMicrotask(() => {
+  if (!customElements.get('typeset-book')) customElements.define('typeset-book', TypesetBook);
+  if (!customElements.get('typeset-open')) customElements.define('typeset-open', TypesetOpen);
+  if (!customElements.get('typeset-library')) customElements.define('typeset-library', TypesetLibrary);
+});

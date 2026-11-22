@@ -2,8 +2,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>A chapter from a book</title>
-<!-- the kit (a release's Volumen-kit.zip) unpacked into /volumen/ on this site -->
-<script type="module" src="/volumen/volumen.js"></script>
+<!-- typeset.js on this site, in /typeset/ (npx typeset.js public/typeset, or a release's typeset.js.zip) -->
+<script type="module" src="/typeset/typeset.js"></script>
 
 <!-- the site's own look: a column to read in, light or dark as the reader's device is -->
 <style>
@@ -12,7 +12,7 @@
   h1 { margin: 0 0 .4rem; font-size: 2rem; line-height: 1.2; }
   p { margin: 0 0 1.5rem; color: #555; }
   /* the book's box: as wide as the column, as tall as the window allows */
-  volumen-book { height: min(80vh, 46rem); }
+  typeset-book { height: min(80vh, 46rem); }
   @media (prefers-color-scheme: dark) { body { background: #161616; color: #ececec; } p { color: #aaa; } }
 </style>
 
@@ -21,19 +21,19 @@
 
 <!-- one chapter of the book, in the site's own box, in Linen's face on the page's own
      paper; at its end, a way on -->
-<volumen-book id="book" src="/books/meditations.epub" chapters="3" theme="linen" paper="page"
-  end-href="/shop" end-label="Buy the book"></volumen-book>
+<typeset-book id="book" src="/books/meditations.epub" chapters="3" theme="linen" paper="page"
+  end-href="/shop" end-label="Buy the book"></typeset-book>
 
 <!-- the whole book, over the window, from the site's own button -->
-<p><volumen-open src="/books/meditations.epub" title="Meditations"><button>Read the whole book</button></volumen-open></p>
+<p><typeset-open src="/books/meditations.epub" title="Meditations"><button>Read the whole book</button></typeset-open></p>
 
 <script>
   // what the reader says (for a page that wants to know): open, where it is, the end, or
   // why it could not open the book. Once ready, the page may move it: book.goTo({ chapter: 1 })
   window.heard = [];
   const book = document.getElementById('book');
-  book.addEventListener('volumen-ready', e => heard.push(['ready', e.detail.chapters]));
-  book.addEventListener('volumen-progress', e => heard.push(['progress', e.detail.at]));
-  book.addEventListener('volumen-end', () => heard.push(['end']));
-  book.addEventListener('volumen-error', e => heard.push(['error', e.detail.message]));
+  book.addEventListener('typeset-ready', e => heard.push(['ready', e.detail.chapters]));
+  book.addEventListener('typeset-progress', e => heard.push(['progress', e.detail.at]));
+  book.addEventListener('typeset-end', () => heard.push(['end']));
+  book.addEventListener('typeset-error', e => heard.push(['error', e.detail.message]));
 </script>

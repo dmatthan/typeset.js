@@ -7,8 +7,8 @@
 import { FORMAT, type FileNote, type NotesFile } from './feedback';
 
 
-const BOOK = 'urn:volumen:book:';
-const OURS = 'https://volumen.app/ns/block';
+const BOOK = 'urn:typeset:book:';
+const OURS = 'urn:typeset:block';
 
 export function toWebAnno(f: NotesFile): object {
   const iso = (t: number) => new Date(t || f.sent).toISOString();
@@ -16,14 +16,14 @@ export function toWebAnno(f: NotesFile): object {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'AnnotationCollection',
     label: f.book.title,
-    creator: { type: 'Person', name: f.from.name || undefined, id: `urn:volumen:reader:${f.from.id}` },
+    creator: { type: 'Person', name: f.from.name || undefined, id: `urn:typeset:reader:${f.from.id}` },
     generated: new Date(f.sent).toISOString(),
     total: f.notes.length,
     first: {
       type: 'AnnotationPage',
       items: f.notes.map(n => ({
         type: 'Annotation',
-        id: `urn:volumen:note:${n.id}`,
+        id: `urn:typeset:note:${n.id}`,
         created: iso(n.created),
         modified: iso(n.updated),
         motivation: n.note ? 'commenting' : n.kind === 'mark' ? 'bookmarking' : 'highlighting',
@@ -64,7 +64,7 @@ function noteOf(a: any, n: number): { note: FileNote; source: string } | null {
   return {
     source: str(target?.source),
     note: {
-      id: String(a.id ?? '').replace(/^urn:volumen:note:/, '') || `w:${n}:${exact.slice(0, 24)}`, kind: ours.kind === 'mark' ? 'mark' : 'highlight',
+      id: String(a.id ?? '').replace(/^urn:typeset:note:/, '') || `w:${n}:${exact.slice(0, 24)}`, kind: ours.kind === 'mark' ? 'mark' : 'highlight',
       key: str(ours.block), s: num(ours.start) ?? 0, e: num(ours.end) ?? exact.length,
       quote: exact, prefix: str(quote.prefix), suffix: str(quote.suffix), pos: num(ours.position),
       color: num(ours.colour), note: str(body?.value) || undefined, created: time(a.created), updated: time(a.modified) || time(a.created),
@@ -84,6 +84,6 @@ export function fromWebAnno(text: string, book?: { id: string; title: string; au
   const id = source.startsWith(BOOK) ? source.slice(BOOK.length) : book?.id;
   if (!id) return 'These annotations do not say which book they are for: open the book and drop them on it.';
   const creator = list(v?.creator)[0] ?? items[0]?.creator;
-  const from = { id: String(creator?.id ?? 'web-annotations').replace(/^urn:volumen:reader:/, ''), name: String(creator?.name ?? creator?.nickname ?? 'Annotations').slice(0, 60) };
+  const from = { id: String(creator?.id ?? 'web-annotations').replace(/^urn:typeset:reader:/, ''), name: String(creator?.name ?? creator?.nickname ?? 'Annotations').slice(0, 60) };
   return { format: FORMAT, book: { id, title: String(v?.label ?? book?.title ?? ''), author: book?.author ?? '' }, from, sent: time(v?.generated) || Date.now(), notes: read.map(x => x.note) };
 }

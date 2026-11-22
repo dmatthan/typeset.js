@@ -3,13 +3,13 @@
  *  (places, highlights and notes, marks, collections, settings, themes, received
  *  feedback, who the reader is, so their own notes stay theirs).
  *
- *    file = "VOLBK1" | u32 manifest length | manifest JSON | each book's file, in order
+ *    file = "TSBK1" | u32 manifest length | manifest JSON | each book's file, in order
  *    manifest = { v: 1, made, state: { key: value… }, books: [{ entry, name, size }] }
  */
 import type { Core, LibEntry } from './types';
 import { kv, flushKV } from './kv';
 
-const MAGIC = new TextEncoder().encode('VOLBK1');
+const MAGIC = new TextEncoder().encode('TSBK1');
 /** What belongs to this device, not to the library: the key a writer's passkey gave here,
  *  and the input log. Not backed up, and not taken from a backup. */
 const OWN = (k: string) => k === 'vault.key' || k.startsWith('diag.');

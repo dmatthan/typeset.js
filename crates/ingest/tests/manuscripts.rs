@@ -1,10 +1,10 @@
 //! Manuscripts as writers send them: Word (written by LibreOffice) and Markdown, the same
 //! text (bench/fixtures/manuscript.py). Both come out as the same book.
-use vol_model::{Kind, SectionKind, Target, style};
+use typeset_model::{Kind, SectionKind, Target, style};
 
-fn book(name: &str) -> vol_model::Book {
+fn book(name: &str) -> typeset_model::Book {
     let p = format!("{}/../../bench/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
-    vol_ingest::any(&std::fs::read(&p).unwrap(), &p).unwrap()
+    typeset_ingest::any(&std::fs::read(&p).unwrap(), &p).unwrap()
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn word_and_markdown_manuscripts_become_the_same_book() {
 #[test]
 fn markdown_keeps_its_links_to_the_web_and_mail_and_nothing_else() {
     let md = "# One\n\nSee [the archive](https://example.org/a?b=1), <https://example.org/auto>, [write](mailto:a@example.org), [a script](javascript:alert(1)) and [a page](other.md).\n";
-    let b = vol_ingest::any(md.as_bytes(), "post.md").unwrap();
+    let b = typeset_ingest::any(md.as_bytes(), "post.md").unwrap();
     let p = &b.sections[0].blocks[0];
     let urls: Vec<(&str, &str)> = p.links.iter().filter_map(|l| match &l.to { Target::Url(u) => Some((&p.text[l.start as usize..l.end as usize], u.as_str())), _ => None }).collect();
     assert_eq!(urls, [("the archive", "https://example.org/a?b=1"), ("https://example.org/auto", "https://example.org/auto"), ("write", "mailto:a@example.org")]);
@@ -51,12 +51,12 @@ fn markdown_keeps_its_links_to_the_web_and_mail_and_nothing_else() {
 fn markdown_front_matter_is_only_a_block_of_fields_and_a_rule_between_parts_is_not_one() {
     // a manuscript that opens with a rule, and has another further down: nothing between is lost
     let md = "---\n# One\n\nThe first words.\n\n---\n\nThe second part.\n";
-    let b = vol_ingest::any(md.as_bytes(), "post.md").unwrap();
+    let b = typeset_ingest::any(md.as_bytes(), "post.md").unwrap();
     let text: Vec<&str> = b.sections.iter().flat_map(|s| s.blocks.iter().map(|b| b.text.as_str())).collect();
     assert!(text.contains(&"The first words.") && text.contains(&"The second part."), "{text:?}");
     // fields still give the title and author, and are not read as text
     let md = "---\ntitle: The Harbour\nauthor: A. Writer\n---\n\n# One\n\nWords.\n";
-    let b = vol_ingest::any(md.as_bytes(), "post.md").unwrap();
+    let b = typeset_ingest::any(md.as_bytes(), "post.md").unwrap();
     assert_eq!((b.meta.title.as_str(), b.meta.author.as_str()), ("The Harbour", "A. Writer"));
     assert!(b.sections.iter().all(|s| s.blocks.iter().all(|b| !b.text.contains("title:"))));
 }

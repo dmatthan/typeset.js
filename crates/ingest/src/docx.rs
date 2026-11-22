@@ -13,7 +13,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::io::Read;
-use vol_model::{Meta, TextBuilder, style};
+use typeset_model::{Meta, TextBuilder, style};
 
 #[derive(Default, Clone)]
 struct Style {
@@ -356,7 +356,7 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             }
             let (t, r, _) = tb.finish_with_links();
             // the note's own marker (the footnoteRef's superscript number) is not part of it
-            nb.append(t.trim_start(), &r.iter().map(|x| vol_model::Run { start: x.start.saturating_sub((t.len() - t.trim_start().len()) as u32), end: x.end.saturating_sub((t.len() - t.trim_start().len()) as u32), style: x.style }).collect::<Vec<_>>(), &[]);
+            nb.append(t.trim_start(), &r.iter().map(|x| typeset_model::Run { start: x.start.saturating_sub((t.len() - t.trim_start().len()) as u32), end: x.end.saturating_sub((t.len() - t.trim_start().len()) as u32), style: x.style }).collect::<Vec<_>>(), &[]);
         }
     }
     let mut meta = Meta { lang: lang.split('-').next().unwrap_or("").to_string(), ..Meta::default() };

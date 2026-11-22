@@ -3,7 +3,7 @@
 import type { BookData } from '../core/types';
 import { keyIndexOf, type KeyIndex } from '../core/book';
 
-/** Line table fields, matching vol_press::encode. */
+/** Line table fields, matching typeset_press::encode. */
 export const F = { col: 0, row: 1, block: 2, s: 3, e: 4, flags: 5, x: 6, avail: 7, natural: 8 } as const;
 export const FIELDS = 9;
 export const enum Flag {

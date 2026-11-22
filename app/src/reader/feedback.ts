@@ -12,7 +12,7 @@ import { anchorOfBookmark, type Bookmark } from './bookmarks';
 
 /* ---------- the notes file ---------- */
 
-export const FORMAT = 'volumen-notes/1';
+export const FORMAT = 'typeset-notes/1';
 
 /** One note as it travels: where it is (as `NoteAnchor`), what it is, what it says. A
  *  marked paragraph is anchored to its opening words; a bookmark to its page's (one's
@@ -100,7 +100,7 @@ export function parseNotes(text: string, book?: { id: string; title: string; aut
 }
 
 function checked(v: any): NotesFile | string {
-  if (v?.format !== FORMAT) return typeof v?.format === 'string' && v.format.startsWith('volumen-notes/') ? 'These notes come from a newer version of the app.' : 'This is not a notes file.';
+  if (v?.format !== FORMAT) return typeof v?.format === 'string' && v.format.startsWith('typeset-notes/') ? 'These notes come from a newer version of the app.' : 'This is not a notes file.';
   if (!v.book?.id || !v.from?.id || !Array.isArray(v.notes)) return 'This notes file is incomplete.';
   const ok = (n: any) => n && typeof n.key === 'string' && typeof n.quote === 'string' && Number.isFinite(n.s) && Number.isFinite(n.e) && ['highlight', 'mark', 'bookmark'].includes(n.kind);
   const share = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);

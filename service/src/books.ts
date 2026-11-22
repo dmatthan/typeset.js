@@ -6,8 +6,8 @@ import { Fail, json, bytes, raw, sha256, sameHex, randomId, now, unb64url, API_H
 import { LIMITS, rate, count, stored, person, expiry } from './limits';
 import type { Writer } from './auth';
 
-const BOOK_MAGIC = 'VOLS';
-const NOTES_MAGIC = 'VOLN';
+const BOOK_MAGIC = 'TSB';
+const NOTES_MAGIC = 'TSN';
 const startsWith = (b: Uint8Array, m: string) => [...m].every((c, i) => b[i] === c.charCodeAt(0));
 
 interface Book { id: string; writer: string; size: number; chunks: number; post: string; expires: number }
@@ -203,7 +203,7 @@ export async function sendNotes(env: Env, req: Request, id: string, reader: stri
 
 /* ---------- the writer's vault (sealed by their passkey; see migration 0003) ---------- */
 
-const VAULT_MAGIC = 'VOLV';
+const VAULT_MAGIC = 'TSV';
 
 export async function getVault(env: Env, w: Writer): Promise<Response> {
   if (!w.credential) return json({ error: 'Sign in again to open your shares here.' }, 404);

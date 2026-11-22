@@ -14,7 +14,7 @@ use store::{LibEntry, Store};
 use tauri::ipc::{Request, Response};
 use fonts::{BUNDLED, SysFile};
 use tauri::{Manager, State};
-use vol_engine::{Engine, Request as LayoutRequest, percent_decode};
+use typeset_engine::{Engine, Request as LayoutRequest, percent_decode};
 
 static SAMPLE: &[u8] = include_bytes!("../../assets/sample.epub");
 
@@ -69,7 +69,7 @@ fn catch_panics() {
 }
 
 /// Runs engine work so that a panic in it (a book the importer does not expect) is an
-/// error the page shows, as the web build's are: "Volumen hit a bug of its own (…)".
+/// error the page shows, as the web build's are: "The reader hit a bug of its own (…)".
 fn guarded<T>(f: impl FnOnce() -> Res<T>) -> Res<T> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| {
         let p = PANIC.with(|p| std::mem::take(&mut *p.borrow_mut()));
@@ -77,7 +77,7 @@ fn guarded<T>(f: impl FnOnce() -> Res<T>) -> Res<T> {
         let (at, msg) = p.strip_prefix("panicked at ").and_then(|r| r.split_once(":\n")).unwrap_or(("", &p));
         let file = at.rsplit(['/', '\\']).next().unwrap_or(at);
         let place = file.rsplit_once(':').map(|(f, _)| f).unwrap_or(file);
-        Err(format!("Volumen hit a bug of its own ({}, {place}).", msg.trim()))
+        Err(format!("The reader hit a bug of its own ({}, {place}).", msg.trim()))
     })
 }
 
@@ -97,10 +97,10 @@ fn add_as(app: &App, bytes: &[u8], name: &str, sample: bool, again: Option<&LibE
     let book = eng.book(&id).unwrap();
     let e = LibEntry {
         id: id.clone(),
-        about: vol_engine::Summary::of(book),
+        about: typeset_engine::Summary::of(book),
         added: again.map(|a| a.added).unwrap_or_else(now),
         sample: again.map(|a| a.sample).unwrap_or(sample),
-        importer: vol_engine::IMPORTER_VERSION,
+        importer: typeset_engine::IMPORTER_VERSION,
         source: true,
     };
     let cover = book.cover.as_ref().map(|c| c.bytes.clone());
@@ -132,8 +132,8 @@ fn start_indexer(dir: std::path::PathBuf) -> std::sync::mpsc::Sender<String> {
         let Ok(mut store) = Store::open(&dir) else { return };
         let index = |store: &mut Store, id: &str| {
             let Ok(Some(model)) = store.model(id) else { return };
-            let Ok(book) = vol_engine::Book::restore(&model) else { return };
-            if let Err(e) = store.index(id, vol_engine::search::fts_rows(&book)) {
+            let Ok(book) = typeset_engine::Book::restore(&model) else { return };
+            if let Err(e) = store.index(id, typeset_engine::search::fts_rows(&book)) {
                 eprintln!("indexing {id}: {e}");
             }
         };
@@ -152,7 +152,7 @@ fn start_indexer(dir: std::path::PathBuf) -> std::sync::mpsc::Sender<String> {
 /// each match. Books with the most matches first.
 #[tauri::command]
 async fn search_library(query: String, app: State<'_, App>) -> Res<String> {
-    use vol_engine::search::{fts_queries, in_book};
+    use typeset_engine::search::{fts_queries, in_book};
     let Some((phrase, words)) = fts_queries(&query) else { return Ok("[]".into()) };
     let found = {
         let store = app.store.held();
@@ -167,12 +167,12 @@ async fn search_library(query: String, app: State<'_, App>) -> Res<String> {
             Some(h) => h,
             None => {
                 let model = app.store.held().model(&id).map_err(|e| e.to_string())?;
-                model.and_then(|m| vol_engine::Book::restore(&m).ok()).and_then(|b| in_book(&b, Some(&blocks), &query, 3))
+                model.and_then(|m| typeset_engine::Book::restore(&m).ok()).and_then(|b| in_book(&b, Some(&blocks), &query, 3))
             }
         };
         out.extend(hits);
     }
-    serde_json::to_string(&vol_engine::search::rank(out)).map_err(|e| e.to_string())
+    serde_json::to_string(&typeset_engine::search::rank(out)).map_err(|e| e.to_string())
 }
 
 fn ensure(app: &App, id: &str) -> Res<()> {
@@ -245,9 +245,9 @@ async fn font_needs(id: String, family: String, app: State<'_, App>) -> Res<Stri
     })
 }
 
-/// Places notes on a book (see `vol_engine::anchor`).
+/// Places notes on a book (see `typeset_engine::anchor`).
 #[tauri::command]
-async fn place_notes(id: String, anchors: Vec<vol_engine::anchor::Anchor>, app: State<'_, App>) -> Res<Vec<vol_engine::anchor::Placed>> {
+async fn place_notes(id: String, anchors: Vec<typeset_engine::anchor::Anchor>, app: State<'_, App>) -> Res<Vec<typeset_engine::anchor::Placed>> {
     guarded(|| {
         ensure(&app, &id)?;
         app.engine.held().place(&id, &anchors).ok_or_else(|| "missing book".into())
@@ -389,7 +389,7 @@ fn main() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 use tauri::Emitter;
                 api.prevent_close();
-                let _ = window.emit("volumen://closing", ());
+                let _ = window.emit("typeset://closing", ());
                 let app = window.app_handle().clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -414,7 +414,7 @@ mod tests {
             panic!("a fault made on purpose")
         });
         let e = r.unwrap_err();
-        assert!(e.starts_with("Volumen hit a bug of its own (a fault made on purpose, main.rs:") && e.ends_with(")."), "{e}");
+        assert!(e.starts_with("The reader hit a bug of its own (a fault made on purpose, main.rs:") && e.ends_with(")."), "{e}");
         assert_eq!(*m.held(), 1);
         assert_eq!(guarded(|| Ok(2)), Ok(2));
     }

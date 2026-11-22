@@ -140,8 +140,8 @@
     <div class="form">
       <div class="group">
         <div class="legend"><span>Typeface</span></div>
-        <input class="field" list="vol-families" bind:value={d.type.family} spellcheck="false" aria-label="Font family" />
-        <datalist id="vol-families">{#each families as f}<option value={f}></option>{/each}</datalist>
+        <input class="field" list="families" bind:value={d.type.family} spellcheck="false" aria-label="Font family" />
+        <datalist id="families">{#each families as f}<option value={f}></option>{/each}</datalist>
         {#if missing}<p class="hint warn">{d.type.family} is not installed here; {d.type.fallback === 'sans' ? 'Inter' : 'Literata'} stands in.</p>{/if}
         <div class="chips">
           <button class="chip" aria-pressed={d.type.fallback === 'serif'} onclick={() => (d.type.fallback = 'serif')}>Serif</button>

@@ -2,27 +2,25 @@
  *  sent to a server). Whoever holds the sealed file without the link cannot read it; the
  *  link holds where the file is and the key.
  *
- *    sealed = "VOLS2" | iv (12 bytes) | AES-256-GCM( u32 header length | header JSON | file )
+ *    sealed = "TSB1" | iv (12 bytes) | AES-256-GCM( u32 header length | header JSON | file )
  *    header = { v: 1, name, size, sha256, by? }   (the file's name tells its kind; `by`,
  *             who sent it, as they call themselves)
- *    notes  = "VOLN1" | iv | AES-256-GCM( a notes file, JSON )
+ *    notes  = "TSN1" | iv | AES-256-GCM( a notes file, JSON )
  *    link   = <the app>#b=<id at the service>&k=<key, base64url>      (service/)
  *           | <the app>#open=<the sealed file's address>&k=<key>      (a file put anywhere)
  *
  *  The key is 32 random bytes; what it opens is derived from it (HKDF-SHA-256), so no
  *  two uses share a key: the book, the readers' notes, and the token that lets notes be
  *  sent to the service (which keeps only the token's hash, so it can check a sender has
- *  the link without being able to open anything). "VOLS1" (sealed with the key itself,
- *  before the service) is still read. */
+ *  the link without being able to open anything). */
 
-const MAGIC = new TextEncoder().encode('VOLS2');
-const MAGIC1 = new TextEncoder().encode('VOLS1');
-const NOTES = new TextEncoder().encode('VOLN1');
+const MAGIC = new TextEncoder().encode('TSB1');
+const NOTES = new TextEncoder().encode('TSN1');
 
 /** What a link's key opens. */
 async function derive(raw: Uint8Array) {
   const base = await crypto.subtle.importKey('raw', raw as BufferSource, 'HKDF', false, ['deriveKey', 'deriveBits']);
-  const how = (info: string) => ({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('volumen/1'), info: new TextEncoder().encode(info) });
+  const how = (info: string) => ({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('typeset/1'), info: new TextEncoder().encode(info) });
   const aes = (info: string) => crypto.subtle.deriveKey(how(info), base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   return {
     book: await aes('book'),
@@ -60,13 +58,12 @@ export async function seal(file: Uint8Array, name: string, by?: string, linkKey?
 
 /** The file inside, checked; or why it cannot be had. */
 export async function unseal(sealed: Uint8Array, k: string): Promise<{ name: string; bytes: Uint8Array; by?: string } | string> {
-  const v1 = has(sealed, MAGIC1);
-  if (sealed.length < MAGIC.length + 12 + 16 || !(v1 || has(sealed, MAGIC))) return 'This link does not lead to a book sealed by Volumen.';
+  if (sealed.length < MAGIC.length + 12 + 16 || !has(sealed, MAGIC)) return 'This link does not lead to a book sealed by Volumen.';
   let key: CryptoKey;
   try {
     const raw = unb64url(k);
     if (raw.length !== 32) throw new Error();
-    key = v1 ? await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']) : (await derive(raw)).book;
+    key = (await derive(raw)).book;
   } catch { return 'This link’s key is damaged.'; }
   let plain: Uint8Array;
   try {
