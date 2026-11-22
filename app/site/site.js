@@ -1,11 +1,13 @@
-// volumen.page's own script (the page and the privacy page). Two things only:
+// volumen.page's own script (the page and the privacy page). Four things only:
 // - a link meant for the app (a shared book, an invitation, an opened file) arriving here,
 //   and an app installed from here before the app moved to /read, go on to the app at
 //   once, before anything is drawn;
-// - installing: the device is named on the install button, with its mark, and the
-//   install section says how, for it (without the script, a general word and a list).
+// - installing: the install section names this device, with its mark, and says how, for
+//   it (without the script, a general word and a list).
 //   Add to Home Screen and Add to Dock are done from the library itself (/read), so the
-//   app, not this page, is what is installed.
+//   app, not this page, is what is installed;
+// - the book embedded on the page opens on a page of its text;
+// - each code block has a button that copies it, and its parts in their colours.
 (() => {
   const forApp = () => /^#(b|open|invite)=/.test(location.hash);
   const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -35,7 +37,6 @@
     : /Linux|X11|CrOS/.test(ua) ? 'linux' : null;
   const firefox = /Firefox\//.test(ua) && !ios;
   const chromium = /Chrome\/|Chromium\/|Edg\//.test(ua) && !ios;
-  const NAME = { iphone: 'iPhone', ipad: 'iPad', android: 'Android', mac: 'Mac', windows: 'Windows', linux: 'Linux' };
   const WHERE = { iphone: 'iPhone', ipad: 'iPad', android: 'Android device', mac: 'Mac', windows: 'Windows computer', linux: 'Linux computer' };
   const MARK = { iphone: 'apple', ipad: 'apple', android: 'android', mac: 'apple', windows: 'windows', linux: 'linux' };
 
@@ -61,13 +62,6 @@
   function show() {
     const $ = id => document.getElementById(id);
     if (!$('here-h')) return;
-    // the button at the top: this device, its mark; the browser's install where offered
-    const top = $('install-btn');
-    if (top && device) {
-      top.querySelector('span').textContent = `Install on ${NAME[device]}`;
-      mark(top.querySelector('svg'), MARK[device]);
-      top.onclick = async e => { if (deferred) { e.preventDefault(); await install(); } };
-    }
     const text = how();
     if (device) $('here-h').textContent = `On this ${WHERE[device]}`;
     if (text) $('here-text').textContent = text;
@@ -84,4 +78,40 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show); else show();
+
+  // the book on this page opens on a page that begins with a paragraph, at its top ("Love
+  // the art, poor as it may be…", Book IV): in its box (375 by 650, in Book) that page
+  // holds from 0.2112 to 0.2136 of the book, so the middle of it (a test holds it there)
+  addEventListener('typeset-ready', e => { if (e.target.closest?.('.demo')) e.target.goTo({ at: 0.2124 }); }, { once: true });
+
+  // a snippet's parts (tags, attributes, values, commands) in their colours; the text is
+  // the same, so what is copied is too
+  const TOKENS = /(<\/?)([\w-]+)|([\w-]+)(=)("[^"]*")|(>)|^(npm|npx)\b/gm;
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const k = (cls, s) => `<span class="k-${cls}">${esc(s)}</span>`;
+  function colour(code) {
+    const t = code.textContent;
+    let out = '', at = 0;
+    for (const m of t.matchAll(TOKENS)) {
+      const [, open, tag, attr, , str, close, cmd] = m;
+      out += esc(t.slice(at, m.index)) + (open ? k('p', open) + k('tag', tag) : attr ? k('attr', attr) + k('p', '=') + k('str', str) : close ? k('p', close) : k('cmd', cmd));
+      at = m.index + m[0].length;
+    }
+    code.innerHTML = out + esc(t.slice(at));
+  }
+
+  function copies() {
+    for (const code of document.querySelectorAll('pre.code code, .opts code')) colour(code);
+    for (const pre of document.querySelectorAll('pre.code')) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'copy'; b.textContent = 'Copy';
+      b.onclick = async () => {
+        try { await navigator.clipboard.writeText(pre.querySelector('code').textContent); } catch { return; }
+        b.textContent = 'Copied'; b.classList.add('done');
+        setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1600);
+      };
+      pre.append(b);
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', copies); else copies();
 })();

@@ -2,18 +2,25 @@ import { test, expect } from './base';
 
 // The production build, as volumen.page serves it: the app at /read, the site's page at /.
 
-test('the page at / is plain, sends links meant for the app on to it, and installs the app', async ({ page: p }) => {
+test('the page at / is plain, shows the reader embedded, sends links meant for the app on to it, and installs the app', async ({ page: p }) => {
   const errors: string[] = [];
   p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await p.goto('/');
-  await expect(p.getByRole('heading', { level: 1 })).toContainText('book reader with shareable comments');
+  await expect(p.getByRole('heading', { level: 1 })).toHaveText('Web e-reader that you can deploy anywhere');
   await expect(p.locator('.mark i')).toHaveText('[voˈlu.men]');
-  // no app on the page: its code is not loaded
-  expect(await p.evaluate(() => [...document.scripts].map(s => new URL(s.src, location.href).pathname))).toEqual(['/site.js']);
-  // installing names this device, on the button above too, with its mark
+  // the page's own script and the elements; the app itself runs only in the book's frame
+  expect(await p.evaluate(() => [...document.scripts].map(s => new URL(s.src, location.href).pathname))).toEqual(['/site.js', '/typeset.js']);
+  // the book on the page is the reader itself, from this site, opened on a page that
+  // begins with a paragraph at its top (a change to the engine that moves it fails here)
+  const book = p.frameLocator('.demo typeset-book iframe');
+  await expect(book.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /Book IV\b/, { timeout: 30000 });
+  await expect.poll(() => book.locator('body').evaluate(() => {
+    const W = innerWidth, col = [...document.querySelectorAll('.col')].find(c => { const b = c.getBoundingClientRect(); return b.left >= 0 && b.right <= W + 1; });
+    const first = col && [...col.querySelectorAll<HTMLElement>('.ln')].find(l => l.textContent!.trim());
+    return first ? [first.textContent!.trim().slice(0, 13), first.dataset.s, Math.round(first.getBoundingClientRect().top - col!.getBoundingClientRect().top)] : null;
+  })).toEqual(['Love the art,', '0', 0]);
+  // installing names this device, with its mark, and its desktop app first
   await expect(p.locator('#here-h')).toHaveText('On this Linux computer');
-  await expect(p.locator('#install-btn')).toHaveText('Install on Linux');
-  await expect(p.locator('#install-btn svg use')).toHaveAttribute('href', '#os-linux');
   await expect(p.locator('#downloads .btn').first()).toHaveText('Linux');
   await p.getByRole('link', { name: 'Privacy' }).first().click();
   await expect(p.getByRole('heading', { level: 1 })).toHaveText('Privacy');

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Volumen</title>
-<meta name="description" content="A fast, free and open book reader for EPUB, Word and Markdown, with comments you can share: send a manuscript to reviewers as a sealed link and get their notes back beside your text.">
+<meta name="description" content="A free, open-source reader for EPUB, Word and Markdown: your library in the browser or on the desktop, and typeset.js, to put a book on your own website.">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef0f2">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14161a">
 <link rel="icon" href="/app/icon-256.png">
@@ -17,6 +17,7 @@
 <link rel="preload" href="/fonts/Literata.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="/site.css">
 <script src="/site.js"></script>
+<script type="module" src="/typeset.js"></script>
 </head>
 <body>
 <!-- the platforms' marks (Simple Icons, CC0; the Windows panes drawn here) -->
@@ -27,12 +28,14 @@
   <symbol id="os-windows" viewBox="0 0 24 24"><path d="M2 3.5 10.5 2.3v8.3H2V3.5Zm9.5-1.3L22 .8v9.8H11.5V2.2ZM2 11.6h8.5v8.3L2 18.7v-7.1Zm9.5 0H22v9.8l-10.5-1.4v-8.4Z"/></symbol>
 </svg>
 <header class="wrap top">
-  <a class="mark" href="/"><b>Volumen</b> <i lang="la-fonipa">[vo<span class="st">ˈ</span>lu.men]</i></a>
+  <div class="brand">
+    <a class="mark" href="/"><b>Volumen</b> <i lang="la-fonipa">[vo<span class="st">ˈ</span>lu.men]</i></a>
+    <span class="home">home of typeset.js</span>
+  </div>
   <nav aria-label="Site">
-    <a href="#reading">Reading</a>
-    <a href="#sharing">Sharing</a>
-    <a href="#developers">Developers</a>
-    <a href="#install">Installing</a>
+    <a href="#embed">Embed</a>
+    <a href="https://www.npmjs.com/package/typeset.js">Docs</a>
+    <a href="https://github.com/dmatthan/typeset.js">GitHub</a>
     <a href="/privacy">Privacy</a>
   </nav>
 </header>
@@ -40,114 +43,113 @@
 <main>
   <section class="wrap hero">
     <div class="say">
-      <h1>Fast, free and open book reader with shareable comments</h1>
-      <p class="lede">Volumen is a lightweight cross-platform e-reader built for EPUB, Word and Markdown files. Import your library, export your notes, share a manuscript with reviewers and get their comments back, or embed it on your own website. It’s up to you.</p>
+      <h1>Web e-reader that you can deploy anywhere</h1>
+      <p class="lede">typeset.js reads EPUB, Word and Markdown in the browser: a typesetting engine in Rust, compiled to WebAssembly, and three HTML elements. Install it from npm, serve it as static files from any host, and put a book on a page with one tag. Open source, MIT licensed.</p>
+      <pre class="code cmd"><code>npm install typeset.js</code></pre>
       <div class="acts">
-        <a class="btn main" href="/read">Open the library</a>
-        <a class="btn" id="install-btn" href="#install"><svg class="os" aria-hidden="true" hidden><use href="#os-apple"/></svg><span>Install</span></a>
+        <a class="btn main" href="/read">Preview</a>
+        <a class="btn" href="#embed">Embed a book</a>
       </div>
     </div>
-
-    <figure>
-      <div class="page">
-        <p class="head">Book II</p>
-        <div class="pair">
-          <p class="text">For we are made for cooperation, like feet, like hands, like eyelids, <span class="u u2">like the rows of the upper and lower teeth</span>. To act against one another then is contrary to nature; and it is acting against one another to be vexed and to turn away.</p>
-          <div class="notes"><p class="note n2"><span>Tomas</span>Never thought about teeth this way</p></div>
-        </div>
-        <div class="pair">
-          <div class="marked"><p class="text">Whatever this is that I am, it is a little flesh and breath, and the ruling part. Throw away thy books; no longer distract thyself: it is not allowed; but as if thou wast now dying, despise the flesh; it is blood and bones and a network, a contexture of <span class="u u1">nerves, veins, and arteries</span>.</p></div>
-          <div class="notes">
-            <p class="note n1"><span>Ann</span>Was the Oxford comma in the original Greek?</p>
-            <p class="note n3"><span>Ines</span>I stopped reading here</p>
-          </div>
-        </div>
-      </div>
-      <figcaption>Meditations, Book II, with notes from three readers, as the writer sees them on a shared manuscript.</figcaption>
+    <figure class="demo">
+      <typeset-book src="/sample.epub" title="Meditations" paper="page"></typeset-book>
+      <figcaption>
+        <p>The reader itself, embedded on this page with:</p>
+        <pre class="code"><code>&lt;typeset-book src="/sample.epub"
+  paper="page"&gt;&lt;/typeset-book&gt;</code></pre>
+      </figcaption>
     </figure>
   </section>
 
-  <section id="reading" class="part" aria-labelledby="reading-h">
+  <section id="embed" class="part" aria-labelledby="embed-h">
     <div class="wrap">
-      <h2 id="reading-h" class="label">Reading</h2>
-      <div class="three four">
-        <div>
-          <h3>Typesetting</h3>
-          <p>Words are shaped with the book’s own typefaces by HarfRust, the Rust port of HarfBuzz, and each paragraph is broken as a whole, with hyphenation patterns for its language. Every column is then measured in the browser and corrected, so no line runs past the margin.</p>
-        </div>
-        <div>
-          <h3>Importing</h3>
-          <p>EPUB 2 and 3 with their publishers’ CSS, tables, SVG and MathML; Word with its styles, footnotes and tracked changes; Markdown. Original files are kept, so a book is read again when an importer improves.</p>
-        </div>
-        <div>
-          <h3>Notes</h3>
-          <p>A note is anchored by its words and the text around them, not by a position, so it finds its place again in a revised draft. Notes export as Markdown, JSON or W3C Web Annotations.</p>
-        </div>
-        <div>
-          <h3>Speed</h3>
-          <p>The engine runs in a worker and keeps its layouts: turning never waits on it, a book read before opens in a fraction of a second, and one search covers the full text of every book.</p>
-        </div>
-      </div>
-    </div>
-  </section>
+      <h2 id="embed-h" class="label">Put a book on your site</h2>
+      <p class="intro">The reader is a folder of static files that you host beside your books, on any host: GitHub Pages, Netlify, Cloudflare or your own server. No account, no tracking, nothing loaded from elsewhere.</p>
+      <ol class="three steps">
+        <li>
+          <h3><span class="num" aria-hidden="true">1</span>Add the reader</h3>
+          <p>In a project with npm:</p>
+          <div class="then">
+            <pre class="code"><code>npm install typeset.js
+npx typeset.js public/typeset</code></pre>
+            <p>No npm? Download <a href="https://github.com/dmatthan/typeset.js/releases/latest/download/typeset.js.zip">typeset.js.zip</a>, unzip it, and upload the <code>typeset</code> folder to your site.</p>
+          </div>
+        </li>
+        <li>
+          <h3><span class="num" aria-hidden="true">2</span>Put a book on a page</h3>
+          <p>Upload your book, then add this:</p>
+          <div class="then">
+            <pre class="code"><code>&lt;script type="module"
+  src="/typeset/typeset.js"&gt;
+&lt;/script&gt;
 
-  <section id="sharing" class="part alt" aria-labelledby="sharing-h">
-    <div class="wrap">
-      <h2 id="sharing-h" class="label">Sharing a manuscript</h2>
-      <p class="intro">A preview: sharing is by invitation for now, with limits on size and use while it settles.</p>
-      <ol class="three">
-        <li>
-          <span class="num" aria-hidden="true">i.</span>
-          <h3>Sealing</h3>
-          <p>The book is encrypted with AES-256-GCM on the writer’s device. Its key lives in the link’s fragment, which browsers never send to a server; separate keys for the book, the notes and the right to post are derived from it with HKDF.</p>
+&lt;typeset-book
+  src="/books/my-book.epub"&gt;
+&lt;/typeset-book&gt;</code></pre>
+            <p>It fills the width of its column; give it a height in CSS to change its size.</p>
+          </div>
         </li>
         <li>
-          <span class="num" aria-hidden="true">ii.</span>
-          <h3>Reading</h3>
-          <p>Readers need no account. One Turnstile check, then a pass for that book: their notes go back sealed with the same link, a few kilobytes at a time, when they leave the book.</p>
-        </li>
-        <li>
-          <span class="num" aria-hidden="true">iii.</span>
-          <h3>Returning</h3>
-          <p>Writers sign in with passkeys. Notes are placed on the writer’s copy by their words, each reader in a colour of their own; the list of shares is sealed with a key the passkey derives (WebAuthn PRF), so it opens on the writer’s other devices and nowhere else.</p>
+          <h3><span class="num" aria-hidden="true">3</span>Choose what it shows</h3>
+          <p>Attributes set the rest:</p>
+          <div class="then">
+            <dl class="opts">
+              <dt><code>chapters="1-3"</code></dt><dd>only these chapters</dd>
+              <dt><code>theme="linen"</code></dt><dd>one of six themes</dd>
+              <dt><code>paper="page"</code></dt><dd>your page’s own colour</dd>
+              <dt><code>end-href="/shop"</code></dt><dd>a link at the end, named by <code>end-label</code></dd>
+              <dt><code>off="highlights"</code></dt><dd>features to leave out</dd>
+            </dl>
+            <p>Everything else, with events and methods for scripts, is in the <a href="https://www.npmjs.com/package/typeset.js">reference</a>.</p>
+          </div>
         </li>
       </ol>
-    </div>
-  </section>
-
-  <section id="developers" class="part" aria-labelledby="dev-h">
-    <div class="wrap">
-      <h2 id="dev-h" class="label">For developers</h2>
-      <p class="intro">The source is on <a href="https://github.com/dmatthan/typeset.js">GitHub</a>, under the MIT licence.</p>
-      <div class="three four">
-        <div>
-          <h3>Static files</h3>
-          <p>The reader is a page, a WebAssembly engine of about 850 KB compressed, and its fonts. It runs from any web server or CDN, with no backend, and offline after the first visit.</p>
+      <div class="ways">
+        <div class="way cover">
+          <div class="opener">
+            <typeset-open src="/sample.epub" title="Meditations"></typeset-open>
+            <typeset-open src="/sample.epub"><button class="btn" type="button">Read it</button></typeset-open>
+          </div>
+          <h3>A cover that opens the book</h3>
+          <p>Shows the book’s own cover; a press opens the reader over the whole window, and Back returns to the page.</p>
+          <pre class="code"><code>&lt;typeset-open
+  src="/books/my-book.epub"&gt;
+&lt;/typeset-open&gt;</code></pre>
         </div>
-        <div>
-          <h3>The engine</h3>
-          <p>Rust crates that read EPUB, Word and Markdown into one document model, set it in columns, and place notes on revised text. They build for WebAssembly and natively; the desktop app uses them directly.</p>
-        </div>
-        <div>
-          <h3>The sharing service</h3>
-          <p>It holds only sealed bytes: books and notes it cannot read. The service can be run on your own account from the repository.</p>
-        </div>
-        <div>
-          <h3>On your own site</h3>
-          <p>A chapter on a blog, a sample with a way to buy the book, a cover that opens the book, a shelf of books: three elements, fluid in the page’s own layout, served from your own site with <a href="https://www.npmjs.com/package/typeset.js">typeset.js</a>.</p>
-          <pre class="code"><code>npx typeset.js public/typeset
-
-&lt;script type="module" src="/typeset/typeset.js"&gt;&lt;/script&gt;
-&lt;typeset-book src="/books/sample.epub" chapters="1-3"
-  end-href="/shop" end-label="Buy the book"&gt;&lt;/typeset-book&gt;</code></pre>
+        <div class="way">
+          <h3>A shelf of books</h3>
+          <p>A list of your books, as JSON, becomes a shelf of covers, each opened in place.</p>
+          <pre class="code"><code>&lt;typeset-library
+  src="/books.json"&gt;
+&lt;/typeset-library&gt;</code></pre>
         </div>
       </div>
+      <dl class="facts">
+        <div><dt>Engine</dt><dd>Rust, compiled to WebAssembly: about 850 KB compressed, in a worker.</dd></div>
+        <div><dt>Typesetting</dt><dd>Paragraphs broken whole and hyphenated; words shaped by HarfRust.</dd></div>
+        <div><dt>Formats</dt><dd>EPUB 2 and 3 with their own styles, Word (.docx), Markdown.</dd></div>
+        <div><dt>Licence</dt><dd>MIT. The source is on <a href="https://github.com/dmatthan/typeset.js">GitHub</a>.</dd></div>
+      </dl>
     </div>
   </section>
 
-  <section id="install" class="part alt" aria-labelledby="install-h">
+  <section id="app" class="part alt" aria-labelledby="app-h">
     <div class="wrap">
-      <h2 id="install-h" class="label">Installing</h2>
+      <h2 id="app-h" class="label">The Volumen app</h2>
+      <div class="three">
+        <div>
+          <h3>Your library</h3>
+          <p>Add EPUB, Word and Markdown files and read them in the browser, online or off. Highlights, notes and bookmarks stay on your device, and export as Markdown or JSON.</p>
+        </div>
+        <div>
+          <h3>Sharing a manuscript</h3>
+          <p>Send a draft as a private link and get readers’ notes back beside your text. The book is encrypted on your device; its key is in the link and never reaches the server. By invitation, for now.</p>
+        </div>
+        <div>
+          <h3>Find and search</h3>
+          <p>Find in a book with Ctrl F, or search the full text of every book at once. Notes find their place again in a revised draft.</p>
+        </div>
+      </div>
       <div class="install">
         <div class="here">
           <h3 id="here-h">In the browser</h3>
@@ -168,7 +170,7 @@
         </div>
         <div class="desk">
           <h3>Desktop app</h3>
-          <p>The same reader as a native app for Linux, macOS and Windows, with the computer’s own fonts and full-text search across the whole library from a local database.</p>
+          <p>The same reader as an app for Linux, macOS and Windows, with your computer’s own fonts.</p>
           <div class="downloads" id="downloads">
             <a class="btn" data-os="linux" href="https://github.com/dmatthan/typeset.js/releases/latest/download/Volumen-linux-x86_64.AppImage"><svg class="os" aria-hidden="true"><use href="#os-linux"/></svg>Linux</a>
             <a class="btn" data-os="mac" href="https://github.com/dmatthan/typeset.js/releases/latest/download/Volumen-macos.dmg"><svg class="os" aria-hidden="true"><use href="#os-apple"/></svg>macOS</a>
