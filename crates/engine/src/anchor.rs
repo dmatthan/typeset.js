@@ -407,7 +407,7 @@ mod tests {
 
     fn book(texts: &[&str]) -> Book {
         let blocks = texts.iter().enumerate().map(|(i, t)| typeset_model::Block::new(i as u64 + 1, typeset_model::Kind::P, t.to_string(), vec![])).collect();
-        Book { id: "b".into(), meta: Default::default(), sections: vec![typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks }], notes: vec![], images: vec![], cover: None }
+        Book { id: "b".into(), meta: Default::default(), sections: vec![typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks, head: None }], notes: vec![], images: vec![], leading: None, cover: None }
     }
 
     #[test]

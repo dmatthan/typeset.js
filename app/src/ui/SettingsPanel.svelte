@@ -8,7 +8,7 @@
   import { touchUI } from './touch';
   import type { Reader } from '../reader/reader.svelte';
   import { ui, toast } from '../state.svelte';
-  import { settings, save, SIZES, type Settings, type Layout } from '../reader/settings.svelte';
+  import { settings, save, sizeOf, SIZES, type Settings, type Layout } from '../reader/settings.svelte';
   import { themes, allThemes, themeById, optionsOf, optionChanged, anyOptionChanged, setOption, resetOptions, resolve, loadFamily, deleteUserTheme, exportTheme, FACES, typeOf, chainOf, cssFamily, type Options, type Theme } from '../reader/themes.svelte';
   import { editor } from './editor.svelte';
   import { shell } from '../core/shell';
@@ -23,7 +23,7 @@
   const theme = $derived(themeById(settings.theme));
   const o = $derived(optionsOf(theme));
   const dark = $derived(reader.isDark());
-  const size = $derived(settings.size ?? (reader.M?.phone ? 18 : 20));
+  const size = $derived.by(() => { ui.layoutVersion; return reader.M.fs; });
 
   $effect(() => { for (const t of themes.user) loadFamily(reader.core, t.type.family); });
   onMount(() => {
@@ -46,12 +46,10 @@
 
   let relayT = 0;
   const relayout = () => { clearTimeout(relayT); relayT = window.setTimeout(() => reader.settingsChanged('layout'), 60); };
+  // (a step from the theme's size, carried to every theme; none past either end of the scale)
   function setSize(d: number) {
-    let i = SIZES.indexOf(size);
-    if (i < 0) i = SIZES.findIndex(s => s >= size);
-    const v = SIZES[Math.max(0, Math.min(SIZES.length - 1, i + d))];
-    if (v === size) return;
-    settings.size = v; save(); relayout();
+    if (sizeOf(reader.look.size, settings.step + d) === sizeOf(reader.look.size)) return;
+    settings.step += d; save(); relayout();
   }
   function set<K extends keyof Settings>(k: K, v: Settings[K]) {
     if (settings[k] === v) return;
@@ -63,10 +61,10 @@
     setOption(theme, k, v); relayout();
   }
   /** The sliders: each option's range and step. */
-  const R = { lineSpacing: [1.15, 2.2, 0.05], charSpacing: [-5, 15, 1], wordSpacing: [-10, 50, 2], margins: [-2, 3, 1] } as const;
+  // (the design at 0 in the middle of each change; line spacing the theme's own number)
+  const R = { lineSpacing: [1, 2, 0.05], charSpacing: [-10, 10, 1], wordSpacing: [-50, 50, 5], margins: [-10, 10, 1] } as const;
   /** The faces this theme may be set in: the bundled ones, and its own if it is not one. */
   const faces = $derived(FACES.some(f => f.family === theme.type.family) ? FACES : [theme.type, ...FACES]);
-  const MARGINS = ['Narrowest', 'Narrow', 'Designed', 'Wide', 'Wider', 'Widest'];
   const pct = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%';
 
   function cycleTheme(d: number) {
@@ -133,12 +131,22 @@
     const ax = r.axes.map(([k, v]) => `"${k}" ${v}, `).join('');
     return `font-family:${r.css};font-weight:${r.wght};font-variation-settings:${ax}"wght" ${r.wght}`;
   };
+  // the cards' faces come in together once all have (or after a moment, for one slow to
+  // come), not one by one as each arrives; at once where all are here already
+  const cardFaces = () => allThemes().map(t => { const r = resolve(t, dark); return `${r.wght} 21px ${r.css}`; });
+  let facesIn = $state(cardFaces().every(f => document.fonts.check(f, 'Aa')));
+  $effect(() => {
+    if (facesIn) return;
+    const all = Promise.all(cardFaces().map(f => document.fonts.load(f, 'Aa').catch(() => [])));
+    Promise.race([all, new Promise(r => setTimeout(r, 1000))]).then(() => (facesIn = true));
+  });
 </script>
 
 {#snippet slider(label: string, k: keyof typeof R, value: string)}
   <label class="row sl">
     <span class="lbl">{label}{#if optionChanged(theme, k)}<span class="dot" title="Changed from {theme.name}’s design"></span>{/if}</span>
     <input type="range" min={R[k][0]} max={R[k][1]} step={R[k][2]} value={o[k]} aria-valuetext={value} oninput={e => opt(k, +e.currentTarget.value)} />
+    <span class="val" aria-hidden="true">{value}</span>
   </label>
 {/snippet}
 {#snippet toggle(label: string, on: boolean, flip: () => void, keyName: string, changed = false)}
@@ -163,7 +171,7 @@
           <button data-first onclick={() => setSize(-1)} aria-label="Smaller type" title="Smaller type (−)" disabled={size <= SIZES[0]}><span class="a1">A</span></button>
           <button onclick={() => setSize(1)} aria-label="Larger type" title="Larger type (+)" disabled={size >= SIZES[SIZES.length - 1]}><span class="a2">A</span></button>
         </div>
-        <div class="themes" role="radiogroup" aria-label="Theme">
+        <div class="themes" class:in={facesIn} role="radiogroup" aria-label="Theme">
           {#each allThemes() as t (t.id)}
             <button class="th" role="radio" aria-checked={t.id === theme.id} onclick={() => set('theme', t.id)}
               title={t.desktop && themes.desktop ? `${t.name}: colours from ${themes.desktop.name}` : `${t.name} (T)`}>
@@ -209,7 +217,7 @@
           {@render slider('Line spacing', 'lineSpacing', o.lineSpacing.toFixed(2))}
           {@render slider('Letters', 'charSpacing', pct(o.charSpacing))}
           {@render slider('Words', 'wordSpacing', pct(o.wordSpacing))}
-          {@render slider('Margins', 'margins', MARGINS[o.margins + 2])}
+          {@render slider('Margins', 'margins', pct(o.margins))}
         </div>
         <div class="list">
           {@render toggle('Justify', o.justify, () => opt('justify', !o.justify), 'J', optionChanged(theme, 'justify'))}
@@ -258,26 +266,28 @@
   .ph.sub > :last-child { min-width: 52px; text-align: right; }
   button { appearance: none; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; }
   button:disabled { opacity: .35; cursor: default; }
-  svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
   .back { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); background: var(--read); }
   :global(html:not(.touchui)) .back:hover { background: var(--hover); }
   :global(.touchui) .back { width: 40px; height: 40px; }
-  .txt { font: 500 var(--t-s)/1 var(--f-ui); color: var(--accent); padding: 6px 4px; border-radius: 6px; }
+  .txt { font: 500 var(--t-s)/1 var(--f-ui); color: var(--accent); padding: 6px 4px; border-radius: var(--r-s); }
   .txt.danger { color: var(--danger); }
 
-  .pill { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--read); border-radius: 12px; padding: 3px; gap: 3px; }
-  .pill button { height: 38px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2); }
+  .pill { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--read); border-radius: var(--r-m); padding: 3px; gap: 3px; }
+  .pill button { height: 38px; border-radius: calc(var(--r-m) - 3px); display: grid; place-items: center; color: var(--ink-2); }
   :global(html:not(.touchui)) .pill button:hover:not(:disabled) { background: var(--hover); }
   .a1 { font: 600 14px/1 var(--f-book); }
   .a2 { font: 600 22px/1 var(--f-book); }
 
   .themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 6px; padding: 2px 0; }
-  .th { display: grid; justify-items: center; gap: 6px; padding: 4px 0; border-radius: 10px; color: var(--ink-2); }
+  .th { display: grid; justify-items: center; gap: 6px; padding: 4px 0; border-radius: var(--r-m); color: var(--ink-2); }
   .th .aa {
     --pp: oklch(0.982 0.006 80); --pi: var(--ink);
-    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--pp); color: var(--pi);
+    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--pp);
     font-size: 21px; line-height: 1; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pi) 16%, transparent);
+    color: transparent; transition: color var(--calm);
   }
+  .themes.in .th .aa { color: var(--pi); }
   :global([data-theme="dark"]) .th .aa { --pp: oklch(0.205 0.006 80); }
   @media (prefers-color-scheme: dark) { :global(:root:not([data-theme="light"])) .th .aa { --pp: oklch(0.205 0.006 80); } }
   /* (a line as tall as its face: the ellipsis clips, and 1.2 lost the foot of a p) */
@@ -286,31 +296,33 @@
   .th[aria-checked="true"] .aa { box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px var(--accent); }
   .th:focus-visible { outline-offset: 3px; }
 
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 0 4px; width: 100%; box-sizing: border-box; text-align: left; border-radius: 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 0 4px; width: 100%; box-sizing: border-box; text-align: left; border-radius: var(--r-s); }
   .row.nav, .row.tg { cursor: pointer; }
   .sum { display: inline-flex; align-items: center; gap: 2px; font: 400 var(--t-s)/1 var(--f-ui); color: var(--ink-3); }
   /* the faces, each named in itself */
-  .faces { display: grid; padding: 3px; border-radius: 12px; background: var(--read); }
-  .faces button { height: 34px; padding: 0 10px; border-radius: 9px; display: flex; align-items: center; justify-content: space-between; font-size: 16px; color: var(--ink); }
+  .faces { display: grid; padding: 3px; border-radius: var(--r-m); background: var(--read); }
+  .faces button { height: 34px; padding: 0 10px; border-radius: calc(var(--r-m) - 3px); display: flex; align-items: center; justify-content: space-between; font-size: 16px; color: var(--ink); }
   .faces button[aria-checked="true"] { background: var(--sheet); box-shadow: 0 0 0 1px var(--rule); }
   :global(html:not(.touchui)) .faces button:not([aria-checked="true"]):hover { background: var(--hover); }
   .faces .own { font: 400 13px/1 var(--f-ui); color: var(--ink-3); }
-  .row.sl { display: grid; grid-template-columns: 96px minmax(0, 1fr); }
+  .row.sl { display: grid; grid-template-columns: 96px minmax(0, 1fr) 44px; gap: 10px; }
+  /* its value at a glance, as Apple's: a number, or the change from the design */
+  .val { font: 500 var(--t-s)/1 var(--f-ui); color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
   .sl input { width: 100%; margin: 0; accent-color: var(--accent); }
   :global(html:not(.touchui)) .row.nav:hover, :global(html:not(.touchui)) .row.tg:hover { background: var(--hover); }
   .lbl { display: inline-flex; align-items: center; gap: 8px; font: 500 var(--t-s)/1.25 var(--f-ui); color: var(--ink); }
   .chev { width: 18px; height: 18px; color: var(--ink-3); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  .seg { display: inline-grid; grid-auto-flow: column; background: var(--read); border-radius: 10px; padding: 3px; gap: 2px; }
-  .seg button { height: 30px; min-width: 40px; padding: 0 10px; border-radius: 8px; font: 600 13px/1 var(--f-ui); color: var(--ink-2); }
+  .seg { display: inline-grid; grid-auto-flow: column; background: var(--read); border-radius: var(--r-m); padding: 3px; gap: 2px; }
+  .seg button { height: 30px; min-width: 40px; padding: 0 10px; border-radius: calc(var(--r-m) - 3px); font: 600 13px/1 var(--f-ui); color: var(--ink-2); }
   :global(html:not(.touchui)) .seg button:not([aria-checked="true"]):hover { background: var(--hover); }
   .seg button[aria-checked="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
   .note { margin: -4px 4px 0; font: 500 13px/1.4 var(--f-ui); color: var(--ink-3); }
 
   .list { display: grid; }
   .list > :global(*) + :global(*) { border-top: 1px solid var(--rule); border-radius: 0; }
-  .sw { flex: none; width: 40px; height: 24px; border-radius: 12px; background: var(--rule); position: relative; transition: background-color .16s; }
-  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px oklch(0 0 0 / .25); transition: transform .16s; }
+  .sw { flex: none; width: 40px; height: 24px; border-radius: 12px; background: var(--rule); position: relative; transition: background-color var(--quick); }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px oklch(0 0 0 / .25); transition: transform var(--quick); }
   [aria-checked="true"] > .sw { background: var(--accent); }
   [aria-checked="true"] > .sw::after { transform: translateX(16px); }
   .foot { display: flex; align-items: center; gap: 4px; padding: 2px 0 0; border-top: 1px solid var(--rule); padding-top: 8px; }

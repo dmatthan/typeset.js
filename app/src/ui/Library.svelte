@@ -369,18 +369,18 @@
   .head { max-width: 1040px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; }
   .title { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
   .seg { display: inline-flex; padding: 3px; border-radius: var(--r-m); background: var(--read); }
-  .seg button { appearance: none; border: 0; background: none; cursor: pointer; padding: 8px 14px; border-radius: 9px; font: 600 var(--t-s)/1.2 var(--f-ui); color: var(--ink-2); display: inline-flex; align-items: center; gap: 8px; }
+  .seg button { appearance: none; border: 0; background: none; cursor: pointer; padding: 8px 14px; border-radius: calc(var(--r-m) - 3px); font: 600 var(--t-s)/1.2 var(--f-ui); color: var(--ink-2); display: inline-flex; align-items: center; gap: 8px; }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px oklch(0 0 0 / 0.12); }
   .books[hidden], .foot[hidden] { display: none; }
   .search { display: flex; align-items: center; gap: 8px; width: min(320px, 40vw); height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: var(--r-m); border: 1.5px solid var(--rule); background: var(--surface); color: var(--ink-3); cursor: text; }
   .search:focus-within { border-color: var(--accent); }
-  .search svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+  .search svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; }
   .search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0; }
   .search input::placeholder { color: var(--ink-3); }
   /* (a search looks in every book: the shelves wait, out of use) */
   .shelves.off { opacity: .4; }
   .shelves { max-width: 1040px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -10px 0 30px; }
-  .shelves > button { appearance: none; border: 1.5px solid var(--rule); background: none; cursor: pointer; height: 36px; padding: 0 14px; border-radius: 18px; font: 600 var(--t-s)/1 var(--f-ui); color: var(--ink-2); }
+  .shelves > button { appearance: none; border: 1.5px solid var(--rule); background: none; cursor: pointer; height: 36px; padding: 0 14px; border-radius: 999px; font: 600 var(--t-s)/1 var(--f-ui); color: var(--ink-2); }
   :global(html:not(.touchui)) .shelves > button:not([aria-selected="true"]):hover { background: var(--hover); color: var(--ink); }
   .shelves > button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--ground); }
   .shelves > button.own { font-style: normal; }
@@ -413,7 +413,7 @@
   .actions button:last-child { border-radius: 0 0 calc(var(--r-m) - 1px) calc(var(--r-m) - 1px); }
   .actions button { appearance: none; border: 0; background: none; cursor: pointer; min-height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 12px; text-align: left; font: 500 var(--t-m)/1.2 var(--f-ui); color: var(--ink); }
   .actions button + button { border-top: 1px solid var(--rule); }
-  .actions svg { flex: none; width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--ink-2); }
+  .actions svg { flex: none; width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; color: var(--ink-2); }
   .actions .danger, .actions .danger svg { color: var(--danger); }
   :global(html:not(.touchui)) .actions button:hover { background: var(--hover); }
   .col-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; border-radius: var(--r-s); cursor: pointer; font: 600 var(--t-m)/1.2 var(--f-ui); color: var(--ink); }
@@ -428,7 +428,7 @@
   .add-p { display: none; }
   @media (max-width: 640px) { .add-p { display: inline; } }
   .books { max-width: 1040px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 34px 24px; }
-  .book { all: unset; cursor: pointer; display: grid; gap: 12px; align-content: start; min-width: 0; border-radius: 6px; }
+  .book { all: unset; cursor: pointer; display: grid; gap: 12px; align-content: start; min-width: 0; border-radius: var(--r-xs); }
   .book:focus-visible { outline: none; }
   .book:focus-visible .cover { outline: 3px solid var(--focus); outline-offset: 4px; }
   .cover {
@@ -438,12 +438,12 @@
     display: flex; flex-direction: column; justify-content: space-between; text-align: center;
     background: oklch(0.38 0.06 var(--ch)); color: oklch(0.95 0.025 var(--ch));
     box-shadow: inset 5px 0 0 oklch(0 0 0 / 0.14), inset 6px 0 0 oklch(1 0 0 / 0.08);
-    transition: transform .25s cubic-bezier(.2,.8,.2,1);
+    transition: transform var(--calm) cubic-bezier(.2,.8,.2,1);
   }
   :global(html:not(.touchui)) .book:hover .cover, .book:focus-visible .cover { transform: translateY(-3px); }
   .cover.img { padding: 0; background: var(--rule); }
   /* the image fills the cover and takes no part in sizing it */
-  .cover.img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; opacity: 0; transition: opacity .3s ease; }
+  .cover.img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; opacity: 0; transition: opacity var(--calm) ease; }
   .cover.img img:global(.in) { opacity: 1; }
   .cover.img img:global(.now) { transition: none; }
   :global(.cover.img.whole) img { object-fit: contain; }

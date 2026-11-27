@@ -59,9 +59,9 @@ book.addEventListener('typeset-progress', e => console.log(e.detail.at));
 
 ### `<typeset-book>`
 
-A book in the box the page gives it (by default its column's width and 70% of the
-window's height), gently rounded with a hairline in the page's own ink; style the
-element (`border-radius`, `box-shadow`) to change them.
+A book in the box the page gives it: by default the column's width and 70% of the
+window's height, with rounded corners and a 1 px border in the page's text colour. Style
+the element (`border-radius`, `box-shadow`) to change them.
 
 | Attribute | |
 | --- | --- |
@@ -72,8 +72,8 @@ element (`border-radius`, `box-shadow`) to change them.
 | `back` | a way back, shown as Back: an address (opened in the page's window), or with no value the page's own history. Without it, none (the page is the way back) |
 | `end-href`, `end-label` | a way on, on a card at the end |
 | `remember` | keep the reader's place, highlights and bookmarks in the browser (off by default) |
-| `ui` | the reader's own interface: `full` (the default: Back where asked for, a bookmark, full screen, and a menu with the contents, find, and type and theme; for a mouse, quiet arrows at its sides), `minimal` (the book's title and the page's number alone) or `none` |
-| `off` | what it does not offer, any of `contents settings find highlights links` (`highlights` takes bookmarks with it) |
+| `ui` | the reader's own interface: `full` (the default: Back where asked for, a bookmark, Expand, and a menu with the contents, find, and type and theme; with a mouse, arrows at the sides), `minimal` (the title and page number only) or `none`. Keys follow what is shown: with `minimal` or `none` the book turns pages and follows links, nothing more |
+| `off` | features to turn off, any of `contents settings find highlights links` (`highlights` includes bookmarks); their buttons, keys and Help entries are removed |
 
 | Event | `detail` |
 | --- | --- |
@@ -82,24 +82,26 @@ element (`border-radius`, `box-shadow`) to change them.
 | `typeset-end` | |
 | `typeset-error` | `message` |
 | `typeset-back` | the reader's Back, with `back` and no address: cancel it to go your own way |
-| `typeset-full` | `on`: the book filling the window, where a frame has no full screen |
+| `typeset-place` | `place`: where the book is now, `box` (in its place on the page) or `window` (filling the page's window) |
 
 Once ready: `book.goTo({ chapter: 3 })`, `book.goTo({ at: 0.5 })`, and
 `book.setTheme(theme)`, a theme's name or a theme as Volumen exports one
 (`{ "format": "typeset-theme/1", … }`).
 
-Full screen is the browser's where it allows it; where a frame has none (an iPhone), the
-element fills the window instead, the page held still behind it (an ancestor with a
-`transform` would hold it in its box).
+**Expand**, at the bottom left, fills the page's window with the book; the page behind it
+keeps its scroll position (an ancestor with a `transform` confines the element to its box).
+From there the same control is **Full screen**, the browser's, where the frame allows it
+(not on an iPhone). **×** at the top left returns the book to its box from either; Escape
+goes back one step, and the browser's Back returns to the page.
 
 ### `<typeset-open>` and `open()`
 
-What it holds (the page's own button, a picture, any element) opens the book over the
-whole window. Holding nothing, it shows the book's cover: an EPUB's own, read from the
-file, or `cover="/cover.jpg"`; `title` names it. It takes `<typeset-book>`'s attributes.
-The reader has Back, which, as the browser's back does, gives the page back as it was.
-It sends `typeset-open` and `typeset-close`; the reader's own events come from the
-`<typeset-book>` it opens (`element.book`).
+Its content (a button, an image, any element) opens the book over the whole window. With
+no content it shows the book's cover: an EPUB's own, read from the file, or
+`cover="/cover.jpg"`; `title` labels it. It takes `<typeset-book>`'s attributes. × or the
+browser's Back closes the book and restores the page. It sends `typeset-open` and
+`typeset-close`; the reader's events come from the `<typeset-book>` it opens
+(`element.book`).
 
 ```js
 const reading = open({ src: '/books/book.epub', chapters: '3' });   // reading.close()
@@ -107,21 +109,21 @@ const reading = open({ src: '/books/book.epub', chapters: '3' });   // reading.c
 
 ### `<typeset-library>`
 
-A shelf from `[{ "title", "author", "src", "cover" }]`, each book opened in place. Without
-`cover`, an EPUB's own is read from the file by range requests.
+A shelf from a JSON list, `[{ "title", "author", "src", "cover" }]`; each book opens in
+place. Without `cover`, an EPUB's own cover is read from the file with range requests.
 
 ## Samples
 
-To put a sample online without the rest of the book, write one with only those chapters:
+To publish a sample without the rest of the book, make an EPUB of those chapters only:
 [Volumen](https://volumen.page)'s Save as EPUB, or
 `cargo run -p typeset-ingest --example sample -- book.epub 1-3 sample.epub` in
 [the repository](https://github.com/dmatthan/typeset.js).
 
 ## Security
 
-The reader runs in a frame under a content security policy of its own: it loads nothing
-from elsewhere but the book. The page and the frame speak only to each other's origin, in
-messages `{ typeset: 1, type, … }`, so another page cannot listen in or steer it.
+The reader runs in a frame with its own content security policy: it loads nothing from
+other origins except the book. The page and the frame post messages (`{ typeset: 1, type,
+… }`) only to each other's origin, so other pages cannot read or control it.
 
 ## License
 

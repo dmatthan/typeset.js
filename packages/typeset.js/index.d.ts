@@ -17,6 +17,8 @@ export interface BookOptions {
   endLabel?: string;
   /** Keep the reader's place, highlights and bookmarks in the browser. */
   remember?: boolean;
+  /** The reader's own interface; what it does not show, no key opens (`minimal`, `none`: turning
+   *  pages and following links alone). */
   ui?: 'full' | 'minimal' | 'none';
   /** Any of "contents settings find highlights links", space separated. */
   off?: string;
@@ -30,7 +32,8 @@ export interface TypesetBookEvents {
   'typeset-error': CustomEvent<{ message: string }>;
   /** The reader's Back, with `back` and no address: cancel it to go the page's own way. */
   'typeset-back': CustomEvent<undefined>;
-  'typeset-full': CustomEvent<{ on: boolean }>;
+  /** Where the book is: in its box on the page, or filling the page's window. */
+  'typeset-place': CustomEvent<{ place: 'box' | 'window' }>;
 }
 
 /** <typeset-book>: a book in the box the page gives it. */

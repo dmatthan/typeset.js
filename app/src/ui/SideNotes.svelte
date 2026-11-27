@@ -206,11 +206,11 @@
   .rail-empty { position: absolute; z-index: 25; right: 20px; margin: 0; font: 400 var(--t-s)/1.45 var(--f-ui); color: var(--ink-3); }
   /* the rail's foot, level with the page's number beside it */
   .rail-foot { position: absolute; z-index: 25; right: 0; bottom: env(safe-area-inset-bottom); height: var(--foot, 52px); display: flex; align-items: center; justify-content: center; gap: 6px; font: 500 13px/1 var(--f-ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-  .rail-foot button { appearance: none; border: 0; background: none; width: 36px; height: 36px; padding: 0; border-radius: var(--r-s); display: grid; place-items: center; color: var(--ink-3); cursor: pointer; transition: color .15s, background-color .15s; }
+  .rail-foot button { appearance: none; border: 0; background: none; width: 36px; height: 36px; padding: 0; border-radius: var(--r-s); display: grid; place-items: center; color: var(--ink-3); cursor: pointer; transition: color var(--quick), background-color var(--quick); }
   .rail-foot button:disabled { opacity: .35; cursor: default; }
   :global(html:not(.touchui)) .rail-foot button:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
   .rail-foot .close { position: absolute; right: 10px; }
-  .rail-foot svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .rail-foot svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
   .sns { position: absolute; inset: 0; pointer-events: none; z-index: 25; }
   /* a card: clean, a hairline; colour only in the writer's initial */
   .sn {

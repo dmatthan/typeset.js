@@ -62,8 +62,8 @@ npx --prefix app tauri build          # desktop installers (target/release/bundl
 ## Releases
 
 ```sh
-git tag -a v0.2.0 -m … && git push origin v0.2.0   # the desktop app and typeset.js.zip
-git tag typeset.js-v0.2.0 && git push origin typeset.js-v0.2.0   # typeset.js, staged on npm
+git tag -a v0.3.0 -m … && git push origin v0.3.0   # the desktop app and typeset.js.zip
+git tag typeset.js-v0.3.0 && git push origin typeset.js-v0.3.0   # typeset.js, staged on npm
 npm stage list typeset.js && npm stage approve <id>   # … and made public, with a second factor
 ```
 

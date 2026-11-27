@@ -115,12 +115,13 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
                 num: if h.num.is_empty() { n.to_string() } else { h.num },
                 title: h.title,
                 blocks: Vec::new(),
+                head: None,
             });
             i += 1;
             continue;
         }
         if sections.is_empty() {
-            sections.push(Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: "Opening".into(), blocks: Vec::new() });
+            sections.push(Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: "Opening".into(), blocks: Vec::new(), head: None });
         }
         let kind = if p.trim().chars().all(|c| c == '*' || c.is_whitespace()) { Kind::Break } else { Kind::P };
         let b = if kind == Kind::Break { Block::new(0, Kind::Break, String::new(), vec![]) } else { block(Kind::P, p) };

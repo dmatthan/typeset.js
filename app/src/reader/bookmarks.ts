@@ -17,17 +17,22 @@ const WORDS = 80;
 export const loadBookmarks = (bookId: string) => kv.get<Bookmark[]>('bm.' + bookId, []);
 export const saveBookmarks = (bookId: string, list: Bookmark[]) => kv.set('bm.' + bookId, list);
 
-/** A bookmark for the page that begins at column `k` (a page with no text of its own, a
- *  picture or a title page, by its chapter's first words). */
-export function bookmarkAt(book: BookData, strip: Strip, k: number): Bookmark | null {
+/** Where the page at column `k` begins, if it has text of its own to come back to (not
+ *  the title page, nor the colophon): a bookmark is that place and nothing else, so it is
+ *  always found on its own page. */
+export function markable(strip: Strip, k: number) {
   const a = strip.anchorAt(k);
-  if (!a) return null;
-  const at = 'key' in a ? a : { key: book.sections[a.sec]?.blocks[0]?.key, off: 0 };
-  const h = at.key ? strip.keyIndex.get(at.key) : null;
-  if (!h) return null;
+  return a && 'key' in a && strip.keyIndex.has(a.key) ? a : null;
+}
+
+/** A bookmark for the page that begins at column `k`, if it can have one (`markable`). */
+export function bookmarkAt(book: BookData, strip: Strip, k: number): Bookmark | null {
+  const at = markable(strip, k);
+  if (!at) return null;
+  const h = strip.keyIndex.get(at.key)!;
   const t = book.sections[h[0]].blocks[h[1]].t;
   const e = Math.min(t.length, at.off + WORDS);
-  return { id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), key: at.key!, off: at.off, quote: t.slice(at.off, e), prefix: t.slice(Math.max(0, at.off - CTX), at.off), suffix: t.slice(e, e + CTX), at: Date.now() };
+  return { id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), key: at.key, off: at.off, quote: t.slice(at.off, e), prefix: t.slice(Math.max(0, at.off - CTX), at.off), suffix: t.slice(e, e + CTX), at: Date.now() };
 }
 
 /** The page's opening as a list shows it: to its last whole word, and said to go on. */

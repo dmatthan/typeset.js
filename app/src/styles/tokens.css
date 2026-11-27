@@ -38,9 +38,16 @@
 
   /* Interface type scale: quiet, nothing smaller than 13px. */
   --t-xs: 13px; --t-s: 13px; --t-m: 15px; --t-l: 17px; --t-xl: 20px; --t-xxl: 28px;
-  --r-s: 8px; --r-m: 12px; --r-l: 16px;
+  --r-xs: 4px; --r-s: 8px; --r-m: 12px; --r-l: 16px;
+  /* of a piece (the views' audit holds them): every icon's line drawn at one weight,
+     whatever its size (below: its lines do not scale with it); every transition at
+     one of two paces, a control's answer and a surface's coming */
+  --stroke: 1.33px;
+  --quick: 0.15s; --calm: 0.3s;
   color-scheme: light;
 }
+/* an icon's line at one weight whatever the icon's size (`--stroke`) */
+svg :is(path, line, polyline, polygon, circle, rect, ellipse) { vector-effect: non-scaling-stroke; }
 /* a phone: the larger sizes a step down (the body size stays: it is already a phone's) */
 @media (max-width: 640px) {
   :root { --t-xl: 19px; --t-xxl: 24px; }
@@ -154,7 +161,7 @@ button { font: inherit; color: inherit; }
 .btn {
   appearance: none; cursor: pointer; border: 0; border-radius: var(--r-m); min-height: 44px; padding: 0 18px;
   font: 500 var(--t-m)/1.2 var(--f-ui); display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  background: var(--read); color: var(--ink); transition: filter .15s, background-color .15s;
+  background: var(--read); color: var(--ink); transition: filter var(--quick), background-color var(--quick);
 }
 html:not(.touchui) .btn:not(.primary):hover { background: var(--hover); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); }
@@ -162,14 +169,11 @@ html:not(.touchui) .btn.primary:hover { filter: brightness(1.06); }
 .btn.quiet { background: transparent; color: var(--ink-2); }
 html:not(.touchui) .btn.quiet:hover { background: var(--hover); }
 .btn[disabled] { opacity: .4; cursor: default; }
-kbd { font: 600 13px/1 var(--f-ui); padding: 3px 6px; border-radius: 6px; border: 1px solid currentColor; opacity: .7; }
+kbd { font: 600 13px/1 var(--f-ui); padding: 3px 6px; border-radius: var(--r-xs); border: 1px solid currentColor; opacity: .7; }
 
 /* On a touch screen key hints are noise: hidden, with what names keys (`.keys-only`).
-   A phone-sized window, a coarse pointer, or a device that has been touched (`.touchui`,
-   main.ts) is one: browsers do not all report a phone's pointer the same way. */
-@media (max-width: 640px), (pointer: coarse) {
-  kbd, .keys-only { display: none !important; }
-}
+   The device says, once (`.touchui`, ui/touch.ts), never the window's width: browsers do
+   not all report a phone's pointer the same way, and its first touch tells. */
 .touchui kbd, .touchui .keys-only { display: none !important; }
 /* what is said only to a touch screen (the keys' counterpart) */
 html:not(.touchui) .touch-only { display: none !important; }

@@ -39,3 +39,16 @@ export function shareOf(book: BookData, keyIndex: KeyIndex, key: string): number
 
 /** A number that sorts places into reading order: section, block, offset. */
 export const readingOrder = (sec: number, block: number, off = 0) => sec * 1e9 + block * 1e4 + Math.min(off, 9999);
+
+/** A book's sections but `from`, in groups of `n`: those after it and before it in turn,
+ *  nearest first (where the reader goes next comes first). */
+export function nearest(count: number, from: number, n: number): number[][] {
+  const order: number[] = [];
+  for (let d = 1; order.length < count - 1; d++) {
+    if (from + d < count) order.push(from + d);
+    if (from - d >= 0) order.push(from - d);
+  }
+  const out: number[][] = [];
+  for (let i = 0; i < order.length; i += n) out.push(order.slice(i, i + n));
+  return out;
+}

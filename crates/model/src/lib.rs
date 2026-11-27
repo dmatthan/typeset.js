@@ -19,6 +19,9 @@ pub struct Book {
     /// Images' sizes and descriptions, by index (`Block::image`); their bytes are stored
     /// apart from the model.
     pub images: Vec<Image>,
+    /// The leading the book sets its text in (line-height as a factor of the text's size),
+    /// where it sets one: an EPUB's styles, the most text's (a theme may follow it).
+    pub leading: Option<f32>,
     /// The cover image as found at import; stored apart from the model, never serialised.
     #[serde(skip)]
     pub cover: Option<Cover>,
@@ -97,7 +100,9 @@ pub fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-pub const SAVE_MAGIC: &[u8; 4] = b"VOL\x03";
+pub const SAVE_MAGIC: &[u8; 4] = b"VOL\x05";
+const SAVE_MAGIC_V4: &[u8; 4] = b"VOL\x04";
+const SAVE_MAGIC_V3: &[u8; 4] = b"VOL\x03";
 const SAVE_MAGIC_V2: &[u8; 4] = b"VOL\x02";
 
 /// `[start, end)` moved onto `text`'s characters: inside it, on character boundaries
@@ -192,6 +197,14 @@ impl Book {
         if let Some(rest) = bytes.strip_prefix(SAVE_MAGIC) {
             return postcard::from_bytes(rest).map_err(|e| e.to_string());
         }
+        if let Some(rest) = bytes.strip_prefix(SAVE_MAGIC_V4) {
+            let v4: earlier::V4 = postcard::from_bytes(rest).map_err(|e| e.to_string())?;
+            return Ok(v4.into());
+        }
+        if let Some(rest) = bytes.strip_prefix(SAVE_MAGIC_V3) {
+            let v3: earlier::V3 = postcard::from_bytes(rest).map_err(|e| e.to_string())?;
+            return Ok(v3.into());
+        }
         if let Some(rest) = bytes.strip_prefix(SAVE_MAGIC_V2) {
             let v2: earlier::V2 = postcard::from_bytes(rest).map_err(|e| e.to_string())?;
             return Ok(v2.into());
@@ -201,100 +214,7 @@ impl Book {
     }
 }
 
-/// Earlier saved forms, read into this one: before tables (v2), and before notes, links
-/// and images (v1). What they lack comes with the next import of the book's file.
-mod earlier {
-    use serde::Deserialize;
-
-    // (written only by the test below, which checks they are still read)
-    #[derive(Deserialize)]
-    #[cfg_attr(test, derive(serde::Serialize))]
-    struct Section<B> {
-        kind: super::SectionKind,
-        part: String,
-        label: String,
-        num: String,
-        title: String,
-        blocks: Vec<B>,
-    }
-    impl<B: Into<super::Block>> From<Section<B>> for super::Section {
-        fn from(s: Section<B>) -> Self {
-            super::Section { kind: s.kind, part: s.part, label: s.label, num: s.num, title: s.title, blocks: s.blocks.into_iter().map(Into::into).collect() }
-        }
-    }
-
-    #[derive(Deserialize)]
-    #[cfg_attr(test, derive(serde::Serialize))]
-    pub struct V2 {
-        id: String,
-        meta: super::Meta,
-        sections: Vec<Section<V2Block>>,
-        notes: Vec<super::Note>,
-        images: Vec<super::Image>,
-    }
-    #[derive(Deserialize)]
-    #[cfg_attr(test, derive(serde::Serialize))]
-    struct V2Block {
-        key: u64,
-        kind: super::Kind,
-        text: String,
-        runs: Vec<super::Run>,
-        links: Vec<super::Link>,
-        image: Option<u32>,
-    }
-    impl From<V2Block> for super::Block {
-        fn from(b: V2Block) -> Self {
-            super::Block { links: b.links, image: b.image, ..super::Block::new(b.key, b.kind, b.text, b.runs) }
-        }
-    }
-    impl From<V2> for super::Book {
-        fn from(b: V2) -> Self {
-            super::Book { id: b.id, meta: b.meta, sections: b.sections.into_iter().map(Into::into).collect(), notes: b.notes, images: b.images, cover: None }
-        }
-    }
-
-    #[derive(Deserialize)]
-    #[cfg_attr(test, derive(serde::Serialize))]
-    pub struct V1 {
-        id: String,
-        meta: super::Meta,
-        sections: Vec<Section<V1Block>>,
-    }
-    #[derive(Deserialize)]
-    #[cfg_attr(test, derive(serde::Serialize))]
-    struct V1Block {
-        key: u64,
-        kind: super::Kind,
-        text: String,
-        runs: Vec<super::Run>,
-    }
-    impl From<V1Block> for super::Block {
-        fn from(b: V1Block) -> Self {
-            super::Block::new(b.key, b.kind, b.text, b.runs)
-        }
-    }
-    impl From<V1> for super::Book {
-        fn from(b: V1) -> Self {
-            super::Book { id: b.id, meta: b.meta, sections: b.sections.into_iter().map(Into::into).collect(), notes: vec![], images: vec![], cover: None }
-        }
-    }
-
-    #[test]
-    fn books_saved_in_earlier_forms_are_read() {
-        fn section<B>(blocks: Vec<B>) -> Section<B> {
-            Section { kind: super::SectionKind::Chapter, part: String::new(), label: "I".into(), num: "1".into(), title: "One".into(), blocks }
-        }
-        let meta = super::Meta { title: "Old".into(), ..Default::default() };
-        let v1 = V1 { id: "a".into(), meta: meta.clone(), sections: vec![section(vec![V1Block { key: 7, kind: super::Kind::P, text: "First.".into(), runs: vec![] }])] };
-        let b = super::Book::restore(&postcard::to_allocvec(&v1).unwrap()).unwrap();
-        assert_eq!((b.sections[0].title.as_str(), b.sections[0].blocks[0].text.as_str(), b.sections[0].blocks[0].key), ("One", "First.", 7));
-        let v2 = V2 { id: "b".into(), meta, sections: vec![section(vec![V2Block { key: 9, kind: super::Kind::P, text: "Second.".into(), runs: vec![], links: vec![], image: Some(0) }])], notes: vec![], images: vec![] };
-        let mut bytes = super::SAVE_MAGIC_V2.to_vec();
-        bytes.extend(postcard::to_allocvec(&v2).unwrap());
-        let b = super::Book::restore(&bytes).unwrap();
-        assert_eq!((b.id.as_str(), b.sections[0].blocks[0].text.as_str(), b.sections[0].blocks[0].image), ("b", "Second.", Some(0)));
-    }
-}
+mod earlier;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Cover {
@@ -330,6 +250,31 @@ pub struct Section {
     pub num: String,
     pub title: String,
     pub blocks: Vec<Block>,
+    /// The chapter's head as the book wrote it (an EPUB's); none for Word and Markdown,
+    /// whose styles are no book's design (the reader sets its own head from `label` and
+    /// `title`, which stay for the contents and the running head either way).
+    pub head: Option<Head>,
+}
+
+/// A chapter's head as its book set it: the lines as written (their case, breaks, small
+/// capitals and italics in the runs) and their sizes, and the space above and below it, all
+/// in the text's em (the book's styles, the browser's defaults where it gives none). Above
+/// is paddings only: a head begins a page, where a margin is dropped (as a browser
+/// paginates, and Apple Books' Original shows).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Head {
+    pub lines: Vec<HeadLine>,
+    pub above: f32,
+    pub below: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HeadLine {
+    pub block: Block,
+    pub size: f32,
+    /// Where it is set across the measure: 0 at the start (a browser's own, where the book
+    /// says nothing), 1 centred, 2 at the end.
+    pub align: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -402,11 +347,35 @@ pub struct Block {
     pub image: Option<u32>,
     /// For `Kind::Table`: its shape.
     pub table: Option<TableShape>,
+    /// How its book sets it (an EPUB's paragraphs); none where no book says (Word,
+    /// Markdown): the reader's own rules.
+    pub set: Option<Setting>,
+    /// A break the book draws as a line (an `hr` with a border), not the reader's ⁂.
+    pub rule: Option<Rule>,
+}
+
+/// A rule as its book draws it: its width, a share of the measure, and where it is set
+/// across it (0 at the start, 1 centred, 2 at the end).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct Rule {
+    pub width: f32,
+    pub align: u8,
+}
+
+/// A paragraph as its book sets it: its first line's indent, and the space above it (its
+/// top margin meeting the bottom one of the block before), in the text's em; and whether
+/// it is set ragged apart from a justified text (a credit, a dateline), whatever a theme
+/// does with the text's own.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct Setting {
+    pub indent: f32,
+    pub above: f32,
+    pub ragged: bool,
 }
 
 impl Block {
     pub fn new(key: u64, kind: Kind, text: String, runs: Vec<Run>) -> Self {
-        Block { key, kind, text, runs, links: Vec::new(), image: None, table: None }
+        Block { key, kind, text, runs, links: Vec::new(), image: None, table: None, set: None, rule: None }
     }
 
     /// Style at every byte boundary is resolved by walking runs; this yields
@@ -841,7 +810,7 @@ mod repair_tests {
         // "a\u{a0}b": the no-break space is bytes 1..3
         let mut b = Block::new(1, Kind::P, "a\u{a0}b".into(), vec![Run { start: 2, end: 4, style: 1 }, Run { start: 9, end: 12, style: 2 }]);
         b.links = vec![Link { start: 0, end: 2, to: Target::Note(0) }];
-        let mut book = Book { id: "x".into(), meta: Meta::default(), sections: vec![Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![b] }], notes: vec![], images: vec![], cover: None };
+        let mut book = Book { id: "x".into(), meta: Meta::default(), sections: vec![Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![b], head: None }], notes: vec![], images: vec![], leading: None, cover: None };
         assert_eq!(book.repair(), 3);
         let b = &book.sections[0].blocks[0];
         assert_eq!(b.runs, vec![Run { start: 1, end: 4, style: 1 }]);

@@ -13,7 +13,7 @@
     z-index: 60; transform: translateY(12px); opacity: 0; overflow-wrap: anywhere;
     padding: 12px 18px; border-radius: var(--r-m); max-width: min(620px, calc(100% - 32px)); box-sizing: border-box;
     background: var(--ink); color: var(--surface); font: 600 var(--t-m)/1.35 var(--f-ui);
-    transition: opacity .25s, transform .25s; pointer-events: none; text-align: center;
+    transition: opacity var(--calm), transform var(--calm); pointer-events: none; text-align: center;
   }
   .toast.show { opacity: 1; transform: none; }
 </style>

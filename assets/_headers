@@ -18,5 +18,11 @@
   Cache-Control: public, max-age=3600
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+# the fonts and hyphenation patterns: names without a hash (the page and the engine ask for
+# the same files, so they cannot differ), kept a day, then checked again in the background
+/fonts/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/hyph/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /sw.js
   Cache-Control: no-cache

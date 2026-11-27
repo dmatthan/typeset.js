@@ -4,7 +4,10 @@
    *  over the whole book). With the bar (a tap, the pointer near the top or the foot): a
    *  hairline through the book where the numbers were, and "N of Total" just below it; page
    *  turns bring neither. Dragged (or its arrow keys), the line moves through the book, the
-   *  pages and the chapter following; let go, and the reader travels there. While the text
+   *  pages and the chapter following; let go, and the reader travels there. Only a drag
+   *  moves it, from wherever it is pressed and by as far as the hand goes: a press that
+   *  does not move goes nowhere (a range input moves to the point pressed, and one stray
+   *  tap was a jump far into the book), as a slider on Apple's devices. While the text
    *  is set again (`ui.settling`) the numbers stay as they were, with the page held over it,
    *  until the whole book's are known (a first pass only estimates the chapters before). */
   import type { Reader } from '../reader/reader.svelte';
@@ -12,6 +15,30 @@
 
   let { reader, shown, el = $bindable() }: { reader: Reader; shown: boolean; el?: HTMLElement } = $props();
   let dragging = $state(false), at = $state(0);
+  let line: HTMLInputElement | undefined = $state();
+  // the hand on the line: where it was pressed, and the page then (a drag is a move of
+  // more than SLOP, a finger's tremble less)
+  const SLOP = 8;
+  let press: { x: number; from: number; id: number } | null = null;
+  function down(e: PointerEvent) {
+    if (e.button > 0 || !line) return;
+    press = { x: e.clientX, from: page - 1, id: e.pointerId };
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* (a pointer already gone) */ }
+  }
+  function move(e: PointerEvent) {
+    if (!press || e.pointerId !== press.id || !line) return;
+    const dx = e.clientX - press.x;
+    if (!dragging && Math.abs(dx) < SLOP) return;
+    dragging = true;
+    at = Math.max(0, Math.min(pages - 1, Math.round(press.from + (dx / line.getBoundingClientRect().width) * (pages - 1))));
+  }
+  function up(e: PointerEvent) {
+    if (!press || e.pointerId !== press.id) return;
+    const went = dragging;
+    press = null; dragging = false;
+    if (went) reader.travelTo(at);
+  }
+  const cancel = () => { press = null; dragging = false; };
   let kept = $state({ page: 0, pages: 0 });
   $effect(() => { if (!ui.settling) kept = { page: ui.page, pages: ui.pages }; });
   const page = $derived(ui.settling ? kept.page : ui.page), pages = $derived(ui.settling ? kept.pages : ui.pages);
@@ -31,10 +58,14 @@
   <!-- (nothing until the book has pages: a place in nothing means nothing) -->
   {#if pages}
     {#each mids as x, i}{#if page + i <= pages}<span class="pn" style:left="{x}px" aria-hidden="true">{page + i}</span>{/if}{/each}
-    <input type="range" min="0" max={pages - 1} value={page - 1} style:--fill="{fill}%"
-      aria-label="Place in the book" aria-valuetext="Page {first} of {pages}{where ? `, ${where}` : ''}"
-      oninput={e => { dragging = true; at = +e.currentTarget.value; }}
-      onchange={e => { dragging = false; reader.travelTo(+e.currentTarget.value); }} />
+    <!-- (the line in the grip, the hand's room around it: a press on either is the grip's) -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="grip" onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={cancel}>
+      <input type="range" bind:this={line} class:held={dragging} min="0" max={pages - 1} value={dragging ? at : page - 1} style:--fill="{fill}%"
+        aria-label="Place in the book" aria-valuetext="Page {first} of {pages}{where ? `, ${where}` : ''}"
+        oninput={e => { dragging = true; at = +e.currentTarget.value; }}
+        onchange={e => { dragging = false; reader.travelTo(+e.currentTarget.value); }} />
+    </div>
     <p class="where">{first === last ? first : `${first}–${last}`} of {pages}{dragging && where ? ` · ${where}` : ''}</p>
   {/if}
 </div>
@@ -43,22 +74,26 @@
   /* the band under the text; its middle is where the numbers sit */
   .progress { position: absolute; left: 0; right: var(--rail, 0px); bottom: env(safe-area-inset-bottom); height: var(--foot, 52px); z-index: 4; pointer-events: none; font: 500 13px/1 var(--f-ui); color: var(--ink-3); font-variant-numeric: tabular-nums; }
   /* (faded, then out of the way: visibility follows the fade at its end) */
-  .pn, .where, input { position: absolute; top: 50%; transition: opacity .3s ease, visibility .3s, translate .3s ease; }
+  .pn, .where, input { position: absolute; top: 50%; transition: opacity var(--calm) ease, visibility var(--calm), translate var(--calm) ease; }
   .pn { translate: -50% -50%; }
   /* with the bar: the line takes the numbers' place, and the number steps down below it,
      becoming "N of Total" on the way (both move down together, the one fading into the other) */
   .shown .pn { translate: -50% calc(-50% + 10px); }
   .where { left: 50%; translate: -50% -50%; margin: 0; max-width: calc(100% - 32px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: 0; visibility: hidden; }
-  input { left: 50%; translate: -50% calc(-50% - 6px); width: min(280px, 60%); height: 16px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; opacity: 0; }
+  /* (the input takes keys, and tells a screen reader where the reader is; the hand's
+     presses are the grip's, over the line and the band's height, for a finger) */
+  input { left: 0; translate: 0 calc(-50% - 6px); width: 100%; height: 16px; margin: 0; background: none; appearance: none; -webkit-appearance: none; opacity: 0; pointer-events: none; }
+  .grip { position: absolute; top: 0; bottom: 0; left: 50%; translate: -50%; width: min(280px, 60%); touch-action: none; cursor: grab; }
+  .shown .grip { pointer-events: auto; }
+  .grip:active { cursor: grabbing; }
   .shown .pn { opacity: 0; visibility: hidden; }
   .shown .where, .shown input, input:focus-visible { opacity: 1; visibility: visible; }
   .shown .where { translate: -50% calc(-50% + 10px); }
-  .shown input, input:focus-visible { pointer-events: auto; }
   /* the line: a hairline, read up to where the reader is; the handle only while held, hovered or focused */
   input::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: linear-gradient(to right, color-mix(in oklab, var(--ink) 35%, transparent) var(--fill), color-mix(in oklab, var(--ink) 9%, transparent) var(--fill)); }
   input::-moz-range-track { height: 2px; border-radius: 1px; background: linear-gradient(to right, color-mix(in oklab, var(--ink) 35%, transparent) var(--fill), color-mix(in oklab, var(--ink) 9%, transparent) var(--fill)); }
-  input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -5px; border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 25%, transparent); opacity: 0; transition: opacity .15s; }
-  input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 25%, transparent); opacity: 0; transition: opacity .15s; }
-  input:hover::-webkit-slider-thumb, input:active::-webkit-slider-thumb, input:focus-visible::-webkit-slider-thumb { opacity: 1; }
-  input:hover::-moz-range-thumb, input:active::-moz-range-thumb, input:focus-visible::-moz-range-thumb { opacity: 1; }
+  input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -5px; border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 25%, transparent); opacity: 0; transition: opacity var(--quick); }
+  input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px color-mix(in oklab, var(--ink) 25%, transparent); opacity: 0; transition: opacity var(--quick); }
+  .grip:hover input::-webkit-slider-thumb, input.held::-webkit-slider-thumb, input:focus-visible::-webkit-slider-thumb { opacity: 1; }
+  .grip:hover input::-moz-range-thumb, input.held::-moz-range-thumb, input:focus-visible::-moz-range-thumb { opacity: 1; }
 </style>

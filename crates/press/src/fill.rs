@@ -6,7 +6,7 @@ use crate::brk::{Shape, break_lines};
 use crate::hyph::Patterns;
 use crate::shape::{Measurer, Mono, Typo};
 use typeset_model::js::U16Cursor;
-use typeset_model::{Image, Kind, Section, SectionKind, style};
+use typeset_model::{Image, Kind, Section, style};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Params {
@@ -78,6 +78,9 @@ pub struct PLine {
 pub struct SectionLayout {
     pub cols: u32,
     pub lines: Vec<PLine>,
+    /// The rows the chapter's head takes at the top of its first column (none for front
+    /// matter): the text begins on the row after it.
+    pub head_rows: u32,
 }
 
 /// Paragraph-level result before filling: lines plus the rules for placing them.
@@ -270,9 +273,26 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                 para.space_after = 1;
                 no_indent = true;
             }
+            // two rows: the reader's mark on the first, or the rule its book draws between them
+            // (at its width and place, drawn as a table's rule is, at the second's top)
             Kind::Break => {
-                para.lines.push(PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x: 0.0, avail: p.measure, natural: 0.0, spaces: 0, flags: flag::BREAK | flag::CENTER | flag::FIRST });
-                para.lines.push(PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x: 0.0, avail: p.measure, natural: 0.0, spaces: 0, flags: flag::BREAK });
+                let line = |x: f32, avail: f32, flags: u16| PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x, avail, natural: 0.0, spaces: 0, flags };
+                match b.rule {
+                    Some(r) => {
+                        let w = (r.width * p.measure).round();
+                        let x = match r.align {
+                            1 => ((p.measure - w) / 2.0).round(),
+                            2 => p.measure - w,
+                            _ => 0.0,
+                        };
+                        para.lines.push(line(0.0, p.measure, flag::BREAK));
+                        para.lines.push(line(x, w, flag::RULE));
+                    }
+                    None => {
+                        para.lines.push(line(0.0, p.measure, flag::BREAK | flag::CENTER | flag::FIRST));
+                        para.lines.push(line(0.0, p.measure, flag::BREAK));
+                    }
+                }
                 para.whole = true;
                 no_indent = true;
             }
@@ -321,12 +341,21 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                 no_indent = true;
             }
             Kind::P | Kind::Q | Kind::Li => {
-                let (x1, x2, f) = match b.kind {
-                    Kind::Q => (EM_QUOTE * em, EM_QUOTE * em, flag::QUOTE),
-                    Kind::Li => (EM_INDENT * em, EM_INDENT * em, flag::BULLET),
+                // (a paragraph its book sets ragged apart from a justified text stays so)
+                let justify = p.justify && !b.set.is_some_and(|s| s.ragged);
+                let (x1, x2, f) = match (b.kind, b.set) {
+                    (Kind::Q, _) => (EM_QUOTE * em, EM_QUOTE * em, flag::QUOTE),
+                    (Kind::Li, _) => (EM_INDENT * em, EM_INDENT * em, flag::BULLET),
+                    // a paragraph as its book sets it: its indent, and its space above in
+                    // whole rows (half a row or more is one)
+                    (_, Some(s)) => {
+                        para.space_before = para.space_before.max((s.above * em / p.lh).round() as u32);
+                        (s.indent * em, 0.0, 0)
+                    }
+                    // the house's: indented unless it follows a head, a break or the start
                     _ => (if no_indent { 0.0 } else { EM_INDENT * em }, 0.0, 0),
                 };
-                let sh = Shape { first: p.measure - x1, rest: p.measure - x2, justify: p.justify, hyphenate: p.hyphenate };
+                let sh = Shape { first: p.measure - x1, rest: p.measure - x2, justify, hyphenate: p.hyphenate };
                 let lines = break_lines(m, &b.text, &spans_with(b, 0, p.link_runs), &sh, lang);
                 mk(lines, &b.text, 0, x1, x2, f, &mut para.lines);
                 no_indent = b.kind != Kind::P;
@@ -550,10 +579,10 @@ fn set_table(m: &mut Measurer, b: &typeset_model::Block, bi: u32, p: &Params, la
 }
 
 /// Pours paragraphs into columns.
-fn pour(paras: Vec<Para>, p: &Params, head: bool) -> SectionLayout {
+fn pour(paras: Vec<Para>, p: &Params, head_rows: u32) -> SectionLayout {
     let rows = p.rows.max(4);
     let mut col = 0u32;
-    let mut row = if head { p.head_rows.min(rows - 2) } else { 0 };
+    let mut row = head_rows;
     let mut lines: Vec<PLine> = Vec::with_capacity(paras.iter().map(|x| x.lines.len()).sum());
     let mut pending_after = 0u32;
     let n = paras.len();
@@ -562,7 +591,7 @@ fn pour(paras: Vec<Para>, p: &Params, head: bool) -> SectionLayout {
         pending_after = para.space_after;
         if row > 0 && gap > 0 {
             // a gap the head or column start already provides is not added again
-            if !(head && col == 0 && row == p.head_rows) {
+            if !(head_rows > 0 && col == 0 && row == head_rows) {
                 row += gap;
             }
         }
@@ -622,12 +651,13 @@ fn pour(paras: Vec<Para>, p: &Params, head: bool) -> SectionLayout {
         }
     }
     let cols = if row == 0 && col > 0 { col } else { col + 1 };
-    SectionLayout { cols: cols.max(1), lines }
+    SectionLayout { cols: cols.max(1), lines, head_rows }
 }
 
-pub fn layout_section(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image], p: &Params, lang: Option<&Patterns>) -> SectionLayout {
+/// Sets a section's paragraphs and pours them into columns under a head of `head_rows`.
+pub fn layout_section(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image], p: &Params, lang: Option<&Patterns>, head_rows: u32) -> SectionLayout {
     let paras = set_paras(m, mono, sec, images, p, lang);
-    pour(paras, p, sec.kind == SectionKind::Chapter)
+    pour(paras, p, head_rows)
 }
 
 #[cfg(test)]
@@ -644,12 +674,12 @@ mod tests {
     /// A block of preformatted text set alone, in a measure of 400 px; the monospaced face
     /// it was set in, to measure with.
     fn preformatted(text: &str) -> (SectionLayout, Params, Mono) {
-        let block = Block { key: 1, kind: Kind::Pre, text: text.into(), runs: vec![], links: vec![], image: None, table: None };
-        let sec = Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block] };
+        let block = Block { key: 1, kind: Kind::Pre, text: text.into(), runs: vec![], links: vec![], image: None, table: None, set: None, rule: None };
+        let sec = Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block], head: None };
         let p = Params { typo: Typo::plain(19.0, false), measure: 400.0, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true };
         let mut m = Measurer::new(&face(&["Literata.ttf"]), p.typo, "en");
         let mut mono = Mono::new(Some(face(&["JetBrainsMono.ttf"])));
-        (layout_section(&mut m, &mut mono, &sec, &[], &p, None), p, mono)
+        (layout_section(&mut m, &mut mono, &sec, &[], &p, None, 0), p, mono)
     }
 
     #[test]
@@ -697,8 +727,8 @@ mod tests {
     }
 
     fn table(text: &str, cols: u32) -> Section {
-        let block = Block { key: 1, kind: Kind::Table, text: text.into(), runs: vec![], links: vec![], image: None, table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }) };
-        Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block] }
+        let block = Block { key: 1, kind: Kind::Table, text: text.into(), runs: vec![], links: vec![], image: None, table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }), set: None, rule: None };
+        Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block], head: None }
     }
 
     #[test]
@@ -709,7 +739,7 @@ mod tests {
         // six columns whose widest words fill more than the measure at 19 px, less at 15
         let row = "Temperature\tPressure\tHumidity\tVisibility\tDirection\tVelocity";
         let wide = table(&format!("{row}\n1\t2\t3\t4\t5\t6"), 6);
-        let lay = layout_section(&mut m, &mut mono, &wide, &[], &p, None);
+        let lay = layout_section(&mut m, &mut mono, &wide, &[], &p, None, 0);
         let cells: Vec<&PLine> = lay.lines.iter().filter(|l| l.flags & flag::CELL != 0 && l.e > l.s).collect();
         assert!(cells.iter().all(|l| l.flags & flag::SIZED != 0));
         let size = cells[0].spaces as f32 / 16.0;
@@ -719,7 +749,7 @@ mod tests {
         assert!(cells.iter().all(|l| l.natural <= l.avail + 0.01 && l.x + l.avail <= p.measure + 0.01));
         // a table that fits is set at the text's size
         let narrow = table("One\tTwo\nThree\tFour", 2);
-        let lay = layout_section(&mut m, &mut mono, &narrow, &[], &p, None);
+        let lay = layout_section(&mut m, &mut mono, &narrow, &[], &p, None, 0);
         assert!(lay.lines.iter().all(|l| l.flags & flag::SIZED == 0));
     }
 
@@ -729,7 +759,7 @@ mod tests {
         let mut m = Measurer::new(&face(&["Literata.ttf"]), p.typo, "en");
         let mut sec = table("1.0\t2.0\t3.0\nA spanning cell of some length\t4.0", 3);
         sec.blocks[0].table.as_mut().unwrap().spans = vec![1, 1, 1, 2, 1];
-        let lay = layout_section(&mut m, &mut Mono::default(), &sec, &[], &p, None);
+        let lay = layout_section(&mut m, &mut Mono::default(), &sec, &[], &p, None, 0);
         let text = &sec.blocks[0].text;
         let start = text.find("A spanning").unwrap() as u32;
         let lines: Vec<&PLine> = lay.lines.iter().filter(|l| l.flags & flag::CELL != 0 && l.s >= start && l.s < start + 30).collect();

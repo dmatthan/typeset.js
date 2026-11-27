@@ -3,7 +3,7 @@
 import { edges } from '../core/edges';
 import type { BookData, Core, LayoutParams } from '../core/types';
 import { kv, flushKV } from '../core/kv';
-import { shareAt, shareOf } from '../core/book';
+import { nearest, shareAt, shareOf } from '../core/book';
 import { metrics, insets, RAIL, type Look, type Metrics } from './geometry';
 import { Strip, parseLayout, F, FIELDS, type Anchor } from './strip';
 import { columnHTML, leafHTML, chapName, esc } from './render';
@@ -15,7 +15,7 @@ import { themes, themeById, resolve, loadFamily, fontsReady, type Resolved } fro
 import { Annotations } from './annotations';
 import { Finder } from './find.svelte';
 import { Feedback, notesFile, type Progress } from './feedback';
-import { bookmarkAt, bookmarksIn, loadBookmarks, saveBookmarks, type Bookmark } from './bookmarks';
+import { bookmarkAt, bookmarksIn, loadBookmarks, markable, saveBookmarks, type Bookmark } from './bookmarks';
 import { Hold, lineStart } from './hold';
 import { geomVars, paletteVars, PALETTE, setVars, typeVars } from './paint';
 import { takeNotes } from './intake';
@@ -29,16 +29,18 @@ import { ReaderInput } from './input';
 import { Cursor } from './cursor';
 import { BookImages } from './images';
 
-/** The measure, in ems, below which lines are set ragged. */
-const NARROW = 24;
+/** Chapters asked of the engine at a time for the rest of the book (after the reader's
+ *  own): a call of a few is a few tens of ms on a phone. */
+const REST = 6;
 
 export class Reader {
   core: Core;
   book: BookData | null = null;
   strip: Strip | null = null;
   M!: Metrics;
-  /** First column of the focus window, at rest. */
-  cur = 0;
+  /** First column of the focus window, at rest (state: what shows of the page in view,
+   *  its ribbon, its bookmark button, is worked out from it again when it lands). */
+  cur = $state(0);
   marks = new Set<string>();
   /** The pages marked to come back to (bookmarks.ts). */
   bookmarks: Bookmark[] = $state([]);
@@ -153,7 +155,7 @@ export class Reader {
 
   lookGeom(look = this.look): Look {
     const o = look.options;
-    return { scale: look.scale, lineSpacing: o.lineSpacing, margins: o.margins };
+    return { size: look.size, lineSpacing: o.lineSpacing, margins: o.margins };
   }
 
   /** The faces, weights and book the fonts were last made ready for: a size changes none
@@ -204,6 +206,10 @@ export class Reader {
   /** The bookmarks on the columns in view. */
   bookmarksInView(): Bookmark[] {
     return this.strip && this.M ? bookmarksIn(this.bookmarks, this.strip, this.cur, this.cur + this.M.N - 1) : [];
+  }
+  /** Whether the page in view has a bookmark, or can have one (`markable`). */
+  canBookmark(): boolean {
+    return !!this.strip && (this.bookmarksInView().length > 0 || !!markable(this.strip, this.cur));
   }
   /** The page in view marked to come back to; or, marked already, unmarked. */
   toggleBookmark() {
@@ -257,13 +263,23 @@ export class Reader {
   /** Redraws the columns in view (marks, hits) without moving anything. */
   repaint() { if (this.strip) this.surface.reset(this.cur); }
 
+  /** A trip's way back: where the reader was and where the trip ended, as places in the
+   *  text (a relayout keeps them). Offered until the reader moves from where it ended. */
+  private trip: { from: Anchor; to: Anchor } | null = null;
+  /** The column the way back returns to, while there is one. */
+  returnTo: number | null = $state(null);
+
   /** Brings column k into view: a short way on a calm curve; a long way with a quick
-   *  fade, as the surface cannot build a hundred columns in passing. */
-  async travelTo(k: number) {
+   *  fade, as the surface cannot build a hundred columns in passing. A trip past the
+   *  columns in view (the contents, the progress line, a link, a search) leaves a way back
+   *  to where the reader was (`goBack`); a trip the page around the reader asked for
+   *  (`trip` false) does not. */
+  async travelTo(k: number, trip = true) {
     if (!this.strip) return;
     k = Math.max(0, Math.min(Math.max(0, this.strip.N - this.M.N), k));
     const d = Math.abs(k - this.cur);
     if (!d) return;
+    this.trip = trip && d >= this.M.N ? { from: this.strip.anchorAt(this.cur)!, to: this.strip.anchorAt(k)! } : null;
     if (d <= 6) { this.go(k); return; }
     const t = this.surface.track;
     if (reduceMotion()) { this.jump(k); return; }
@@ -278,13 +294,7 @@ export class Reader {
     const it = strip.itemAt(k);
     if (!it) return '';
     if (it.type === 'sect') return columnHTML(strip, k, this.M, this.marks, this.marksOf, this.images.src, this.fb?.size ? this.fb : undefined);
-    return leafHTML(strip, it, { totalLines: this.totalLines(), N: strip.N });
-  }
-
-  private totalLines() {
-    let n = 0;
-    for (const sl of this.strip!.layouts.values()) n += sl.n;
-    return n;
+    return leafHTML(strip, it);
   }
 
   /** Whether this webview rounds glyph advances, to whole px or 1/60 px (calibrate.ts). */
@@ -297,11 +307,10 @@ export class Reader {
   calibErr = 0;
   private params(M = this.M, L = this.look): LayoutParams {
     const o = L.options;
-    // a short measure (a phone's) is set ragged, whatever the theme says: justified lines of
-    // under ~45 characters open rivers between their words
-    const justify = o.justify && M.colW >= M.fs * NARROW;
+    // (justified as the theme or the reader says, at any measure: a phone's too, as Apple
+    // Books sets them, hyphenation and the line breaker keeping a short line's spaces even)
     return {
-      size: M.fs, measure: M.colW, rows: M.rows, headRows: M.headRows, lh: M.lh, justify, hyphenate: o.hyphenate, round: this.round, appUnits: this.appUnits,
+      size: M.fs, measure: M.colW, rows: M.rows, headRows: M.headRows, lh: M.lh, justify: o.justify, hyphenate: o.hyphenate, round: this.round, appUnits: this.appUnits,
       font: L.chain, wght: L.wght, bold: L.bold, ls: +((o.charSpacing / 100) * M.fs).toFixed(3), ws: +((o.wordSpacing / 100) * M.fs).toFixed(3), axes: L.axes, spaceKern: this.spaceKern, linkRuns: this.linkRuns,
     };
   }
@@ -334,7 +343,8 @@ export class Reader {
    *  search), and reading begins at once. */
   async open(id: string, at?: Anchor) {
     const gen = ++this.gen;
-    ui.busy = 'Opening…';
+    // (a shell that says so already keeps its own words: the embed's)
+    ui.busy ||= 'Opening…';
     performance.mark('open');
     this.opening = true;
     this.resizedWhileOpening = false;
@@ -343,6 +353,7 @@ export class Reader {
       performance.mark('open:book');
       if (gen !== this.gen) return;
       this.book = book;
+      themes.leading = book.leading;
       this.images.reset();
       await this.images.measure(book).catch(() => {});
       if (gen !== this.gen) return;
@@ -389,12 +400,12 @@ export class Reader {
     await this.finder.run();
   }
 
-  /** Lays the book out around an anchor: its section first, then (not awaited) the rest. */
   /** Settles once the whole book is laid out for the parameters in use (until then the
    *  columns of the sections not yet set are estimates): what travels to a place named
-   *  from outside waits for it. */
+   *  from outside waits for it. One promise until then, however many changes come
+   *  meanwhile: a superseded layout's is answered by the one that replaces it. */
   whole: Promise<void> = Promise.resolve();
-  private wholeLaid = () => {};
+  private wholeLaid: (() => void) | null = null;
 
   /** The notes' rail is beside the text: asked for, and room for it (never on a phone). */
   railed(): boolean {
@@ -402,7 +413,7 @@ export class Reader {
   }
 
   /** The geometry for the stage as it is (less the rail, which takes one column's place). */
-  private measure(size = settings.size, look = this.look) {
+  private measure(size?: number, look = this.look) {
     const rail = this.railed();
     return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.lookGeom(look), insets(), size, rail ? 1 : settings.layout);
   }
@@ -423,7 +434,7 @@ export class Reader {
    *  (not awaited) the rest. `fade`: the page as it was fades into the new (hold.ts). */
   private async layoutFrom(anchor: Anchor | null, gen: number, look: Resolved, M: Metrics, fade = false) {
     const strip = this.strip!, book = this.book!;
-    this.whole = new Promise(r => (this.wholeLaid = r));
+    if (!this.wholeLaid) this.whole = new Promise(r => (this.wholeLaid = r));
     // (the numbers wait for the whole book's count: Progress.svelte)
     ui.settling = true;
     look = await this.ensureFonts(look);
@@ -450,18 +461,37 @@ export class Reader {
     strip.layouts = first;
     this.recompose(at);
     if (fade && old) this.hold.release(this.lineOf(at), M.fs / old.fs);
+    // a book's first page, opening, comes in softly over its paper (at the calm pace)
+    else if (this.opening) this.surface.track.animate([{ opacity: 0 }, { opacity: 1 }], { duration: parseFloat(getComputedStyle(this.stage).getPropertyValue('--calm')) * 1000 || 300, easing: 'ease-out' });
     performance.mark('open:shown');
     this.calibrateNeighbours();
-    this.core.layout(book.id, [], p).then(buf => {
-      performance.mark('open:all-layout');
-      if (pg !== this.paramGen || this.strip !== strip) return;
-      const all = parseLayout(buf);
-      const keep = this.motion.moving ? null : strip.anchorAt(this.cur);
-      strip.layouts = all;
-      this.recompose(keep ?? strip.anchorAt(this.cur), true);
-      this.wholeLaid();
+    // the rest, a few chapters a call, nearest first: the engine answers one call at a time,
+    // and a whole book is one long call (half a second on a desktop, seconds on a phone), so
+    // a change made meanwhile waited for all of it, and each change after it for another
+    // whole book; now it goes between two calls, and a superseded layout asks for no more.
+    // (One call asked ahead, so the engine is never idle while the page takes an answer.)
+    const all = new Map(first);
+    const calls = nearest(book.sections.length, sec, REST);
+    const ask = (i: number) => (i < calls.length ? this.core.layout(book.id, calls[i], p) : null);
+    try {
+      let next = ask(0);
+      for (let i = 0; next; i++) {
+        const buf = await next;
+        if (pg !== this.paramGen || this.strip !== strip) return;
+        next = ask(i + 1);
+        for (const [k, v] of parseLayout(buf)) all.set(k, v);
+      }
+    } catch (e) {
       ui.settling = false;
-    }, e => { ui.settling = false; toast(`Couldn’t lay out the book: ${(e as Error).message}`, 5000); });
+      toast(`Couldn’t lay out the book: ${(e as Error).message}`, 5000);
+      return;
+    }
+    performance.mark('open:all-layout');
+    const keep = this.motion.moving ? null : strip.anchorAt(this.cur);
+    strip.layouts = all;
+    this.recompose(keep ?? strip.anchorAt(this.cur), true);
+    this.wholeLaid?.(); this.wholeLaid = null;
+    ui.settling = false;
   }
 
   /** The sizes either side of this one, measured while nothing else is happening: the
@@ -471,7 +501,7 @@ export class Reader {
     // (the book, not the layout's generation: a relayout that changes nothing still
     // counts one, and the neighbours were never measured)
     const book = this.book;
-    const now = settings.size ?? (this.M.phone ? 17 : 20);
+    const now = this.M.fs;
     const i = SIZES.indexOf(now);
     const next = [SIZES[i - 1], SIZES[i + 1]].filter((s): s is number => s !== undefined && i >= 0);
     const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 400));
@@ -547,6 +577,7 @@ export class Reader {
     if (this.finder.open) this.finder.hide();
     ui.bookNote = null; ui.lightbox = null;
     this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false; this.bookmarks = [];
+    themes.leading = null;
     ui.chip = null;
     this.cursor.end();
     ui.contents = false; ui.sheet = null;
@@ -585,7 +616,7 @@ export class Reader {
     const strip = this.strip!, it = strip.itemAt(k), b = strip.book;
     if (!it) return '';
     if (it.type === 'title') return b.title;
-    if (it.type === 'colophon') return embedOpts.endHref ? 'The end' : 'Colophon';
+    if (it.type === 'colophon') return embedOpts.endHref ? 'The end' : 'Finis';
     const s = b.sections[it.sec];
     // a book without chapters is named by its title
     if (s.k === 0) return s.title || (b.sections.some(x => x.k === 1) ? 'Front matter' : b.title);
@@ -627,9 +658,20 @@ export class Reader {
     this.arrive(k);
   }
 
+  /** Back to where the reader was before the last trip. */
+  goBack() {
+    if (!this.strip || !this.trip) return;
+    const k = this.strip.resolve(this.trip.from);
+    this.trip = null; this.returnTo = null;
+    this.travelTo(k, false);
+  }
+
   private arrive(k: number, quiet = false) {
     const strip = this.strip!;
     this.shownK = k;
+    // (the way back stays while the reader is where the trip ended)
+    if (this.trip && strip.resolve(this.trip.to) !== k) this.trip = null;
+    this.returnTo = this.trip ? strip.resolve(this.trip.from) : null;
     ui.runhead = this.headFor(k); ui.page = k + 1; ui.pages = strip.N;
     const focus = this.focusCols();
     clearTimeout(this.dwellT); this.dwellT = window.setTimeout(() => focus.forEach(c => this.markSeen(c)), 1600);
@@ -698,11 +740,15 @@ export class Reader {
     ui.chip = null;
     ui.bookNote = { i, x: r.left + r.width / 2 - st.left, y: (below ? r.bottom + 6 : r.top - 6) - st.top, below };
   }
-  /** Opens an address outside the book it links to, unless the page around an embedded
-   *  reader has said its links are not to be followed. */
+  /** A link out of the book: asked about first, naming the address (a press on a word is
+   *  easily made, and it leaves the book), as Apple Books asks; opened from there
+   *  (LinkSheet). Not where the page around an embedded reader has said its links are not
+   *  to be followed; an address that may not be opened is refused at once. */
   openLink(url: string) {
     if (!features.links) return;
-    shell.openLink(url).then(ok => { if (!ok) toast('This link can’t be opened.'); });
+    if (!shell.outward(url)) { toast('This link can’t be opened.'); return; }
+    ui.chip = null;
+    ui.leaving = url; ui.sheet = 'link';
   }
   /** Travels to the block a reference names. */
   followRef(key: string) {

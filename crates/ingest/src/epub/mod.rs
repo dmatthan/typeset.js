@@ -10,7 +10,7 @@ use crate::{Error, finish_book};
 use scraper::{ElementRef, Html, Node};
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
-use typeset_model::{Block, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style};
+use typeset_model::{Block, Head, HeadLine, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style};
 
 mod images;
 mod links;
@@ -326,6 +326,7 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     book.cover = cover;
     book.notes = notes;
     book.images = images;
+    book.leading = ex.leading();
     Ok(book)
 }
 

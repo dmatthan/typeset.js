@@ -1,7 +1,7 @@
 /** The reading geometry: from a window's size and a theme, the columns, their measure, rows
  *  and margins. */
 import { embedded, embedOpts } from '../core/embed';
-import { settings, type Layout } from './settings.svelte';
+import { settings, sizeOf, type Layout } from './settings.svelte';
 import { ui } from '../state.svelte';
 
 /** Height of the reader's bar, which floats over the sheet. */
@@ -10,6 +10,8 @@ export const BAR = 52;
 /** Reading geometry for a stage size. */
 export interface Metrics {
   W: number; H: number; phone: boolean;
+  /** The type's size (`sizeOf`: the theme's, the screen's, the reader's steps), whatever the
+   *  face: one size is one size, as a type size is anywhere. */
   fs: number; lh: number; G: number; P: number;
   /** Columns in the focus window, and its width and left edge. */
   N: number; focusW: number; x0: number;
@@ -30,13 +32,13 @@ interface Across { N: number; colW: number; G: number; arrows: boolean }
 
 /** What a theme contributes to the geometry. */
 export interface Look {
-  /** Size multiplier of the theme's face. */
-  scale: number;
+  /** The theme's own size (`Theme.size`). */
+  size: number;
   lineSpacing: number;
-  /** Steps of margin: each takes 8% off the measure (negative steps add it). */
+  /** The reader's margin steps, −10 to +10 (`spread`). */
   margins: number;
 }
-export const PLAIN_LOOK: Look = { scale: 1, lineSpacing: 1.5, margins: 0 };
+export const PLAIN_LOOK: Look = { size: 13, lineSpacing: 1.2, margins: 0 };
 
 /** Width of the notes' rail beside the text, when it shows (ui/SideNotes.svelte). */
 export const RAIL = 360;
@@ -44,38 +46,44 @@ export const RAIL = 360;
 /** Room at either side of the text for the arrows a book on another site's page shows a
  *  mouse (ReaderView: 10 from the edge, 40 across, the rest clear of the text), so that a
  *  reader there sees at once that it is a book to turn. Not on a touch screen (a tap in the
- *  page's outer fifth turns it), not in full screen (the reader as it is meant to be), not
+ *  page's outer fifth turns it), not when bigger than its box (the reader as it is meant to be), not
  *  where the page asked for less of the reader, nor where their room would leave the text
  *  a measure narrower than the layout ever takes (`spread`). */
 export const ARROWS = 56;
-const arrowed = () => embedded && embedOpts.ui === 'full' && !document.fullscreenElement && !ui.full && matchMedia('(hover: hover) and (pointer: fine)').matches;
+const arrowed = () => embedded && embedOpts.ui === 'full' && ui.place === 'box' && matchMedia('(hover: hover) and (pointer: fine)').matches;
 
-/** A spread of exactly the chosen columns filling the window, like an open book. Gutters
- *  and outer margins grow with the window; the measure is capped, so a wide window gets
- *  wider margins rather than overlong lines. Nothing beside the spread shows: during a
+/** A spread of exactly the chosen columns filling the window, like an open book, each column
+ *  a page. A page's margins are a tenth of its width (a phone's, as Apple Books sets them;
+ *  a spread's pages each their own); the reader's steps (`q`, −10 to +10, the theme's
+ *  `margins`) add or take 8% of that each, never under 30% of it (Apple's narrowest). The
+ *  line's length is the law: 32 em at most (some 65 characters), so a wide window gets
+ *  wider margins rather than longer lines, and there a step changes the line by what it
+ *  would have changed the margins. With arrows (a box on another site's page), their room is
+ *  the default a step goes from, and the least. Nothing beside the spread shows: during a
  *  turn columns pass under the paper at its sides. */
-function spread(W: number, fs: number, phone: boolean, k: number, layout: Layout): Across {
+function spread(W: number, fs: number, phone: boolean, q: number, layout: Layout): Across {
   const G = phone ? 24 : Math.round(Math.min(84, Math.max(40, fs * 2.6, W * 0.035)));
-  // (32 em: some 65 characters a line in the bundled faces, however wide the window)
-  const maxMeasure = Math.round(fs * 32 * k), comfortable = Math.round(fs * 25 * Math.min(1, k)), minMeasure = Math.round(fs * 21 * Math.min(1, k));
-  // a phone's margins: a thumb's breadth, a little more or less with the theme's margins;
-  // with arrows, never less than their room and half a gutter (where the paper's edge is
-  // at a turn), and arrows only where a column beside them keeps the narrowest measure
-  const own = phone ? Math.round(18 * (2 - k)) : Math.round(Math.min(fs * 6, Math.max(fs * 1.6, W * 0.055)) * (2 - k));
-  const room = Math.max(own, ARROWS + Math.ceil(G / 2));
-  const arrows = arrowed() && W - 2 * room >= minMeasure;
-  const margin = arrows ? room : own;
-  const width = (n: number) => Math.floor((W - 2 * margin - (n - 1) * G) / n);
+  const comfortable = Math.round(fs * 25), minMeasure = Math.round(fs * 21), cap = Math.round(fs * 32);
+  const room = ARROWS + Math.ceil(G / 2);
+  // for n columns and the reader's steps: the margin, and the column's width
+  const set = (n: number, arrows: boolean, steps = q) => {
+    const page = Math.round(W / n / 10), base = arrows ? Math.max(page, room) : page;
+    const margin = Math.max(arrows ? room : 0, Math.round(page * 0.3), Math.round(base * (1 + 0.08 * steps)));
+    const width = Math.floor((W - 2 * margin - (n - 1) * G) / n);
+    // (the line capped: the step takes from it what it would have given the margins)
+    return { margin, width, measure: Math.min(width, cap - 2 * (margin - base)) };
+  };
+  // arrows only where a column beside them keeps the narrowest measure; how many columns
+  // by the design's margins (the reader's steps change a page's margins, never their count)
+  const arrows = arrowed() && set(1, true, 0).width >= minMeasure;
   // a column 200 wide at the least, but never wider than the box with 12 to spare each side
   // (a sidebar's box on someone's page)
   const floor = Math.min(200, W - 24);
+  const done = (n: number) => ({ N: n, colW: Math.max(floor, set(n, arrows).measure), G, arrows });
   // auto: two columns when each still gets a comfortable measure, else one
-  if (layout === 'auto') {
-    const n = width(2) >= comfortable ? 2 : 1;
-    return { N: n, colW: Math.max(floor, Math.min(maxMeasure, width(n))), G, arrows };
-  }
-  for (let n = layout; n >= 1; n--) if (width(n) >= minMeasure || n === 1) return { N: n, colW: Math.max(floor, Math.min(maxMeasure, width(n))), G, arrows };
-  return { N: 1, colW: Math.max(floor, Math.min(maxMeasure, width(1))), G, arrows };
+  if (layout === 'auto') return done(set(2, arrows, 0).width >= comfortable ? 2 : 1);
+  for (let n = layout; n > 1; n--) if (set(n, arrows, 0).width >= minMeasure) return done(n);
+  return done(1);
 }
 
 /** The device's safe-area insets (a phone's notch and home indicator, in the installed
@@ -90,18 +98,18 @@ export function insets(): { t: number; b: number; l: number; r: number } {
   return v;
 }
 
-export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t: 0, b: 0, l: 0, r: 0 }, size = settings.size, layout: Layout = settings.layout): Metrics {
+export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t: 0, b: 0, l: 0, r: 0 }, size?: number, layout: Layout = settings.layout): Metrics {
   const phone = W < 640;
-  // a phone's type and margins for a phone held sideways too (a short window): wide, but
-  // with room for only a few lines of a desktop's size
+  // a phone's bands for a phone held sideways too (a short window): wide, but with room for
+  // only a few lines
   const small = phone || H < 480;
-  // the theme's face may be set a little larger or smaller to look the size chosen
-  const fs = Math.round((size || (small ? 17 : 20)) * look.scale);
+  // (a size given: a probe's, measuring the sizes either side ahead of a step)
+  const fs = size ?? sizeOf(look.size);
   const lh = Math.round(fs * look.lineSpacing);
-  const k = 1 - 0.08 * look.margins;
+
   // the columns keep clear of the insets at the sides (a phone held sideways)
   const side = Math.max(ins.l, ins.r);
-  const across = spread(W - 2 * side, fs, phone, k, layout);
+  const across = spread(W - 2 * side, fs, phone, look.margins, layout);
   const { N, colW, G, arrows } = across;
   const focusW = N * colW + (N - 1) * G;
   const cx = Math.round(W / 2);

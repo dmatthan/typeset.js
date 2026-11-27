@@ -49,7 +49,7 @@
   button { appearance: none; border: 0; background: none; cursor: pointer; font: 600 13px/1 var(--f-ui); color: var(--accent); padding: 4px 2px; }
   .body {
     max-height: min(46vh, 420px); overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; padding: 6px 14px 14px; border-radius: 0 0 12px 12px;
-    font: var(--wb, 400) calc(var(--fs) * 0.88)/1.45 var(--f-text, var(--f-book)); font-variation-settings: var(--fvs, "wght" 400,) "opsz" 14, "wght" var(--wb, 400);
+    font: var(--wb, 400) var(--fs)/1.45 var(--f-text, var(--f-book)); font-variation-settings: var(--fvs, "wght" 400,) "opsz" 14, "wght" var(--wb, 400);
     font-synthesis: none; hyphens: auto;
   }
   .body :global(p) { margin: 0; }

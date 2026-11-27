@@ -108,12 +108,12 @@ pub(crate) fn assemble(source: &[u8], name: &str, mut doc: Doc) -> Result<crate:
                 let h = heads::parse(&t);
                 let n = sections.iter().filter(|s| s.kind == SectionKind::Chapter).count() + 1;
                 let (label, title) = if h.label.is_empty() { (String::new(), heads::tidy(&t)) } else { (h.label, h.title) };
-                sections.push(Section { kind: SectionKind::Chapter, part: String::new(), label, num: if h.num.is_empty() { n.to_string() } else { h.num }, title, blocks: Vec::new() });
+                sections.push(Section { kind: SectionKind::Chapter, part: String::new(), label, num: if h.num.is_empty() { n.to_string() } else { h.num }, title, blocks: Vec::new(), head: None });
                 continue;
             }
         if sections.is_empty() {
             // text before the first chapter: an opening section of its own
-            sections.push(Section { kind: if chap.is_some() { SectionKind::Front } else { SectionKind::Chapter }, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: Vec::new() });
+            sections.push(Section { kind: if chap.is_some() { SectionKind::Front } else { SectionKind::Chapter }, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: Vec::new(), head: None });
         }
         let blk = match p {
             Para::Heading(_, b) => block(b, Kind::H, key()),

@@ -112,17 +112,16 @@ impl Spans<'_> {
 fn items(m: &mut Measurer, text: &str, spans: &Spans, sh: &Shape, hyph: Option<&Patterns>, lang: Option<&Patterns>) -> Vec<Item> {
     let mut out: Vec<Item> = Vec::with_capacity(text.len() / 3);
     let space = m.space;
-    // a renderer on whole pixels rounds negative word spacing too, so it cannot shrink
-    // a line precisely: lines then only stretch
-    let shrink = if m.round { 0.0 } else { space * 0.33 };
-    let (y, z) = if sh.justify { (space * 0.5, shrink) } else { (0.0, 0.0) };
+    // a justified line's spaces only stretch, never shrink (as Apple Books sets one: TeX's
+    // third of a space less read as crowded lines beside it)
+    let (y, z) = if sh.justify { (space * 0.5, 0.0) } else { (0.0, 0.0) };
     let rag = space * 4.0;
     let mut prev = 0usize;
     // Some faces kern across the word space, and browsers then shape the whole run. That
     // kerning belongs to the space's glue: it vanishes with the glue at a line break, as
     // the space does. (glue item, last character before the space, its style, the space's)
     let mut pending: Option<(usize, char, u8, u8)> = None;
-    for (idx, op) in linebreaks(text) {
+    for (idx, op) in opportunities(text) {
         let seg = &text[prev..idx];
         // only ASCII spaces are word spaces; a thin or non-breaking space is part of the word
         let content_len = seg.trim_end_matches([' ', '\t', '\n', '\r', '\u{2028}']).len();
@@ -169,6 +168,35 @@ fn items(m: &mut Measurer, text: &str, spans: &Spans, sh: &Shape, hyph: Option<&
         }
         prev = idx;
     }
+    out
+}
+
+/// Where a line may break: Unicode's rules, and inside a web address (which they leave
+/// whole), after each slash and before each dot, as addresses are broken in print; never
+/// between the two slashes after its scheme.
+fn opportunities(text: &str) -> Vec<(usize, BreakOpportunity)> {
+    let mut out: Vec<(usize, BreakOpportunity)> = linebreaks(text).collect();
+    if !text.contains("://") && !text.contains("www.") {
+        return out;
+    }
+    let mut at = 0;
+    for word in text.split_inclusive(char::is_whitespace) {
+        let w = word.trim_end();
+        if w.contains("://") || w.starts_with("www.") {
+            let cs: Vec<(usize, char)> = w.char_indices().collect();
+            for (i, &(j, c)) in cs.iter().enumerate() {
+                let next = cs.get(i + 1).map(|x| x.1);
+                let after_slash = c == '/' && next.is_some_and(|n| n != '/');
+                let before_dot = c == '.' && i > 0 && next.is_some();
+                let pos = if after_slash { at + j + 1 } else if before_dot { at + j } else { continue };
+                if !out.iter().any(|&(k, _)| k == pos) {
+                    out.push((pos, BreakOpportunity::Allowed));
+                }
+            }
+        }
+        at += word.len();
+    }
+    out.sort_by_key(|&(k, _)| k);
     out
 }
 
@@ -546,8 +574,9 @@ mod tests {
         assert!(lines.len() >= 5, "{}", lines.len());
         for (i, l) in lines.iter().enumerate() {
             let avail = if i == 0 { sh.first } else { sh.rest };
-            // a line may shrink (natural > avail) by at most its shrinkability
-            assert!(l.natural <= avail + l.spaces as f32 * m.space * 0.34 + 0.01, "line {i} overfull: {} > {avail}", l.natural);
+            // never tighter than its natural spaces (as Apple Books sets a line: spaces only
+            // stretch; shrunk by a third, lines read crowded)
+            assert!(l.natural <= avail + 0.01, "line {i} shrunk: {} > {avail}", l.natural);
             if l.justify {
                 assert!(l.natural > avail * 0.85, "line {i} too loose: {}", l.natural);
             }
@@ -560,6 +589,27 @@ mod tests {
         }
         assert_eq!(lines.last().unwrap().e as usize, text.len());
         assert!(!lines.last().unwrap().justify);
+    }
+
+    #[test]
+    fn an_address_breaks_after_its_slashes_and_before_its_dots_never_inside_its_double_slash() {
+        let f = faces();
+        let mut m = Measurer::new(&f, Typo::plain(16.0, false), "en");
+        let text = "Translated by Levvy, at https://apurpleblob.wordpress.com/2016/09/14/nirvana-in-fire-chapter-one-modified-version/ with thanks.";
+        let spans = [(0, text.len(), 0u8)];
+        let sh = Shape { first: 260.0, rest: 260.0, justify: true, hyphenate: false };
+        let lines = break_lines(&mut m, text, &spans, &sh, None);
+        for l in &lines {
+            assert!(l.natural <= 260.01, "overfull: {:?}", &text[l.s as usize..l.e as usize]);
+        }
+        let ends: Vec<&str> = lines.iter().map(|l| text[l.s as usize..l.e as usize].trim_end()).collect();
+        // broken inside the address, at a slash or before a dot, and not between its slashes
+        assert!(ends.iter().any(|e| e.ends_with('/') && !e.ends_with("//")) || ends.iter().skip(1).any(|e| e.starts_with('.')), "{ends:?}");
+        // and nowhere else inside a word: every line ends at a space, a slash, a hyphen or before a dot
+        assert!(ends.iter().zip(ends.iter().skip(1)).all(|(a, b)| a.ends_with(['/', '-', ',', ' ']) || b.starts_with('.') || text[..].contains(&format!("{a} {b}"))), "{ends:?}");
+        assert!(!ends.iter().any(|e| e.ends_with("https:/")), "{ends:?}");
+        // and filled: no line of the address shorter than half the measure but the last
+        assert!(lines[..lines.len() - 1].iter().all(|l| l.natural > 130.0), "{ends:?}");
     }
 
     #[test]

@@ -22,8 +22,12 @@ pub use typeset_model::Book;
 /// 4: writing without spaces (Chinese, Japanese) counted fairly, so its short chapters
 /// are not taken for title pages; a book of pictures keeps its pages. 5: rich blocks keep
 /// only what draws (rich.rs's lists); links out of a book only to the web and mail
-/// (`typeset_model::outward`), and Markdown's kept.
-pub const VERSION: u32 = 5;
+/// (`typeset_model::outward`), and Markdown's kept. 6: a chapter's head as the book wrote
+/// it (`Section::head`: its lines, sizes and space; an `hgroup`'s subtitle among them, not
+/// in the text). 7: as the book sets it, its text's leading (`Book::leading`), each head
+/// line's place across the measure, a paragraph ragged apart from a justified text, and a
+/// rule drawn as its `hr` is (`Block::rule`).
+pub const VERSION: u32 = 7;
 use typeset_model::{Block, Kind, Meta, Section, SectionKind};
 
 #[derive(Debug)]
@@ -126,7 +130,7 @@ fn is_docx(bytes: &[u8]) -> bool {
 }
 
 pub(crate) fn finish_book(source: &[u8], meta: Meta, sections: Vec<Section>) -> Book {
-    Book { id: format!("{:016x}", typeset_model::fnv64(source)), meta, sections, notes: vec![], images: vec![], cover: None }
+    Book { id: format!("{:016x}", typeset_model::fnv64(source)), meta, sections, notes: vec![], images: vec![], leading: None, cover: None }
 }
 
 /// One long unbroken text (no headings to cut it by) in parts of about 2,600 words, named
@@ -138,7 +142,7 @@ pub(crate) fn parts(blocks: Vec<Block>, cut: bool) -> Vec<Section> {
     for b in blocks {
         if out.is_empty() || (cut && w > 2600 && b.kind != Kind::Break) {
             let n = out.len() + 1;
-            out.push(Section { kind: SectionKind::Chapter, part: String::new(), label: if cut { format!("Part {n}") } else { String::new() }, num: n.to_string(), title: String::new(), blocks: Vec::new() });
+            out.push(Section { kind: SectionKind::Chapter, part: String::new(), label: if cut { format!("Part {n}") } else { String::new() }, num: n.to_string(), title: String::new(), blocks: Vec::new(), head: None });
             w = 0;
         }
         w += typeset_model::words(&b.text);

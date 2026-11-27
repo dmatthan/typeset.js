@@ -29,7 +29,7 @@
     }
     const parsed = t && typeof t === 'object' ? parseTheme(JSON.stringify(t)) : null;
     if (!parsed || 'error' in parsed) return false;
-    themes.user = [...themes.user.filter(u => u.id !== 'page'), { ...parsed.theme, id: 'page' }];
+    themes.mine = { ...parsed.theme, id: 'page' };
     settings.theme = 'page';
     return true;
   }
@@ -41,10 +41,12 @@
   if (embedOpts.paper) {
     const on = onPaper(themeById(settings.theme), embedOpts.paper);
     if (on) {
-      themes.user = [...themes.user.filter(u => u.id !== 'page'), on.theme];
-      settings.theme = 'page'; settings.appearance = on.dark ? 'dark' : 'light';
+      themes.paper = { of: settings.theme, ...on };
+      settings.appearance = on.dark ? 'dark' : 'light';
     }
   }
+  // (the shell's waiting text, in the embed's words, from the book's fetch to its first page)
+  ui.busy = 'Opening the book…';
   // svelte-ignore state_referenced_locally
   embeddedBook(core)
     .then(async r => {
@@ -53,9 +55,16 @@
       tellPage('ready', { title: reader.book?.title ?? '', chapters: reader.book?.sections.filter(s => s.k === 1).length ?? 0 });
     })
     .catch(e => { error = `The book could not be opened (${(e as Error).message}).`; })
-    .finally(() => { if (error) tellPage('error', { message: error }); });
+    .finally(() => { if (error) { ui.busy = ''; tellPage('error', { message: error }); } });
 
+  // where the book is: its box or the page's window, as the page last said; the screen, past
+  // either, the frame's own (the browser's full screen), its leaving (Escape too) whatever
+  // the page last said again
+  let told: 'box' | 'window' = 'box';
+  const placed = () => (ui.place = document.fullscreenElement ? 'screen' : told);
+  document.addEventListener('fullscreenchange', placed);
   onCommand(async c => {
+    if (c.type === 'place') { told = c.place; placed(); return; }
     if (!reader.book || !reader.strip) return;
     // (a place named before the whole book is set would be travelled to by estimate)
     await reader.whole;
@@ -65,8 +74,8 @@
     // a chapter (counted from 1, as the page counts them), or a fraction of the book
     const chapters = reader.book.sections.flatMap((s, i) => (s.k === 1 ? [i] : []));
     const sec = c.chapter !== undefined ? chapters[c.chapter - 1] : undefined;
-    if (sec !== undefined) reader.travelTo(reader.strip.secStart[sec]);
-    else if (c.at !== undefined) reader.travelTo(Math.round(c.at * (reader.strip.N - 1)));
+    if (sec !== undefined) reader.travelTo(reader.strip.secStart[sec], false);
+    else if (c.at !== undefined) reader.travelTo(Math.round(c.at * (reader.strip.N - 1)), false);
   });
 
   function onKey(e: KeyboardEvent) {
@@ -77,6 +86,6 @@
 <svelte:window onkeydown={onKey} onkeyup={e => reader.input.keyUp(e)} onblur={() => reader.input.blur()} />
 
 <Shell>
-  {#if ui.view !== 'reader'}<p class="failed embed-wait" role="status">{error || 'Opening the book…'}</p>{/if}
+  {#if error}<p class="failed embed-wait" role="status">{error}</p>{/if}
   <ReaderView {reader} {contents} hidden={ui.view !== 'reader'} bind:chip bind:findBar />
 </Shell>

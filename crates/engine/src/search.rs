@@ -191,7 +191,7 @@ mod tests {
 
     fn book() -> Book {
         let mk = |k: u64, t: &str| typeset_model::Block::new(k, typeset_model::Kind::P, t.to_string(), vec![]);
-        let sec = |label: &str, blocks| typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: label.into(), num: "1".into(), title: String::new(), blocks };
+        let sec = |label: &str, blocks| typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: label.into(), num: "1".into(), title: String::new(), blocks, head: None };
         Book {
             id: "b".into(),
             meta: Default::default(),
@@ -201,6 +201,7 @@ mod tests {
             ],
             notes: vec![],
             images: vec![],
+            leading: None,
             cover: None,
         }
     }

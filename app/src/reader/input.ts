@@ -48,7 +48,9 @@ export class ReaderInput {
    *  finger's selection, beside which the system shows a menu of its own. */
   private selected(finger: boolean) {
     const s = getSelection(), strip = this.r.strip;
-    if (!s || s.isCollapsed || !s.rangeCount || !strip) return null;
+    // (spaces alone are no text: a press between two words of a justified line, its spaces
+    // wide, can select one)
+    if (!s || s.isCollapsed || !s.rangeCount || !strip || !s.toString().trim()) return null;
     const r0 = s.getRangeAt(0);
     const a = pointAt(strip, r0.startContainer, r0.startOffset), z = pointAt(strip, r0.endContainer, r0.endOffset);
     if (!a || !z || (a[0] === z[0] && a[1] === z[1] && a[2] === z[2])) return null;

@@ -136,7 +136,7 @@
      reader's has (the theme's, softened: reader.svelte.ts) */
   .chip-pop {
     position: absolute; z-index: 27;
-    display: flex; align-items: center; gap: 0; padding: 0 6px; min-height: 40px; border-radius: 10px;
+    display: flex; align-items: center; gap: 0; padding: 0 6px; min-height: 40px; border-radius: var(--r-m);
     background: var(--surface); color: var(--ink); border: 1px solid var(--rule);
     animation: pop .14s cubic-bezier(.2,.8,.2,1); flex-wrap: wrap;
   }
@@ -153,6 +153,6 @@
   .sep { width: 1px; height: 20px; background: var(--rule); margin: 0 6px; }
   .act { height: 40px; min-width: 40px; padding: 0; border-radius: 8px; font: 500 var(--t-s)/1 var(--f-ui); display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; color: var(--ink-2); }
   .act.word { padding: 0 10px; }
-  .act svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .act svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
   :global(html:not(.touchui)) .act:hover, :global(html:not(.touchui)) .dot:hover { background: var(--hover); color: var(--ink); }
 </style>

@@ -6,7 +6,7 @@
   import Sheet from './Sheet.svelte';
   import { touchUI } from './touch';
   let { onclose }: { onclose: () => void } = $props();
-  const touch = touchUI();
+  const touch = $derived(touchUI());
   /** What a row needs to mean anything: a feature the page may turn off, or the app. */
   type Need = keyof Features | 'app';
   /** A row: its keys (alternatives parted by " | ", keys pressed together by a space, a
@@ -33,13 +33,14 @@
       ['Space | ⇧ Space', 'Next or previous page'],
       ['→ | ←', 'Next or previous column'],
       ['] | [', 'Next or previous chapter'],
+      ['⌫', 'Back to where you were'],
       ['M', 'Contents', 'contents'],
       ['B', 'Bookmark', 'highlights'],
       ['/ | Ctrl F', 'Find in the book', 'find'],
       [';', 'Notes beside the text', 'highlights'],
       ['S', 'Type and appearance', 'settings'],
       ['C', 'Columns', 'settings'],
-      ['F', 'Full screen'],
+      ['F', embedded ? 'Expand, or full screen' : 'Full screen', 'fullscreen'],
       ['Q', 'Close the book', 'app'],
     ]],
     ['Highlights', [
@@ -81,7 +82,7 @@
     ]],
   ];
   const here = (n?: Need) => !n || (n === 'app' ? !embedded : features[n]);
-  const shown = (touch ? gestures : keyGroups).filter(([, , n]) => here(n)).map(([name, rows]) => [name, rows.filter(([, , n]) => here(n))] as const);
+  const shown = $derived((touch ? gestures : keyGroups).filter(([, , n]) => here(n)).map(([name, rows]) => [name, rows.filter(([, , n]) => here(n))] as const));
   /** A row's keys as drawn: each alternative its keys, a range its two ends. */
   const alternatives = (keys: string) => keys.split(' | ').map(a => a.split(' ').map(k => (k.length > 1 && k.includes('–') ? k.split('–') : [k])));
 </script>
@@ -126,7 +127,7 @@
   /* a key: a small cap, as a keyboard has it */
   kbd {
     box-sizing: border-box; min-width: 24px; height: 24px; padding: 0 6px; display: inline-grid; place-items: center;
-    border-radius: 6px; border: 1px solid var(--rule); box-shadow: 0 1px 0 var(--rule); background: var(--surface);
+    border-radius: var(--r-xs); border: 1px solid var(--rule); box-shadow: 0 1px 0 var(--rule); background: var(--surface);
     font: 500 13px/1 var(--f-ui); color: var(--ink); opacity: 1;
   }
   .or, .to { font: 400 13px/1 var(--f-ui); color: var(--ink-3); padding: 0 1px; }

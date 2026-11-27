@@ -18,11 +18,19 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
         // leading headings name the section; apparatus has no chapter head, so its own
         // heading stays in its text ("Colophon", an epigraph poem's title)
         let mut heads_text: Vec<String> = Vec::new();
+        // (and kept as the book wrote them, the chapter's head: `Section::head`)
+        let mut head: Option<Head> = None;
         if rs.matter {
             heads_text.extend(blocks.iter().take_while(|b| b.block.kind == Kind::H).map(|b| b.block.text.replace('\n', " ")));
         } else {
             while blocks.first().is_some_and(|b| b.block.kind == Kind::H) {
-                heads_text.push(blocks.remove(0).block.text.replace('\n', " "));
+                let rb = blocks.remove(0);
+                heads_text.push(rb.block.text.replace('\n', " "));
+                let m = rb.head.unwrap_or(HeadMetrics { size: 1.5, above: 0.0, below: 0.0, align: 1 });
+                // (the space above the first line, below the last)
+                let h = head.get_or_insert(Head { lines: Vec::new(), above: m.above, below: m.below });
+                h.below = m.below;
+                h.lines.push(HeadLine { block: rb.block, size: m.size, align: m.align });
             }
         }
         let prose_words: usize = blocks.iter().filter(|b| b.block.kind != Kind::H).map(|b| typeset_model::words(&b.block.text)).sum();
@@ -79,10 +87,8 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
             let ded = blocks.first().is_some_and(|b| b.text.starts_with("To ") || b.text.starts_with("TO "));
             h = heads::Head { label: String::new(), num: String::new(), title: if ded { "Dedication".into() } else { "Front matter".into() } };
         }
-        if let Some(i) = blocks.iter().position(|b| b.kind == Kind::P)
-            && !front {
-                typeset_model::apply_lead_in(&mut blocks[i]);
-            }
+        // (no opening in small capitals the book did not ask for: a book's own is in its text
+        // and styles; the reader's house opening is for Word and Markdown)
         // a page of pictures with no name of its own goes on from the one before
         if picture && h.label.is_empty() && h.title.is_empty() && rs.toc_label.is_none()
             && let Some(last) = out.last_mut() {
@@ -97,6 +103,7 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
             num: if h.num.is_empty() { n.to_string() } else { h.num },
             title: h.title,
             blocks,
+            head,
         });
     }
     out

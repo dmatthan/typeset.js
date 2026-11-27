@@ -26,7 +26,9 @@ export const PROTOCOL = 1;
 /** How much of the reader's own interface shows around the text: all of it, the running
  *  head alone, or nothing (the page around it does the rest). */
 export type Chrome = 'full' | 'minimal' | 'none';
-/** What the reader offers; an embedding page may turn any of these off. */
+/** What the reader offers. An embedding page may turn any of the first five off (`off`);
+ *  with less than the full interface (`ui`) all but links are off, Help and full screen
+ *  too: what the page does not show, its reader does not open, by a key or any other way. */
 export interface Features {
   /** the book's contents and the reader's highlights (M) */
   contents: boolean;
@@ -38,8 +40,14 @@ export interface Features {
   highlights: boolean;
   /** following the book's links out of it */
   links: boolean;
+  /** the keys and gestures (?) */
+  help: boolean;
+  /** full screen (F) */
+  fullscreen: boolean;
 }
-const FEATURES = ['contents', 'settings', 'find', 'highlights', 'links'] as const satisfies readonly (keyof Features)[];
+/** What `off` may name. */
+const OFF: readonly (keyof Features)[] = ['contents', 'settings', 'find', 'highlights', 'links'];
+const ALL: Features = { contents: true, settings: true, find: true, highlights: true, links: true, help: true, fullscreen: true };
 
 /** What the page asked for (typeset.js writes these into the address's fragment):
  *  the book (an absolute http(s) address), only some chapters, a theme, the paper (a colour,
@@ -65,8 +73,9 @@ export function embedOptions(hash: string): EmbedOptions {
   const url = (v: string | null) => { try { const u = new URL(v ?? '', location.href); return v && (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null; } catch { return null; } };
   const ch = /^(\d+)(?:-(\d+))?$/.exec(q.get('ch') ?? '');
   const chapters: [number, number] | undefined = ch ? [+ch[1], +(ch[2] ?? ch[1])] : undefined;
-  const ui = q.get('ui');
+  const ui = q.get('ui') === 'minimal' || q.get('ui') === 'none' ? q.get('ui') as Chrome : 'full';
   const off = new Set((q.get('off') ?? '').split(/[\s,]+/));
+  const shown = (f: keyof Features) => (ui === 'full' || f === 'links') && !(OFF.includes(f) && off.has(f));
   const host = url(q.get('host'));
   return {
     src: url(q.get('src')),
@@ -77,32 +86,22 @@ export function embedOptions(hash: string): EmbedOptions {
     endHref: url(q.get('end')) ?? undefined,
     endLabel: q.get('endl')?.slice(0, 60) || undefined,
     remember: q.get('rem') === '1',
-    ui: ui === 'minimal' || ui === 'none' ? ui : 'full',
-    features: Object.fromEntries(FEATURES.map(f => [f, !off.has(f)])) as unknown as Features,
+    ui,
+    features: Object.fromEntries(Object.keys(ALL).map(f => [f, shown(f as keyof Features)])) as unknown as Features,
     host: host && new URL(host).origin,
   };
 }
 
 /** The app is not embedded: everything on, no page to answer to. */
-const APP: EmbedOptions = { src: null, remember: false, ui: 'full', features: Object.fromEntries(FEATURES.map(f => [f, true])) as unknown as Features, host: null };
+const APP: EmbedOptions = { src: null, remember: false, ui: 'full', features: ALL, host: null };
 export const embedOpts = embedded ? embedOptions(location.hash) : APP;
 /** What the reader offers here: everything in the app, what the page allows in a frame. */
 export const features = embedOpts.features;
 
 /** Tells the page around the frame (only it: its origin, as it named it). */
-export function tellPage(type: 'ready' | 'progress' | 'end' | 'error' | 'back' | 'full', detail: Record<string, unknown> = {}) {
+export function tellPage(type: 'ready' | 'progress' | 'end' | 'error' | 'back' | 'expand' | 'close' | 'paper', detail: Record<string, unknown> = {}) {
   if (!embedded || window.parent === window || !embedOpts.host) return;
   window.parent.postMessage({ typeset: PROTOCOL, type, ...detail }, embedOpts.host);
-}
-
-/** How a book on another site's page goes full screen, with the whole interface: the
- *  browser's own where it allows it; else (an iPhone has none for a frame) the page fills
- *  its window with the book when told (`full`), where the page is one that hears (typeset.js:
- *  it named its origin); else not at all. */
-export function fullscreenBy(): 'browser' | 'page' | null {
-  if (!embedded || embedOpts.ui !== 'full') return null;
-  if (document.fullscreenEnabled) return 'browser';
-  return window.parent !== window && embedOpts.host ? 'page' : null;
 }
 
 /** The reader's way back. In a frame: what the page asked for (an address, opened in the
@@ -119,7 +118,7 @@ export function wayBack(): { href: string } | { go: () => void } | null {
 }
 
 /** What the page may ask of the reader. */
-export type Command = { type: 'goto'; chapter?: number; at?: number } | { type: 'theme'; theme: unknown };
+export type Command = { type: 'goto'; chapter?: number; at?: number } | { type: 'theme'; theme: unknown } | { type: 'place'; place: 'box' | 'window' };
 
 /** Listens for the page's commands: from the frame's own parent and its named origin only,
  *  in this version of the messages. */
@@ -131,6 +130,7 @@ export function onCommand(run: (c: Command) => void) {
     if (!d || typeof d !== 'object' || d.typeset !== PROTOCOL) return;
     if (d.type === 'goto' && (Number.isInteger(d.chapter) || (typeof d.at === 'number' && d.at >= 0 && d.at <= 1))) run({ type: 'goto', chapter: d.chapter, at: d.at });
     else if (d.type === 'theme') run({ type: 'theme', theme: d.theme });
+    else if (d.type === 'place' && (d.place === 'box' || d.place === 'window')) run({ type: 'place', place: d.place });
   });
 }
 

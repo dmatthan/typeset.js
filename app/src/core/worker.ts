@@ -58,6 +58,15 @@ function patterns(id: string): Promise<void> {
  *  only if the book has characters the first face lacks; JetBrains Mono only for
  *  preformatted text. Without a book (calibrating), the first face alone. */
 async function families(names: string[], id?: string) {
+  // (what a book needs is read from all its text: once per book and chain, not for every
+  // layout asked of it, a few chapters at a time; one that fails is asked again)
+  const key = `${id ?? ''}\n${names.join('\n')}`;
+  let p = faced.get(key);
+  if (!p) { p = facesOf(names, id); faced.set(key, p); p.catch(() => faced.delete(key)); }
+  return p;
+}
+const faced = new Map<string, Promise<void>>();
+async function facesOf(names: string[], id?: string) {
   const ext = !!id && eng.extWanted(id);
   const load = (n: string) => Promise.all([family(n), ext ? family(n + '~ext') : null]);
   await load(names[0] ?? 'Literata');

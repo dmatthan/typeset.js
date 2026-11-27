@@ -3,7 +3,7 @@
 import { kv } from '../core/kv';
 import type { Core, FamilyLoad } from '../core/types';
 import { BUNDLED, BUNDLED_SMCP } from '../core/fonts';
-import { contrast, fitContrast, fromOklch, hexToRgb, luminance, mix, tame } from './color';
+import { contrast, fitContrast, fromOklch, hexToRgb, luminance, mix, tame, toOklch } from './color';
 
 /** A theme: a typeface with its own settings, the layout options it is designed for, and
  *  a light and a dark palette. The reader may change any option; the change is kept per
@@ -16,7 +16,8 @@ export interface Options {
   /** Letter spacing and extra word spacing, in hundredths of the size (%). */
   charSpacing: number;
   wordSpacing: number;
-  /** Steps from the designed margins: positive is wider margins, a shorter measure. */
+  /** The reader's margin steps, −10 to +10 (geometry.ts `spread`): each 8% of a page's
+   *  tenth, positive wider margins and a shorter line. */
   margins: number;
   justify: boolean;
   hyphenate: boolean;
@@ -28,8 +29,6 @@ export interface TypeSpec {
   family: string;
   /** Which bundled faces set the characters the family lacks. */
   fallback: 'serif' | 'sans';
-  /** Size multiplier, so one Size setting looks alike in every face. */
-  scale: number;
   weight: number;
   /** `<b>` and headings. */
   bold: number;
@@ -43,6 +42,10 @@ export interface Theme {
   builtin?: boolean;
   /** Takes its colours from the desktop where the desktop publishes them (Omarchy). */
   desktop?: boolean;
+  /** The type's size on a phone, the theme's own design (as each of Apple's themes has its
+   *  own): the face chosen in it does not change it; a larger screen and the reader's steps
+   *  are counted from it (`sizeOf`). */
+  size: number;
   type: TypeSpec;
   options: Options;
   /** null: the app's own paper (Original). */
@@ -50,46 +53,49 @@ export interface Theme {
   dark: Palette | null;
 }
 
+/** A theme's setting, of two kinds as Apple's themes are: compact as a book (close leading,
+ *  justified) or open (more leading, ragged); each matched to its Apple counterpart by the
+ *  space between lines a reader sees, in our faces. Always hyphenated. */
 const opts = (lineSpacing: number, justify: boolean, boldText = false): Options => ({ boldText, lineSpacing, charSpacing: 0, wordSpacing: 0, margins: 0, justify, hyphenate: true });
 
 export const BUILTIN: Theme[] = [
   {
-    id: 'book', name: 'Book', builtin: true, desktop: true,
-    type: { family: 'Literata', fallback: 'serif', scale: 1, weight: 400, bold: 650, boldText: 520, axes: {} },
-    options: opts(1.55, true), light: null, dark: null,
+    id: 'book', name: 'Book', size: 13, builtin: true, desktop: true,
+    type: { family: 'Literata', fallback: 'serif', weight: 400, bold: 650, boldText: 520, axes: {} },
+    options: opts(1.3, true), light: null, dark: null,
   },
   {
-    id: 'slate', name: 'Slate', builtin: true,
-    type: { family: 'Newsreader', fallback: 'serif', scale: 1.12, weight: 400, bold: 600, boldText: 500, axes: {} },
-    options: opts(1.4, true),
+    id: 'slate', name: 'Slate', size: 17, builtin: true,
+    type: { family: 'Newsreader', fallback: 'serif', weight: 400, bold: 600, boldText: 500, axes: {} },
+    options: opts(1.2, true),
     light: { paper: '#e3e2df', ink: '#46443f', accent: '#5b6675' },
     dark: { paper: '#3c3c3f', ink: '#bebcb7', accent: '#a7b2c0' },
   },
   {
-    id: 'linen', name: 'Linen', builtin: true,
-    type: { family: 'Charis', fallback: 'serif', scale: 1.04, weight: 400, bold: 700, boldText: 500, axes: {} },
-    options: opts(1.55, true),
+    id: 'linen', name: 'Linen', size: 17, builtin: true,
+    type: { family: 'Charis', fallback: 'serif', weight: 400, bold: 700, boldText: 500, axes: {} },
+    options: opts(1.55, false),
     light: { paper: '#f5f1e8', ink: '#1f1d1a', accent: '#86572c' },
     dark: { paper: '#232220', ink: '#d8d3c8', accent: '#d3a46e' },
   },
   {
-    id: 'clear', name: 'Clear', builtin: true,
-    type: { family: 'Inter', fallback: 'sans', scale: 0.95, weight: 440, bold: 720, boldText: 560, axes: {} },
+    id: 'clear', name: 'Clear', size: 17, builtin: true,
+    type: { family: 'Inter', fallback: 'sans', weight: 440, bold: 720, boldText: 560, axes: {} },
     options: opts(1.5, false, true),
     light: { paper: '#ffffff', ink: '#000000', accent: '#0a5fd0' },
     dark: { paper: '#0e0e0f', ink: '#f4f4f4', accent: '#5aa2ff' },
   },
   {
-    id: 'warm', name: 'Warm', builtin: true,
-    type: { family: 'Fraunces', fallback: 'serif', scale: 1.04, weight: 370, bold: 600, boldText: 470, axes: { SOFT: 50, WONK: 0 } },
-    options: opts(1.55, true),
+    id: 'warm', name: 'Warm', size: 16, builtin: true,
+    type: { family: 'Fraunces', fallback: 'serif', weight: 370, bold: 600, boldText: 470, axes: { SOFT: 50, WONK: 0 } },
+    options: opts(1.5, false),
     light: { paper: '#f0e4cd', ink: '#3d3024', accent: '#985a2c' },
     dark: { paper: '#3a2f25', ink: '#e6d5bb', accent: '#e0a86a' },
   },
   {
-    id: 'open', name: 'Open', builtin: true,
-    type: { family: 'Nunito Sans', fallback: 'sans', scale: 1.03, weight: 430, bold: 720, boldText: 530, axes: { wdth: 102 } },
-    options: opts(1.42, false),
+    id: 'open', name: 'Open', size: 15, builtin: true,
+    type: { family: 'Nunito Sans', fallback: 'sans', weight: 430, bold: 720, boldText: 530, axes: { wdth: 102 } },
+    options: opts(1.4, true),
     light: { paper: '#fbf6ea', ink: '#1e1a15', accent: '#b0502a' },
     dark: { paper: '#1a1713', ink: '#e8dfcf', accent: '#e89a5b' },
   },
@@ -103,17 +109,37 @@ export const STOCK = {
   dark: { paper: fromOklch(0.205, 0.006, 80), ink: fromOklch(0.88, 0.012, 84), accent: fromOklch(0.76, 0.1, 262) },
 };
 
-/** A book on another site's page, on that page's own paper (ui/Embed.svelte): the theme
- *  the page chose, read light or dark as the paper is, the paper exactly the page's, the
- *  theme's ink and accent kept where they read on it (else moved, hue kept, until they
- *  do: 7:1 for the text, 3.2:1 for the accent); its other scheme as the theme has it. */
-export function onPaper(t: Theme, paper: string): { theme: Theme; dark: boolean } | null {
+/** A book on another site's page, on that page's own paper (ui/Embed.svelte): the palette
+ *  of the theme the page chose, read light or dark as the paper is, the paper exactly the
+ *  page's, the theme's ink and accent kept where they read on it (`onto`). */
+export function onPaper(t: Theme, paper: string): { palette: Palette; dark: boolean } | null {
   const rgb = hexToRgb(paper);
   if (!rgb) return null;
   const dark = luminance(rgb) < 0.18;
-  const own = (dark ? t.dark : t.light) ?? STOCK[dark ? 'dark' : 'light'];
-  const pal: Palette = { paper, ink: fitContrast(paper, own.ink, 7, 21), accent: fitContrast(paper, own.accent, 3.2, 21) };
-  return { theme: { ...t, id: 'page', name: 'This page', builtin: false, desktop: false, light: dark ? t.light : pal, dark: dark ? pal : t.dark }, dark };
+  return { palette: onto(paper, (dark ? t.dark : t.light) ?? STOCK[dark ? 'dark' : 'light']), dark };
+}
+
+/** A palette on `paper`: `from`'s ink and accent kept where they read on it, else moved,
+ *  hue kept, until they do (7:1 for the text, 3.2:1 for the accent). */
+export function onto(paper: string, from: Palette): Palette {
+  return { paper, ink: fitContrast(paper, from.ink, 7, 21), accent: fitContrast(paper, from.accent, 3.2, 21) };
+}
+
+/** The same palette by night (a theme made from a paper alone): a dim paper of the day's
+ *  hue, barely coloured, as the stock night's; a soft light ink of the day ink's hue; the
+ *  accent lifted; fitted as `onto` fits. */
+export function nightOf(day: Palette): Palette {
+  const lch = (c: string) => toOklch(hexToRgb(c)!);
+  const [, pc, ph] = lch(day.paper), [, ic, ih] = lch(day.ink), [al, ac, ah] = lch(day.accent);
+  const paper = fromOklch(0.205, Math.min(pc, 0.012), ph);
+  return onto(paper, { paper, ink: fromOklch(0.88, Math.min(ic, 0.015), ih), accent: fromOklch(Math.max(al, 0.74), ac, ah) });
+}
+
+/** The type a face is set in: a bundled face as its theme tunes it (weights, axes), or an
+ *  installed one with a book's usual weights, serif or sans by its name. */
+export function typeFor(family: string): TypeSpec {
+  const f = FACES.find(x => x.family === family);
+  return f ? { ...f, axes: { ...f.axes } } : { family, fallback: SANS.test(family) ? 'sans' : 'serif', weight: 400, bold: 700, boldText: 500, axes: {} };
 }
 
 /** What a theme's palette gives the interface on its page: a surface for what lies on it
@@ -167,16 +193,32 @@ export const themes = $state({
   families: {} as Record<string, FamilyLoad>,
   /** Installed families (desktop), once asked for. */
   system: null as string[] | null,
+  /** What a page around an embedded reader chose, for the visit, never kept (ui/Embed.svelte):
+   *  its paper over one theme (by night or by day, as the paper reads), and a theme it made,
+   *  standing in the default's place. Layers on the themes, not themes of their own. */
+  paper: null as { of: string; dark: boolean; palette: Palette } | null,
+  mine: null as Theme | null,
+  /** The open book's own leading, where it sets one (reader.svelte.ts): Book's, as Apple
+   *  Books' Original keeps a book's. A layer for the book, never kept. */
+  leading: null as number | null,
 });
 
-/** Every theme, in the order they are offered: the one an embedding page made for its book
- *  first (`page`, ui/Embed.svelte), then the built-in ones, then the reader's own. */
-export const allThemes = (): Theme[] => [...themes.user.filter(t => t.id === 'page'), ...BUILTIN, ...themes.user.filter(t => t.id !== 'page')];
+/** Every theme, in the order they are offered: the built-in ones (the default's place a
+ *  theme an embedding page made, if it made one), then the reader's own. */
+export const allThemes = (): Theme[] => [...BUILTIN.map(t => (t.id === 'book' && themes.mine) || t), ...themes.user];
 export const themeById = (id: string): Theme => allThemes().find(t => t.id === id) ?? BUILTIN[0];
 
 /** The options a theme is designed with (themes saved before an option existed take its
  *  default). */
-export const designOf = (t: Theme): Options => ({ ...t.options, hyphenate: t.options.hyphenate ?? true, face: t.type.family });
+/** A theme's own options; Book's leading the open book's where it sets one, to the panel's
+ *  step and within what the themes' own span (1.2 to 1.6: a book set double for a
+ *  manuscript, or solid, reads as neither), so that the reader's own change is a change
+ *  from it and a reset goes back to it. */
+export const designOf = (t: Theme): Options => ({
+  ...t.options,
+  ...(t.id === 'book' && themes.leading ? { lineSpacing: Math.min(1.6, Math.max(1.2, Math.round(themes.leading * 20) / 20)) } : {}),
+  hyphenate: t.options.hyphenate ?? true, face: t.type.family,
+});
 export function optionsOf(t: Theme): Options {
   return { ...designOf(t), ...themes.opts[t.id] };
 }
@@ -236,7 +278,8 @@ export interface Resolved {
   options: Options;
   chain: string[];
   css: string;
-  scale: number;
+  /** The theme's size (`Theme.size`). */
+  size: number;
   wght: number;
   bold: number;
   axes: [string, number][];
@@ -256,8 +299,11 @@ export function resolve(t: Theme, dark: boolean): Resolved {
   let palette: Palette | null = dark ? t.dark : t.light;
   const d = themes.desktop;
   if (t.desktop && d && d.dark === dark) palette = { paper: d.paper, ink: d.ink, accent: d.accent };
+  // (an embedding page's paper, over the theme it chose)
+  const pp = themes.paper;
+  if (pp && pp.of === t.id && pp.dark === dark) palette = pp.palette;
   return {
-    theme: t, options: o, chain, css: cssFamily(chain, ty.fallback), scale: ty.scale, wght, bold,
+    theme: t, options: o, chain, css: cssFamily(chain, ty.fallback), size: t.size, wght, bold,
     axes: Object.entries(ty.axes).filter(([k]) => k.length === 4), synthSc: !smcp, palette,
   };
 }
@@ -342,8 +388,8 @@ export function exportTheme(t: Theme): string {
   return JSON.stringify({
     format: FORMAT,
     name: t.name,
-    font: { family: t.type.family, fallback: t.type.fallback, sizeAdjust: t.type.scale, weight: t.type.weight, boldWeight: t.type.bold, boldTextWeight: t.type.boldText, axes: t.type.axes },
-    layout: { lineSpacing: t.options.lineSpacing, characterSpacing: t.options.charSpacing, wordSpacing: t.options.wordSpacing, margins: t.options.margins, justify: t.options.justify, hyphenate: t.options.hyphenate, boldText: t.options.boldText },
+    font: { family: t.type.family, fallback: t.type.fallback, weight: t.type.weight, boldWeight: t.type.bold, boldTextWeight: t.type.boldText, axes: t.type.axes },
+    layout: { size: t.size, lineSpacing: t.options.lineSpacing, characterSpacing: t.options.charSpacing, wordSpacing: t.options.wordSpacing, margins: t.options.margins, justify: t.options.justify, hyphenate: t.options.hyphenate, boldText: t.options.boldText },
     light: p(t.light, 'light'),
     dark: p(t.dark, 'dark'),
   }, null, 2);
@@ -368,13 +414,13 @@ export function parseTheme(text: string): { theme: Theme; notes: string[] } | { 
   const axes: Record<string, number> = {};
   if (f.axes && typeof f.axes === 'object') for (const [k, v] of Object.entries(f.axes)) if (/^[A-Za-z0-9 ]{4}$/.test(k) && k !== 'wght' && k !== 'opsz' && typeof v === 'number') axes[k] = v;
   const type: TypeSpec = {
-    family, fallback, scale: clamp(f.sizeAdjust, 0.8, 1.3, 1), weight,
+    family, fallback, weight,
     bold: clamp(f.boldWeight, weight + 100, 1000, Math.min(900, weight + 250)),
     boldText: clamp(f.boldTextWeight, weight, 900, Math.min(900, weight + 100)), axes,
   };
   const options: Options = {
-    boldText: l.boldText === true, lineSpacing: clamp(l.lineSpacing, 1.15, 2.2, 1.5), charSpacing: Math.round(clamp(l.characterSpacing, -5, 15, 0)),
-    wordSpacing: Math.round(clamp(l.wordSpacing, -10, 50, 0)), margins: Math.round(clamp(l.margins, -2, 3, 0)), justify: l.justify !== false, hyphenate: l.hyphenate !== false,
+    boldText: l.boldText === true, lineSpacing: clamp(l.lineSpacing, 1, 2, 1.2), charSpacing: Math.round(clamp(l.characterSpacing, -10, 10, 0)),
+    wordSpacing: Math.round(clamp(l.wordSpacing, -50, 50, 0)), margins: Math.round(clamp(l.margins, -10, 10, 0)), justify: l.justify !== false, hyphenate: l.hyphenate !== false,
   };
   const pal = (x: any, mode: 'light' | 'dark'): Palette => {
     const s = STOCK[mode];
@@ -386,7 +432,8 @@ export function parseTheme(text: string): { theme: Theme; notes: string[] } | { 
     return { paper, ink, accent };
   };
   const name = typeof j.name === 'string' && j.name.trim() ? j.name.trim().slice(0, 40) : 'Untitled';
-  const theme: Theme = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, type, options, light: pal(j.light, 'light'), dark: pal(j.dark, 'dark') };
+  const size = Math.round(clamp(l.size, 12, 22, 13));
+  const theme: Theme = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, size, type, options, light: pal(j.light, 'light'), dark: pal(j.dark, 'dark') };
   return { theme, notes };
 }
 
@@ -401,18 +448,18 @@ export function aiBrief(installed: string[] = []): string {
   "font": {
     "family": "a font family name (see below)",
     "fallback": "serif" or "sans" (which kind the family is),
-    "sizeAdjust": number 0.8–1.3; 1 for a face with a typical x-height, higher for small-eyed faces,
     "weight": body weight 300–500,
     "boldWeight": weight of bold and headings, 550–800,
     "boldTextWeight": body weight when the reader turns on Bold Text, 450–600,
     "axes": {} or variable-font axes other than wght and opsz, e.g. { "SOFT": 50 }
   },
   "layout": {
-    "lineSpacing": 1.3–1.8 (1.4–1.6 suits most book faces),
+    "size": the type size on a phone, 13–18 (13 for a face of usual proportions, more for one with small letters or a lighter mood),
+    "lineSpacing": 1.15–1.6 (1.2 suits most book faces),
     "characterSpacing": integer percent of the size, -2 to 6 (usually 0),
     "wordSpacing": integer percent of the size, -4 to 20 (usually 0),
-    "margins": integer -2 to 3 (0 is the designed measure of about 30 em; higher is narrower),
-    "justify": true or false (sans faces usually read better ragged),
+    "margins": integer -10 to 10 (0 is a tenth of the page each side; higher is wider margins, a shorter line),
+    "justify": true (justified and hyphenated reads best; false only for a deliberately ragged look),
     "hyphenate": true (false only for a deliberately unbroken look),
     "boldText": false (true only for a deliberately heavy theme)
   },

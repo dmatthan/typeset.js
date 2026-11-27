@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test';
+import { access } from './audit';
 import { test, expect, SAMPLE, openFile, firstCol, settled } from './fixtures';
 import { inflateRawSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
@@ -191,12 +192,18 @@ test('less motion is the default: a key turns the page at once, and Aa says so',
 test('the controls: Back, the title in the middle, a bookmark; the rest in one menu at the foot, by key too', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
+  // (read on from where the contents took it: the way back there is gone)
+  await p.keyboard.press('ArrowRight');
+  await expect(p.locator('.bar .return')).toHaveCount(0);
   await p.mouse.move(640, 10);
   const bar = p.locator('.bar');
   await expect(bar).not.toHaveClass(/away/);
   // the top: the way back and the bookmark, nothing else; the title in the middle of the window
   await expect(bar.getByRole('button')).toHaveCount(2);
-  await expect(bar.getByRole('button', { name: 'Back to the library' })).toBeVisible();
+  // (the way out as everywhere a book is above where it came from: × Close, the same icon)
+  const close = bar.getByRole('button', { name: 'Close', exact: true });
+  await expect(close).toBeVisible();
+  expect(await close.locator('path').getAttribute('d')).toBe('M6.5 6.5l11 11M17.5 6.5l-11 11');
   await expect(bar.getByRole('button', { name: 'Bookmark this page' })).toBeVisible();
   const mid = await p.locator('.runhead').evaluate(e => { const r = e.getBoundingClientRect(); return r.left + r.width / 2 - innerWidth / 2; });
   expect(Math.abs(mid)).toBeLessThan(2);
@@ -363,7 +370,7 @@ test('set again (a size, a face, the window): the page as it was until the new o
     const look = () => { for (const n of document.querySelectorAll<HTMLElement>('.pn')) if (+getComputedStyle(n).opacity > 0.05) w.numbers.add(n.textContent); if (w.watching) requestAnimationFrame(look); };
     requestAnimationFrame(look);
   });
-  await p.evaluate(() => { const w = window as any; w.__typeset.settings.size = 22; return w.__typeset.reader.settingsChanged('layout'); });
+  await p.evaluate(() => { const w = window as any; w.__typeset.settings.step = 6; return w.__typeset.reader.settingsChanged('layout'); });
   await laidOut(p);
   await expect(p.locator('.hold')).toHaveCount(0);
   const shown: string[] = await p.evaluate(() => [...(window as any).numbers]), last = await p.locator('.pn').allTextContents();
@@ -411,7 +418,7 @@ test('set again, the line being read travels to its new place as the old page fa
     };
     requestAnimationFrame(look);
   });
-  await p.evaluate(() => { const w = window as any; w.__typeset.settings.size = 24; return w.__typeset.reader.settingsChanged('layout'); });
+  await p.evaluate(() => { const w = window as any; w.__typeset.settings.step = 7; return w.__typeset.reader.settingsChanged('layout'); });
   await expect.poll(() => p.evaluate(() => (window as any).caught)).toBe(true);
   const [held, live] = await p.evaluate(at => {
     const r = (window as any).__typeset.reader;
@@ -477,6 +484,30 @@ test('a long way through the progress line: dragged, it names the page; let go, 
   await line.fill(String(Math.floor(N / 2)));
   await expect.poll(() => cur(p)).toBeGreaterThan(N / 2 - 3);
   await expect.poll(() => place(p)).toMatch(new RegExp(`^Page ${Math.floor(N / 2) + 1} of ${N}, `));
+});
+
+test('after a trip the way back is offered, by the bar or ⌫, until one reads on', async ({ page: p }) => {
+  await openSample(p);
+  await p.evaluate(() => (window as any).__typeset.reader.jump(60));
+  await settled(p);
+  await toChapterOne(p);
+  await expect.poll(() => cur(p)).toBeLessThan(18);
+  const k = await cur(p);
+  await p.mouse.move(640, 20);
+  await expect(p.locator('.bar').getByRole('button', { name: 'Back to page 61' })).toBeVisible();
+  await p.locator('.stage').focus();
+  await p.keyboard.press('Backspace');
+  await expect.poll(() => cur(p)).toBe(60);
+  await expect(p.locator('.bar .return')).toHaveCount(0);
+  // a trip, then a page read on: the way back goes, and ⌫ does nothing
+  await toChapterOne(p);
+  await expect.poll(() => cur(p)).toBe(k);
+  await p.keyboard.press('ArrowRight');
+  await expect.poll(() => cur(p)).toBe(k + 1);
+  await expect(p.locator('.bar .return')).toHaveCount(0);
+  await p.keyboard.press('Backspace');
+  await p.waitForTimeout(300);
+  expect(await cur(p)).toBe(k + 1);
 });
 
 test('a trackpad: a swipe turns one page, however long it and its momentum run; a new swipe turns the next', async ({ page: p }) => {
@@ -624,6 +655,22 @@ test('holding a key glides and settles on a whole column', async ({ page: p }) =
   expect(pos).toBe(k1);
 });
 
+test('a highlight over lines set close (the tightest spacing) is a band to each line, none over the next: never a darker stripe where two overlap', async ({ page: p }) => {
+  await openSample(p);
+  await p.evaluate(() => { const v = (window as any).__typeset; v.setOption(v.themeById('book'), 'lineSpacing', 1); v.reader.settingsChanged('layout'); });
+  await p.waitForFunction(() => { const M = (window as any).__typeset.reader.M; return M.lh === Math.round(M.fs); });
+  await laidOut(p);
+  await toChapterOne(p);
+  await p.keyboard.press('v'); await p.keyboard.press('h'); await p.keyboard.press('Escape');
+  const k = await cur(p);
+  await expect(p.locator(`.col[data-k="${k}"] mark.hl`).nth(2)).toBeVisible();
+  // each line's band (drawn behind it) shorter than the lines are apart, by a visible gap
+  const bands = await p.evaluate(k => [...document.querySelectorAll(`.col[data-k="${k}"] mark.hl`)].map(m => parseFloat(getComputedStyle(m, '::before').height)), k);
+  const lh = await p.evaluate(() => (window as any).__typeset.reader.M.lh as number);
+  expect(bands.length).toBeGreaterThan(2);
+  for (const h of bands) expect(h).toBeLessThanOrEqual(lh - 1.5);
+});
+
 test('a double click selects the word under it; V then H highlights a paragraph', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
@@ -652,6 +699,15 @@ test('resize and type size keep the sentence', async ({ page: p }) => {
   await fsChanged(p, fs);
   const c = JSON.parse(await anchor(p));
   expect(c.key).toBe(a.key);
+});
+
+test('Help with a keyboard draws every key, in a window made narrow too (a window\'s width is not a touch screen)', async ({ page: p }) => {
+  await openSample(p);
+  await p.setViewportSize({ width: 600, height: 800 });
+  await p.keyboard.press('?');
+  await expect(p.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible();
+  const hidden = await p.locator('.sheet kbd').evaluateAll(ks => ks.filter(k => !k.getBoundingClientRect().width).map(k => k.textContent));
+  expect(hidden).toEqual([]);
 });
 
 test('dark paper, help, reset', async ({ page: p }) => {
@@ -975,6 +1031,319 @@ for (const id of ['book', 'slate', 'linen', 'clear', 'warm', 'open']) {
   });
 }
 
+test('each theme its own size, a step of the reader\'s carried to every theme, and a face chosen in a theme keeps its size', async ({ page: p }) => {
+  await openSample(p);
+  const sizeIn = async (theme: string) => {
+    await p.evaluate(async t => { const v = (window as any).__typeset; v.settings.theme = t; await v.reader.settingsChanged('layout'); }, theme);
+    await expect.poll(() => p.evaluate(() => { const r = (window as any).__typeset.reader; return r.M.fs === r.measure(undefined, r.wanted()).fs; })).toBe(true);
+    return p.evaluate(() => (window as any).__typeset.reader.M.fs);
+  };
+  // (a desktop: each theme's phone size three steps up)
+  const all = async () => {
+    const o: Record<string, number> = {};
+    for (const t of ['book', 'slate', 'linen', 'clear', 'warm', 'open']) o[t] = await sizeIn(t);
+    return o;
+  };
+  expect(await all()).toEqual({ book: 16, slate: 20, linen: 20, clear: 20, warm: 19, open: 18 });
+  // one step larger in Book, by the panel's key: every theme a step larger
+  await sizeIn('book');
+  await p.keyboard.press('s');
+  await p.keyboard.press('=');
+  await expect.poll(() => p.evaluate(() => (window as any).__typeset.reader.M.fs)).toBe(17);
+  await p.keyboard.press('Escape');
+  expect(await all()).toEqual({ book: 17, slate: 21, linen: 21, clear: 21, warm: 20, open: 19 });
+  // Book in Linen's face: Book's size still
+  await sizeIn('book');
+  await p.evaluate(async () => { const v = (window as any).__typeset; v.setOption(v.themeById('book'), 'face', 'Charis'); await v.reader.settingsChanged('layout'); });
+  await expect.poll(() => p.evaluate(() => (window as any).__typeset.reader.look.chain[0])).toBe('Charis');
+  expect(await p.evaluate(() => (window as any).__typeset.reader.M.fs)).toBe(17);
+});
+
+test('a selection of a space alone (a justified line\'s wide one) is no text: no menu for it', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  await p.keyboard.press('ArrowRight'); await settled(p);
+  // a space between two words of a full line, dragged across from edge to edge
+  const at = await p.evaluate(() => {
+    const r = (window as any).__typeset.reader;
+    for (const ln of document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)) {
+      const t = [...ln.childNodes].find(n => n.nodeType === 3 && / \S/.test(n.textContent!)) as Text | undefined;
+      if (!t) continue;
+      const i = t.data.indexOf(' ', 2), range = document.createRange();
+      range.setStart(t, i); range.setEnd(t, i + 1);
+      const b = range.getBoundingClientRect();
+      if (b.width > 3) return { l: b.left + 0.5, r: b.right - 0.5, y: b.top + b.height / 2 };
+    }
+    return null;
+  });
+  expect(at).not.toBeNull();
+  await p.mouse.move(at!.l, at!.y); await p.mouse.down();
+  await p.mouse.move(at!.r, at!.y, { steps: 4 }); await p.mouse.up();
+  expect(await p.evaluate(() => getSelection()!.toString())).toMatch(/^\s+$/);
+  await p.waitForTimeout(400);
+  await expect(p.locator('.chip-pop')).toHaveCount(0);
+});
+
+test('a contents row under the pointer, or read, keeps its quieter words readable (4.5:1 on its tint)', async ({ page: p }) => {
+  await openSample(p);
+  // (a chapter read: its title in the quieter ink)
+  await toChapterOne(p);
+  await p.evaluate(() => (window as any).__typeset.reader.go(20));
+  await p.keyboard.press('m');
+  await expect(p.locator('.contents')).toBeVisible();
+  const rows = p.locator('.contents .row', { has: p.locator('.p') });
+  for (const i of [1, 3]) {
+    await rows.nth(i).hover();
+    await expect.poll(() => rows.nth(i).evaluate(r => getComputedStyle(r).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+    expect(await access(p), `row ${i} under the pointer`).toEqual([]);
+  }
+});
+
+test('a chapter opens with its head as the book wrote it, in the text\'s face, and the text begins on the row the press counted under it', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  const head = await p.evaluate(() => {
+    const r = (window as any).__typeset.reader, k = r.cur, col = document.querySelector<HTMLElement>(`.col[data-k="${k}"]`)!;
+    const h = col.querySelector<HTMLElement>('.chead')!, lines = [...h.querySelectorAll<HTMLElement>('.hline')];
+    const text = (col.querySelector('.ln[data-b]') as HTMLElement).getBoundingClientRect();
+    const sl = r.strip.layouts.get(r.strip.itemAt(k).sec);
+    const ui = getComputedStyle(document.documentElement).getPropertyValue('--f-ui');
+    return {
+      lines: lines.map(l => l.innerText.trim()),
+      faces: [...new Set(lines.map(l => getComputedStyle(l).fontFamily))].map(f => f === ui.trim()),
+      weights: [...new Set(lines.map(l => getComputedStyle(l).fontWeight))],
+      inColumn: lines.every(l => { const b = l.getBoundingClientRect(), c = col.getBoundingClientRect(); return b.left >= c.left - 1 && b.right <= c.right + 1; }),
+      under: Math.max(...lines.map(l => l.getBoundingClientRect().bottom)) <= text.top + 1,
+      textRow: Math.round((text.top - col.getBoundingClientRect().top) / r.M.lh), headRows: sl.headRows,
+      label: h.querySelectorAll('.label').length,
+    };
+  });
+  expect(head.lines).toEqual(['CHAPTER I.\nTHE TWO POETS OF SAFFRON PARK']);
+  expect(head.faces).toEqual([false]);
+  expect(head.weights).toEqual(['400']);
+  expect(head).toMatchObject({ inColumn: true, under: true, label: 0 });
+  expect(head.textRow).toBe(head.headRows);
+  // and the first paragraph as the book sets it: indented an em, opening as written
+  const first = await p.evaluate(() => {
+    const r = (window as any).__typeset.reader, ln = document.querySelector<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)!;
+    return { indent: Math.round(parseFloat(ln.style.left) * 10) / 10, em: r.M.fs, caps: !!ln.querySelector('.sc') };
+  });
+  expect(first).toEqual({ indent: first.em, em: first.em, caps: false });
+});
+
+test('Style\'s sliders show their values, each a change from the theme\'s design, the design in the middle', async ({ page: p }) => {
+  await openSample(p);
+  await p.keyboard.press('s');
+  await p.getByRole('button', { name: /^Style/ }).click();
+  const sliders = await p.locator('.panel .row.sl').evaluateAll(rows => rows.map(r => {
+    const i = r.querySelector('input')!, v = r.querySelector('.val');
+    return { label: r.querySelector('.lbl')!.textContent!.trim(), shown: v?.textContent?.trim() ?? null, mid: (+i.min + +i.max) / 2 === +i.value };
+  }));
+  // what a reader reads at a glance; the spacings and margins at 0, the middle
+  expect(sliders).toEqual([
+    { label: 'Line spacing', shown: '1.30', mid: false },
+    { label: 'Letters', shown: '0%', mid: true },
+    { label: 'Words', shown: '0%', mid: true },
+    { label: 'Margins', shown: '0%', mid: true },
+  ]);
+});
+
+test('margins: a page\'s a tenth of its width, each of the reader\'s steps (−10 to +10) narrows the line wherever the book is read', async ({ page: p }) => {
+  await openSample(p);
+  const at = async (m: number) => {
+    await p.evaluate(async m => {
+      const v = (window as any).__typeset;
+      v.setOption(v.themeById(v.settings.theme), 'margins', m);
+      await v.reader.settingsChanged('layout');
+    }, m);
+    // (the page as the geometry has it: a layout for the window's new size may land after)
+    await expect.poll(() => p.evaluate(() => { const r = (window as any).__typeset.reader; return r.M.colW === r.measure(undefined, r.wanted()).colW; })).toBe(true);
+    return p.evaluate(() => { const M = (window as any).__typeset.reader.M; return { colW: M.colW, x0: M.x0 }; });
+  };
+  for (const [w, h] of [[390, 844], [900, 800], [1600, 900]]) {
+    await p.setViewportSize({ width: w, height: h });
+    const lines = [];
+    for (const m of [-10, -5, -1, 0, 1, 5, 10]) lines.push((await at(m)).colW);
+    // every step narrows it, however wide the window (its line capped or not)
+    for (let i = 1; i < lines.length; i++) expect(lines[i], `${w} wide: ${lines}`).toBeLessThan(lines[i - 1]);
+  }
+  // a phone, as Apple Books has it (measured: 13, 26, 40, 57, 75 pt a side on 402): a tenth of
+  // its width, 8% of that a step, never under 30% of it
+  await p.setViewportSize({ width: 402, height: 874 });
+  const margins = [];
+  for (const m of [-10, -5, 0, 5, 10]) margins.push((await at(m)).x0);
+  expect(margins).toEqual([12, 24, 40, 56, 72]);
+});
+test('a page turned from a marked one shows no ribbon of its own, and B there marks it alone', async ({ page: p }) => {
+  await openSample(p);
+  await toChapterOne(p);
+  const ribbon = p.locator('.ribbon');
+  await p.keyboard.press('b');
+  await expect(ribbon).toHaveCount(1);
+  // a turn as a reader makes it, a column at a time, until the marked page is out of view
+  const cols = await p.evaluate(() => (window as any).__typeset.reader.M.N);
+  for (let i = 0; i < cols; i++) await p.keyboard.press('ArrowRight');
+  await settled(p);
+  await expect(ribbon).toHaveCount(0);
+  await p.keyboard.press('b');
+  await expect(ribbon).toHaveCount(1);
+  expect(await p.evaluate(() => (window as any).__typeset.reader.bookmarks.length)).toBe(2);
+});
+
+test('a bookmark is on the page it was made on (text or a picture) and goes when taken off; the title page offers none', async ({ page: p }) => {
+  await openSample(p);
+  const got = [], want = [];
+  for (let k = 0; k < 8; k++) {
+    await p.evaluate(k => (window as any).__typeset.reader.go(k), k);
+    await expect.poll(() => p.evaluate(() => (window as any).__typeset.reader.cur)).toBe(k);
+    await settled(p);
+    const r = await p.evaluate(() => {
+      const rd = (window as any).__typeset.reader;
+      rd.toggleBookmark();
+      const on = rd.bookmarks.map((b: any) => rd.strip.resolve({ key: b.key, off: b.off }));
+      const shown = rd.bookmarksInView().length;
+      rd.toggleBookmark();
+      return { on, shown, left: rd.bookmarks.length };
+    });
+    got.push({ page: k + 1, ...r }); want.push(k === 0 ? { page: 1, on: [], shown: 0, left: 0 } : { page: k + 1, on: [k], shown: 1, left: 0 });
+  }
+  expect(got).toEqual(want);
+  // (no button for it, on the title page)
+  await p.evaluate(() => (window as any).__typeset.reader.go(0));
+  await expect.poll(() => p.evaluate(() => (window as any).__typeset.reader.cur)).toBe(0);
+  await p.mouse.move(640, 20);
+  await expect(p.locator('.bar').getByRole('button', { name: 'Bookmark this page' })).toHaveCount(0);
+});
+
+test('Book sets a book in its own leading, as Apple\'s Original does; the other themes keep theirs, a reader\'s own change wins, and a book that says none has Book\'s', async ({ page: p }) => {
+  test.setTimeout(120000);
+  await p.goto('/');
+  await p.waitForSelector('.book[data-id]');
+  await p.setInputFiles('input[type=file]', '../bench/fixtures/original.epub');
+  await p.locator('.book[data-id]', { hasText: 'The Gate' }).click({ timeout: 60000 });
+  await laidOut(p);
+  // (the line's height as the geometry sets it, against the text's size)
+  const at = (ls: number) => p.waitForFunction(ls => { const M = (window as any).__typeset.reader.M; return M && M.lh === Math.round(M.fs * ls); }, ls);
+  // (as the panel does: a change, then the text set again)
+  const use = (fn: string) => p.evaluate(fn => { const v = (window as any).__typeset, b = v.themeById('book'); new Function('v', 'b', fn)(v, b); v.reader.settingsChanged('layout'); }, fn);
+  await at(1.5);
+  await use("v.settings.theme = 'linen'");
+  await at(1.55);
+  await use("v.settings.theme = 'book'");
+  await at(1.5);
+  // the reader's own, over the book's; reset, the book's again
+  await use("v.setOption(b, 'lineSpacing', 1.3)");
+  await at(1.3);
+  await use('v.resetOptions(b)');
+  await at(1.5);
+  // a book that sets no leading of its own: Book's
+  await p.goto('/');
+  await p.locator('.book[data-id]', { hasText: 'Thursday' }).click();
+  await laidOut(p);
+  await at(1.3);
+});
+
+test('a change made while the rest of the book is still being set goes first: the rest is asked of the engine a few chapters at a time, and a superseded change asks no more', async ({ page: p }) => {
+  await openSample(p);
+  // every layout asked of the engine: its size, and how many chapters (none: all of them)
+  await p.evaluate(() => {
+    const r = (window as any).__typeset.reader, core = r.core, layout = core.layout.bind(core);
+    (window as any).__asked = [];
+    core.layout = (id: string, secs: number[], prm: { size: number }) => { (window as any).__asked.push([prm.size, secs.length]); return layout(id, secs, prm); };
+  });
+  const step = () => p.evaluate(() => { const v = (window as any).__typeset; v.settings.step += 1; v.reader.settingsChanged('layout'); });
+  const asked = () => p.evaluate(() => (window as any).__asked as [number, number][]);
+  // a step; once the engine is setting the rest of the book for it, another
+  await step();
+  await p.waitForFunction(() => (window as any).__asked.length >= 2);
+  const first = (await asked())[0][0];
+  await step();
+  await p.evaluate(() => (window as any).__typeset.reader.whole);
+  const all = await asked(), second = all.find(([s]) => s !== first)![0];
+  const n = (await p.evaluate(() => (window as any).__typeset.reader.book.sections.length)) as number;
+  // never the whole book at once
+  expect(all.filter(([, k]) => k === 0 || k >= n)).toEqual([]);
+  // the first change asks nothing once the second has begun
+  const from = all.findIndex(([s]) => s === second);
+  expect(all.slice(from).filter(([s]) => s === first)).toEqual([]);
+  // and the second's book is whole
+  expect(await p.evaluate(() => { const r = (window as any).__typeset.reader; return r.strip.layouts.size === r.book.sections.length && r.M.fs; })).toBe(second);
+});
+
+test('what waits for the whole book set (a page\'s goto, a test) is answered when a newer change sets it, not left waiting', async ({ page: p }) => {
+  await openSample(p);
+  const answered = await p.evaluate(async () => {
+    const v = (window as any).__typeset, r = v.reader;
+    v.settings.step += 1; r.settingsChanged('layout');
+    const waiting = r.whole;
+    await new Promise(res => setTimeout(res, 30));
+    v.settings.step += 1; r.settingsChanged('layout');
+    return Promise.race([waiting.then(() => true), new Promise(res => setTimeout(() => res(false), 15000))]);
+  });
+  expect(answered).toBe(true);
+});
+
+test('Aa\'s theme cards show their faces together, once all have come, not one by one as each arrives', async ({ page: p }) => {
+  let release!: () => void;
+  const held = new Promise<void>(r => (release = r));
+  await p.route('**/fonts/Fraunces*', async r => { await held; await r.continue(); });
+  await openSample(p);
+  await p.keyboard.press('s');
+  const cards = p.locator('.themes .th .aa');
+  await expect(cards).toHaveCount(6);
+  // (each card's "Aa" as drawn: its colour's opacity)
+  const shown = () => cards.evaluateAll(els => els.map(e => { const c = getComputedStyle(e).color; const a = c.match(/[\d.]+(?=\))/); return c.startsWith('rgba') || c.includes('/') ? parseFloat(a![0]) : 1; }));
+  // one face still on its way: none of them yet
+  expect((await shown()).every(a => a === 0)).toBe(true);
+  release();
+  await expect.poll(async () => (await shown()).every(a => a === 1)).toBe(true);
+});
+
+test('the book\'s last page: Finis, its title, its words counted, and nothing more', async ({ page: p }) => {
+  await openSample(p);
+  await p.evaluate(() => { const r = (window as any).__typeset.reader; r.jump(r.strip.N - 1); });
+  await settled(p);
+  const end = p.locator('.leaf.colophon');
+  await expect(end).toBeVisible();
+  const words = await p.evaluate(() => (window as any).__typeset.reader.book.words as number);
+  expect(await end.locator('p').allInnerTexts()).toEqual(['Finis', 'The Man Who Was Thursday', `${words.toLocaleString('en-GB')} words`]);
+});
+
+test('a book\'s own head is set where the book sets it: a small press\'s at the column\'s start, a Gutenberg book\'s centred', async ({ page: p }) => {
+  test.setTimeout(120000);
+  await p.goto('/');
+  await p.waitForSelector('.book[data-id]');
+  await p.setInputFiles('input[type=file]', '../bench/fixtures/original.epub');
+  await p.locator('.book[data-id]', { hasText: 'The Gate' }).click({ timeout: 60000 });
+  await p.waitForFunction(() => { const r = (window as any).__typeset.reader; return r.book?.title === 'The Gate' && r.strip && r.strip.layouts.size === r.book.sections.length; });
+  await laidOut(p);
+  // (the first column with a head of the book's own, and where its line sits in the column)
+  const at = async () => {
+    for (let k = 0; k < 6; k++) {
+      await p.evaluate(k => (window as any).__typeset.reader.jump(k), k); await settled(p);
+      const x = await p.evaluate(k => { const c = document.querySelector(`.col[data-k="${k}"]`), l = c?.querySelector('.chead.own .hline'); if (!c || !l) return null; const cr = c.querySelector('.chead')!.getBoundingClientRect(), r = l.getBoundingClientRect(); return [r.left - cr.left, cr.right - r.right].map(Math.round); }, k);
+      if (x) return x;
+    }
+    return null;
+  };
+  const [before, after] = (await at())!;
+  expect(before).toBeLessThanOrEqual(1);
+  expect(after).toBeGreaterThan(40);
+  // the credit under it set ragged, as the book sets it, in a justified text; then its
+  // rule, a third of the column at its start
+  const k0 = await cur(p);
+  expect(await p.evaluate(k => { const c = document.querySelector(`.col[data-k="${k}"]`)!, r = c.querySelector('.trule'); if (!r) return null; const cw = c.querySelector('.chead')!.getBoundingClientRect(), rr = r.getBoundingClientRect(); return [Math.round(rr.left - cw.left), Math.round(rr.width / cw.width * 10) / 10]; }, k0)).toEqual([0, 0.3]);
+  expect(await p.evaluate(k => { const ls = [...document.querySelectorAll(`.col[data-k="${k}"] .ln`)]; const credit = ls.find(l => l.textContent!.startsWith('Set for')); return [credit?.classList.contains('j'), ls.some(l => l.classList.contains('j'))]; }, k0)).toEqual([false, true]);
+  await p.goto('/');
+  await p.locator('.book[data-id]', { hasText: 'Thursday' }).click();
+  await p.waitForFunction(() => { const r = (window as any).__typeset.reader; return /Thursday/.test(r.book?.title ?? '') && r.strip && r.strip.layouts.size === r.book.sections.length; });
+  await laidOut(p);
+  await toChapterOne(p);
+  const k = await cur(p);
+  const [l, r] = await p.evaluate(k => { const c = document.querySelector(`.col[data-k="${k}"] .chead`)!, h = c.querySelector('.hline')!; const cr = c.getBoundingClientRect(), hr = h.getBoundingClientRect(); return [hr.left - cr.left, cr.right - hr.right]; }, k);
+  expect(Math.abs(l - r)).toBeLessThan(2);
+});
+
 test('customised spacing, bold text and margins still fit, and reset', async ({ page: p }) => {
   await openSample(p);
   for (const id of ['warm', 'open']) {
@@ -995,11 +1364,39 @@ test('customised spacing, bold text and margins still fit, and reset', async ({ 
   await expect.poll(() => p.evaluate(() => Object.keys((window as any).__typeset.themes.opts.focus || {}).length)).toBe(0);
 });
 
+test('making a theme asks a name, a face and a paper; the rest is ours: the face\'s weights, ink and accent read on the paper, a night of its own', async ({ page: p }) => {
+  await openSample(p);
+  await p.keyboard.press('s');
+  await p.keyboard.press('n');
+  const sheet = p.getByRole('dialog', { name: 'New theme' });
+  await expect(sheet).toBeVisible();
+  // nothing a reader need decide: no weights, no spacing (those are Style's, for every theme)
+  for (const gone of ['Weight', 'Bold weight', 'Line spacing', 'Margins', 'Serif', 'Ink', 'Accent']) await expect(sheet.getByText(gone, { exact: true })).toHaveCount(0);
+  await sheet.getByRole('textbox', { name: 'Theme name' }).fill('Harvest');
+  await sheet.getByRole('radio', { name: 'Fraunces' }).click();
+  await sheet.getByLabel('Paper').fill('#f3e6cf');
+  await p.getByRole('button', { name: 'Save theme' }).click();
+  await expect(p.locator('.th[aria-checked="true"] .nm')).toHaveText('Harvest');
+  const t = await p.evaluate(() => {
+    const v = (window as any).__typeset, t = v.themes.user.find((x: any) => x.name === 'Harvest'), fr = v.themeById('warm');
+    const lum = (h: string) => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(x => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+    return { family: t.type.family, weights: [t.type.weight, t.type.bold] , faces: [fr.type.weight, fr.type.bold], paper: t.light.paper, ink: ratio(t.light.paper, t.light.ink), accent: ratio(t.light.paper, t.light.accent), night: lum(t.dark.paper), nightInk: ratio(t.dark.paper, t.dark.ink) };
+  });
+  expect(t.family).toBe('Fraunces');
+  expect(t.weights).toEqual(t.faces);
+  expect(t.paper).toBe('#f3e6cf');
+  expect(t.ink).toBeGreaterThanOrEqual(7);
+  expect(t.accent).toBeGreaterThanOrEqual(3.2);
+  expect(t.night).toBeLessThan(0.05);
+  expect(t.nightInk).toBeGreaterThanOrEqual(7);
+});
+
 test('a pasted theme imports, saves and is chosen', async ({ page: p }) => {
   await openSample(p);
   await p.keyboard.press('s');
   await p.keyboard.press('n');
-  await p.getByRole('button', { name: 'Import' }).click();
+  await p.getByRole('button', { name: /From a file or an AI/ }).click();
   const theme = { format: 'typeset-theme/1', name: 'Harbour', font: { family: 'Charis', fallback: 'serif', weight: 400, boldWeight: 700 },
     layout: { lineSpacing: 1.6, justify: true }, light: { paper: '#eef2f4', ink: '#8a8f93', accent: '#2f6f8f' }, dark: { paper: '#1b2328', ink: '#d3dde3', accent: '#7fb6d1' } };
   await p.getByLabel('Theme to import').fill('```json\n' + JSON.stringify(theme) + '\n```');
@@ -1270,7 +1667,7 @@ test('the notes rail: ; sets the text in one column with every note in view besi
   // set again at another size, on the same page (the chapter's first): every note then in
   // view has its card, level with its line
   const k = await cur(p);
-  await p.evaluate(() => { const w = window as any; w.__typeset.settings.size = 18; return w.__typeset.reader.settingsChanged('layout'); });
+  await p.evaluate(() => { const w = window as any; w.__typeset.settings.step = 2; return w.__typeset.reader.settingsChanged('layout'); });
   await laidOut(p);
   expect(await cur(p)).toBe(k);
   await expect.poll(async () => { const l = await level(); return l.cards.length === l.inView && l.cards.every(Boolean); }).toBe(true);
@@ -1296,6 +1693,9 @@ test('the notes rail: ; sets the text in one column with every note in view besi
 test('with the rail, the bar keeps over it, its buttons seen and pressed; the rail\'s foot goes to the book\'s other notes and puts it away', async ({ page: p }) => {
   await openSample(p);
   await toChapterOne(p);
+  // (read on from where the contents took it: the bar as it is while reading, no way back)
+  await p.keyboard.press('ArrowRight');
+  await expect(p.locator('.bar .return')).toHaveCount(0);
   // notes far apart: one here, one some chapters on
   await twoNotes(p);
   await p.evaluate(() => {
@@ -1535,7 +1935,9 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
     const ln = lines[3], b = blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
     const a = r.ann.add(b.key, s0, s0 + 30, 2, 'This slowed me down — too much at once.');
     r.ann.update(a.id, { react: 'slow' });
-    r.marking.toggleMark(blocks[+lines[12].dataset.b!].key);
+    // (another paragraph on the page, whatever the size sets on it: two passages)
+    const other = lines.findLast(l => l.dataset.b !== ln.dataset.b)!;
+    r.marking.toggleMark(blocks[+other.dataset.b!].key);
     r.marking.refreshSection(sec);
   });
   await p.keyboard.press('m'); await expect(p.locator('.contents')).toBeVisible();
@@ -1590,7 +1992,7 @@ test('a reader sends notes, the writer sees them in place: underlined, dotted, g
   // a second reader on one of her passages: most readers first puts it first
   const second = JSON.parse(text);
   second.from = { id: 'tomas', name: 'Tomas' };
-  second.progress = { at: 1, furthest: 1, where: 'Colophon', done: true };
+  second.progress = { at: 1, furthest: 1, where: 'Finis', done: true };
   second.notes = [second.notes.find((n: any) => n.note)];
   expect(await p.evaluate(t => (window as any).__typeset.reader.receiveNotes(t), JSON.stringify(second))).toMatch(/^Notes from Tomas: 1 placed/);
   await p.getByRole('button', { name: 'Most readers first' }).click();
@@ -1863,7 +2265,7 @@ test('rich blocks: a genealogy, a figure and a formula drawn as the publisher ma
   await expect.poll(() => p.locator('figure.img.rich img').first().evaluate(i => getComputedStyle(i).filter)).toContain('invert');
 });
 
-test('a link out of the book opens in a new tab, from a tap or the keyboard; only to the web and mail', async ({ page: p }) => {
+test('a link out of the book asks first, naming the address, then opens in a new tab; from a tap or the keyboard; only to the web and mail', async ({ page: p }) => {
   await p.goto('/');
   await p.locator('.book[data-id]').first().waitFor();
   const md = '---\ntitle: Linked\n---\n\n# One\n\nSee [the archive](https://example.org/archive) for the rest of the story, which goes on for some time.\n';
@@ -1873,20 +2275,40 @@ test('a link out of the book opens in a new tab, from a tap or the keyboard; onl
   await p.evaluate(() => { const r = (window as any).__typeset.reader; r.jump(r.strip.secStart[0]); });
   const link = p.locator('.col a.ur').first();
   await expect(link).toHaveText('the archive');
-  const [tab] = await Promise.all([p.waitForEvent('popup'), link.click()]);
+  const popups: string[] = [];
+  p.on('popup', t => popups.push(t.url()));
+  // a press on it leaves nothing yet: it asks, naming where it goes
+  await link.click();
+  const ask = p.getByRole('dialog', { name: 'Open this link' });
+  await expect(ask).toBeVisible();
+  await expect(ask).toContainText('https://example.org/archive');
+  // cancelled, or put away: still in the book
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(ask).toHaveCount(0);
+  await link.click();
+  await expect(ask).toBeVisible();
+  await p.keyboard.press('Escape');
+  await expect(ask).toHaveCount(0);
+  expect(popups).toEqual([]);
+  // opened: a new tab, nothing of this page going with it
+  await link.click();
+  const [tab] = await Promise.all([p.waitForEvent('popup'), ask.getByRole('button', { name: 'Open' }).click()]);
   expect(tab.url()).toBe('https://example.org/archive');
-  // nothing of this page goes with it
   expect(await tab.evaluate(() => window.opener)).toBeNull();
   await tab.close();
-  // the keyboard: V picks the paragraph, O opens what it holds
+  await expect(ask).toHaveCount(0);
+  // the keyboard: V picks the paragraph, O asks for what it holds, Enter opens it
   await p.locator('.stage').focus();
   await p.keyboard.press('v');
-  const [again] = await Promise.all([p.waitForEvent('popup'), p.keyboard.press('o')]);
+  await p.keyboard.press('o');
+  await expect(ask).toBeVisible();
+  const [again] = await Promise.all([p.waitForEvent('popup'), p.keyboard.press('Enter')]);
   expect(again.url()).toBe('https://example.org/archive');
   await again.close();
   // and an address that is neither is refused, said plainly
   expect(await p.evaluate(() => (window as any).__typeset.reader.openLink('javascript:alert(1)'))).toBeUndefined();
   await expect(p.locator('.toast')).toContainText('This link can’t be opened');
+  await expect(ask).toHaveCount(0);
 });
 
 test('rich blocks are measured where nothing runs or fetches, never in the page', async ({ page: p }) => {
@@ -2071,7 +2493,7 @@ test('hyphenation whose patterns failed to come is tried again: the next layout 
   await toChapterOne(p);
   expect(failed).toBeGreaterThan(0);
   // laid out again (another size): this time the patterns come, and words are broken
-  await p.evaluate(() => { const w = window as any; w.__typeset.settings.size = 22; return w.__typeset.reader.settingsChanged('layout'); });
+  await p.evaluate(() => { const w = window as any; w.__typeset.settings.step = 6; return w.__typeset.reader.settingsChanged('layout'); });
   await expect.poll(() => p.evaluate(() => document.querySelectorAll('.col .ln.hy').length), { timeout: 15000 }).toBeGreaterThan(0);
 });
 
@@ -2155,8 +2577,8 @@ test('the whole library backed up and restored into a browser with nothing in it
   await p.evaluate(() => {
     const v = (window as any).__typeset, r = v.reader, b = r.book.sections[3].blocks.find((x: any) => x.t.length > 120);
     r.ann.add(b.key, 0, 40, 3, 'Backed up with the book.');
-    v.settings.size = 22;
-    v.kv.set('settings', { size: 22 });
+    v.settings.step = 6;
+    v.kv.set('settings', { step: 6 });
     v.kv.set('me', { id: 'reader-one', name: 'Ann' });
     v.kv.set('vault.key', 'this-device');
   });
@@ -2188,8 +2610,8 @@ test('the whole library backed up and restored into a browser with nothing in it
   await expect(q.locator('.toast')).toContainText('Restored: 1 book added');
   await reloaded;
   await expect(q.locator('.book[data-id]')).toHaveCount(2);
-  const back = await q.evaluate(() => { const kv = (window as any).__typeset.kv; const k = kv.keys('ann.')[0]; return { me: kv.get('me', null)?.id, size: kv.get('settings', {}).size, note: k && kv.get(k, [])[0]?.note, vault: kv.get('vault.key', null) }; });
-  expect(back).toEqual({ me, size: 22, note: 'Backed up with the book.', vault: 'mine' });
+  const back = await q.evaluate(() => { const kv = (window as any).__typeset.kv; const k = kv.keys('ann.')[0]; return { me: kv.get('me', null)?.id, step: kv.get('settings', {}).step, note: k && kv.get(k, [])[0]?.note, vault: kv.get('vault.key', null) }; });
+  expect(back).toEqual({ me, step: 6, note: 'Backed up with the book.', vault: 'mine' });
   await ctx.close();
 });
 

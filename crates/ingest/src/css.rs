@@ -1,8 +1,11 @@
 //! The publisher's styles, as far as they change what the press sets: what is hidden
 //! (`display: none`, `visibility: hidden`: a Kindle-only heading, a layout note, a page
 //! number kept for print), and italic, bold, small capitals, superscript and subscript
-//! given by class rather than by tag (InDesign, Calibre and most commercial EPUBs).
-//! Layout (margins, sizes, faces, colours) is the theme's, never the publisher's.
+//! given by class rather than by tag (InDesign, Calibre and most commercial EPUBs); and
+//! for a chapter's head, its size and the space above it. The book's structure is its
+//! own (its heads, as Apple Books' Original keeps them); its texture (faces, the text's
+//! size, colours) is the theme's, but for the leading the text is set in, which a theme
+//! may take as the book's own (as Original does).
 //!
 //! Selectors are matched by the HTML parser's own engine (scraper), so they mean what
 //! they mean in a browser; the cascade is specificity, then source order, then the
@@ -22,8 +25,24 @@ pub(crate) struct Props {
     pub smcp: Option<bool>,
     /// 1 superscript, -1 subscript, 0 on the baseline.
     pub va: Option<i8>,
-    /// A block's alignment: 0 the text's own (left, justified), 1 centred, 2 right.
+    /// A block's alignment: 0 justified, 1 centred, 2 at the end, 3 at the start (left).
     pub align: Option<u8>,
+    /// For a chapter's head: its size as a factor of its parent's, and the space above and
+    /// below it (margins, paddings) in its own em.
+    pub size: Option<f32>,
+    pub margin_top: Option<f32>,
+    pub padding_top: Option<f32>,
+    pub margin_bottom: Option<f32>,
+    pub padding_bottom: Option<f32>,
+    /// A paragraph's first-line indent, in its em.
+    pub indent: Option<f32>,
+    /// Its line-height as a factor of its size; 0 for `normal` (the browser's own).
+    pub leading: Option<f32>,
+    /// For a rule (`hr`): whether its border shows, its width as a share of its parent's,
+    /// and whether it is centred (`margin: auto`, as a browser's own is).
+    pub border: Option<bool>,
+    pub width: Option<f32>,
+    pub centred: Option<bool>,
 }
 
 impl Props {
@@ -37,6 +56,16 @@ impl Props {
         self.smcp = o.smcp.or(self.smcp);
         self.va = o.va.or(self.va);
         self.align = o.align.or(self.align);
+        self.size = o.size.or(self.size);
+        self.margin_top = o.margin_top.or(self.margin_top);
+        self.padding_top = o.padding_top.or(self.padding_top);
+        self.margin_bottom = o.margin_bottom.or(self.margin_bottom);
+        self.padding_bottom = o.padding_bottom.or(self.padding_bottom);
+        self.indent = o.indent.or(self.indent);
+        self.leading = o.leading.or(self.leading);
+        self.border = o.border.or(self.border);
+        self.width = o.width.or(self.width);
+        self.centred = o.centred.or(self.centred);
     }
 }
 
@@ -152,7 +181,8 @@ pub(crate) fn declarations(src: &str) -> Props {
                 p.align = match v {
                     "center" | "-webkit-center" => Some(1),
                     "right" | "end" => Some(2),
-                    "left" | "start" | "justify" => Some(0),
+                    "justify" => Some(0),
+                    "left" | "start" => Some(3),
                     _ => None,
                 }
             }
@@ -164,8 +194,27 @@ pub(crate) fn declarations(src: &str) -> Props {
                     _ => None,
                 }
             }
+            "font-size" => p.size = size(v),
+            "margin-top" => p.margin_top = length(v),
+            "padding-top" => p.padding_top = length(v),
+            "margin-bottom" => p.margin_bottom = length(v),
+            "padding-bottom" => p.padding_bottom = length(v),
+            "text-indent" => p.indent = length(v),
+            "line-height" => p.leading = leading(v),
+            "margin" => {
+                (p.margin_top, p.margin_bottom) = top_bottom(v);
+                p.centred = across(v).map(|x| x == "auto");
+            }
+            "margin-left" | "margin-right" => p.centred = Some(v == "auto"),
+            "border" | "border-top" | "border-bottom" | "border-style" | "border-top-style" => p.border = Some(shows(v)),
+            "width" => p.width = v.strip_suffix('%').and_then(|x| x.trim().parse::<f32>().ok()).map(|x| x / 100.0),
+            "padding" => (p.padding_top, p.padding_bottom) = top_bottom(v),
             "font" => {
                 for w in v.split_whitespace() {
+                    // (`size/line-height`)
+                    if let Some((_, lh)) = w.split_once('/') {
+                        p.leading = leading(lh);
+                    }
                     match w {
                         "italic" | "oblique" => p.italic = Some(true),
                         "small-caps" => p.smcp = Some(true),
@@ -181,6 +230,80 @@ pub(crate) fn declarations(src: &str) -> Props {
         }
     }
     p
+}
+
+/// A length in em: em (and rem, the text's), px and pt at a browser's 16 px; none for a
+/// percentage (of a width, for a margin) or what cannot be read.
+fn length(v: &str) -> Option<f32> {
+    let n = |s: &str| s.trim().parse::<f32>().ok();
+    if v == "0" {
+        return Some(0.0);
+    }
+    if let Some(x) = v.strip_suffix("rem").or_else(|| v.strip_suffix("em")) {
+        return n(x);
+    }
+    if let Some(x) = v.strip_suffix("px") {
+        return n(x).map(|x| x / 16.0);
+    }
+    v.strip_suffix("pt").and_then(n).map(|x| x / 12.0)
+}
+
+/// A line-height as a factor of the element's size: a number, a percentage, a length in em
+/// (px and pt at a browser's 16); 0 for `normal`.
+fn leading(v: &str) -> Option<f32> {
+    if v == "normal" {
+        return Some(0.0);
+    }
+    if let Some(x) = v.strip_suffix('%') {
+        return x.trim().parse::<f32>().ok().map(|x| x / 100.0);
+    }
+    v.parse::<f32>().ok().or_else(|| length(v)).filter(|x| *x > 0.0)
+}
+
+/// A margin shorthand's right side (one value: it; two or three: the second; four: the
+/// second, the right).
+fn across(v: &str) -> Option<&str> {
+    let w: Vec<&str> = v.split_whitespace().collect();
+    match w.len() {
+        1 => Some(w[0]),
+        2..=4 => Some(w[1]),
+        _ => None,
+    }
+}
+
+/// Whether a border so written draws a line: not `none`, `hidden`, or a width of nothing.
+fn shows(v: &str) -> bool {
+    !v.split_whitespace().any(|w| matches!(w, "none" | "hidden")) && !matches!(v, "0" | "0px" | "0em")
+}
+
+/// A shorthand's top and bottom: one or two values, the first both; three or four, the
+/// first and the third.
+fn top_bottom(v: &str) -> (Option<f32>, Option<f32>) {
+    let w: Vec<&str> = v.split_whitespace().collect();
+    match w.len() {
+        1 | 2 => (length(w[0]), length(w[0])),
+        3 | 4 => (length(w[0]), length(w[2])),
+        _ => (None, None),
+    }
+}
+
+/// A font size as a factor of the parent's: a length in em, a percentage, or a keyword
+/// (the absolute ones taken against the text's, as a book's heads are).
+fn size(v: &str) -> Option<f32> {
+    if let Some(x) = v.strip_suffix('%') {
+        return x.trim().parse::<f32>().ok().map(|x| x / 100.0);
+    }
+    match v {
+        "xx-small" => Some(0.6),
+        "x-small" => Some(0.75),
+        "small" | "smaller" => Some(0.89),
+        "medium" => Some(1.0),
+        "large" | "larger" => Some(1.2),
+        "x-large" => Some(1.5),
+        "xx-large" => Some(2.0),
+        "xxx-large" => Some(3.0),
+        _ => length(v),
+    }
 }
 
 fn weight(v: &str) -> Option<bool> {
@@ -269,7 +392,8 @@ mod tests {
              @media screen { .s { display: none } }
              h1::before { content: 'x'; display: none }
              .f { font: italic bold 1em serif }
-             .m { margin: 1em }",
+             .m { margin: 1em 0 2em }
+             .c { color: red }",
         );
         let get = |sel: &str| s.iter().find(|(x, _)| x == sel).map(|(_, p)| *p);
         assert_eq!(get("p.hide").unwrap().hidden, Some(true));
@@ -282,7 +406,9 @@ mod tests {
         assert_eq!(get(".s").unwrap().hidden, Some(true));
         assert!(get("h1::before").is_none());
         assert_eq!(get(".f").unwrap(), Props { italic: Some(true), bold: Some(true), ..Props::default() });
-        assert!(get(".m").is_none(), "rules that change nothing here are not kept");
+        // (the space around a chapter's head: a shorthand's top and its bottom)
+        assert_eq!((get(".m").unwrap().margin_top, get(".m").unwrap().margin_bottom), (Some(1.0), Some(2.0)));
+        assert!(get(".c").is_none(), "rules that change nothing here are not kept");
     }
 
     #[test]

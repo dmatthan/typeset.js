@@ -27,14 +27,15 @@
 //   off        what the reader does not offer, any of: contents settings find highlights links
 // Events: "typeset-ready" (detail.title, detail.chapters), "typeset-progress" (detail.at,
 // 0 to 1), "typeset-end", "typeset-error" (detail.message), "typeset-back" (cancelable),
-// "typeset-full" (detail.on: the book filling the window, where a frame has no full screen).
+// "typeset-place" (detail.place: "box", or "window" when the reader's Expand fills the page's
+// window; Full screen past it is the browser's, × Close puts it back in one press).
 // Methods, once ready: goTo({ chapter }) or goTo({ at }) (0 to 1); setTheme(name, or a
 // theme as Volumen exports one: { format: "typeset-theme/1", … }).
 //
 // <typeset-open src="/books/sample.epub">…</typeset-open>: what it holds (the page's own
 //   button, a picture, any element) opens the book over the whole window; holding
 //   nothing, it shows the book's cover (an EPUB's own, read from the file; "cover" names
-//   another, "title" the book). The reader opens with Back, which, as the browser's back
+//   another, "title" the book). The reader opens with × Close, which, as the browser's Back
 //   does, gives the page back as it was. Attributes as <typeset-book>'s. Events:
 //   "typeset-open", "typeset-close"; the reader's own come from the <typeset-book> it
 //   opens (its "book", while open).
@@ -57,16 +58,18 @@ export function serveFrom(path) { reader = new URL(EMBED, new URL(path.replace(/
 // the messages between this page and the reader's frame: their version (app/src/core/embed.ts)
 const PROTOCOL = 1;
 
-// a book on the page: a quiet box (gently rounded, a hairline in the page's own ink), the
-// page's own styles on the element having the last word; full screen where a frame has
-// none (an iPhone's): the frame over the page's window, the page held still behind it,
-// the element keeping its place in the page (taken out of it, the page would reflow and
-// the browser move its scroll to make up for it)
+// a book on the page: rounded corners and a 1 px border in the page's text colour, which
+// the page's own styles on the element override. Expanded (`expand`): the frame fixed over
+// the page's window, the page behind it not scrolling, the element keeping its place in the
+// page (removed, the page would reflow and the browser adjust its scroll), and the frame's
+// background the reader's paper (Safari colours its bars from a fixed element at the top
+// and bottom)
 const css = `
   :host { display: block; position: relative; width: 100%; height: 70vh; min-height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent); }
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
-  :host([full]) iframe { position: fixed; z-index: 2147483647; }
-  :host([open]) { position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; z-index: 2147483647 !important; }
+  :host([full]) iframe { position: fixed; z-index: 2147483647; background: var(--paper, transparent); }
+  :host([open]:not([papered])) { visibility: hidden; }
+  :host([open]) { background: var(--paper, transparent); position: fixed !important; inset: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; z-index: 2147483647 !important; }
 `;
 
 class TypesetBook extends HTMLElement {
@@ -77,15 +80,21 @@ class TypesetBook extends HTMLElement {
     this.attachShadow({ mode: 'open' }).innerHTML = `<style>${css}</style><iframe allow="fullscreen; clipboard-write"></iframe>`;
     this.frame = this.shadowRoot.querySelector('iframe');
     this.ready = false;
+    // where the book is: in its box, or filling the page's window
+    this.place = 'box';
+    this.onPop = () => this.collapse(true);
     // what is sent only from the reader's own frame and origin, in this version, is heard
     this.onMessage = e => {
       if (e.source !== this.frame.contentWindow || e.origin !== reader.origin) return;
       const d = e.data;
       if (!d || typeof d !== 'object' || d.typeset !== PROTOCOL) return;
       const { typeset, type, ...detail } = d;
-      if (!['ready', 'progress', 'end', 'error', 'back', 'full'].includes(type)) return;
-      if (type === 'ready') this.ready = true;
-      if (type === 'full') this.fill(!!detail.on);
+      // (the reader's asks of the page: bigger, out again, and its paper for the page's edges)
+      if (type === 'expand') return this.expand();
+      if (type === 'close') return this.collapse();
+      if (type === 'paper') { this.papered(detail.paper); return; }
+      if (!['ready', 'progress', 'end', 'error', 'back'].includes(type)) return;
+      if (type === 'ready') { this.ready = true; if (this.place === 'window') this.send({ type: 'place', place: 'window' }); }
       const go = this.dispatchEvent(new CustomEvent('typeset-' + type, { detail, bubbles: true, cancelable: type === 'back' }));
       // the reader's Back, with no address named: where the reader came from, unless the page
       // goes its own way
@@ -93,8 +102,63 @@ class TypesetBook extends HTMLElement {
     };
   }
 
-  /** The page's window filled with the book (the reader's full screen where a frame has
-   *  none), the page behind held still; and given back as it was. */
+  /** Bigger than its box: the book over the page's window, with a step in the page's
+   *  history (the browser's Back gives the page back), the page's colour at its edges the
+   *  reader's paper. Past it, the screen, is the frame's own (the browser's full screen). */
+  expand() {
+    if (this.place === 'window') return;
+    this.place = 'window';
+    this.fill(true);
+    const metas = [...document.querySelectorAll('meta[name="theme-color"]')].map(m => [m, m.content]);
+    if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.append(m); metas.push([m, null]); }
+    this.tinted = { metas, root: document.documentElement.style.backgroundColor };
+    this.tint();
+    history.pushState({ typeset: 'place' }, '');
+    addEventListener('popstate', this.onPop);
+    this.told();
+  }
+
+  /** Back in its box, from any height in one step (the reader's × Close, Escape, the
+   *  browser's Back: `byHistory`); a book opened over the page (`open()`) goes with it. */
+  collapse(byHistory = false) {
+    if (this.place !== 'window') return;
+    this.place = 'box';
+    removeEventListener('popstate', this.onPop);
+    this.fill(false);
+    for (const [m, c] of this.tinted.metas) { if (c === null) m.remove(); else m.content = c; }
+    document.documentElement.style.backgroundColor = this.tinted.root;
+    this.tinted = null;
+    if (!byHistory && history.state?.typeset === 'place') history.back();
+    this.told();
+    this.closing?.();
+  }
+
+  /** The reader's paper, as it says it (and again with each theme): the frame painted with
+   *  it; a book over the page shown from then, never before (Safari takes its bars' colour
+   *  from a fixed element as it is shown, not again), and the reader focused. */
+  papered(paper) {
+    this.paper = paper;
+    this.style.setProperty('--paper', paper);
+    if (!this.hasAttribute('papered')) { this.setAttribute('papered', ''); if (this.hasAttribute('open')) this.frame.focus(); }
+    this.tint();
+  }
+
+  /** While the book fills the window, the page's edges in its paper: its background (what
+   *  Safari colours its bars from) and its theme-color (other browsers'). */
+  tint() {
+    if (!this.tinted || !this.paper) return;
+    for (const [m] of this.tinted.metas) m.content = this.paper;
+    document.documentElement.style.backgroundColor = this.paper;
+  }
+
+  /** The reader and the page told where the book is now. */
+  told() {
+    if (this.ready) this.send({ type: 'place', place: this.place });
+    this.dispatchEvent(new CustomEvent('typeset-place', { detail: { place: this.place }, bubbles: true }));
+  }
+
+  /** The page's window filled with the frame, the page behind held still; and given back as
+   *  it was. */
   fill(on) {
     this.toggleAttribute('full', on);
     const s = document.documentElement.style;
@@ -114,7 +178,7 @@ class TypesetBook extends HTMLElement {
   }
 
   connectedCallback() { addEventListener('message', this.onMessage); this.load(); }
-  disconnectedCallback() { removeEventListener('message', this.onMessage); this.fill(false); }
+  disconnectedCallback() { removeEventListener('message', this.onMessage); if (this.place === 'window') { this.closing = null; this.collapse(true); } }
   attributeChangedCallback() { if (this.isConnected) this.load(); }
 
   load() {
@@ -297,36 +361,18 @@ class TypesetLibrary extends HTMLElement {
 }
 
 /** A book opened over the whole window, from `attrs` as <typeset-book> takes them (named as
- *  written or in camelCase: `endHref`), with Back (the reader's, or the browser's: a
- *  history entry is added for it) giving the page back as it was: its scroll, and the
- *  focus where it was. Returns the <typeset-book> and how to close it. */
+ *  written or in camelCase: `endHref`): a book expanded at once, its box nowhere, so that
+ *  closing it (the reader's × Close, Escape, the browser's Back) takes it away, the page as
+ *  it was, the focus where it was. Returns the <typeset-book> and how to close it. */
 export function open(attrs = {}, onclose) {
   const book = document.createElement('typeset-book');
   for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) book.setAttribute(k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()), v === true ? '' : String(v));
-  book.setAttribute('back', '');
   book.setAttribute('open', '');
-  const s = document.documentElement.style, was = { overflow: s.overflow, x: scrollX, y: scrollY, focus: document.activeElement };
-  s.overflow = 'hidden';
+  const focus = document.activeElement;
   document.body.append(book);
-  history.pushState({ typeset: 'open' }, '');
-  requestAnimationFrame(() => book.frame.focus());
-  let done = false;
-  const close = byHistory => {
-    if (done) return;
-    done = true;
-    removeEventListener('popstate', back);
-    book.remove();
-    s.overflow = was.overflow;
-    scrollTo(was.x, was.y);
-    was.focus?.focus?.({ preventScroll: true });
-    // (closed by the reader's Back or the page: the entry it added goes too)
-    if (!byHistory && history.state?.typeset === 'open') history.back();
-    onclose?.();
-  };
-  const back = () => close(true);
-  addEventListener('popstate', back);
-  book.addEventListener('typeset-back', e => { e.preventDefault(); close(false); });
-  return { book, close: () => close(false) };
+  book.closing = () => { book.closing = null; book.remove(); focus?.focus?.({ preventScroll: true }); onclose?.(); };
+  book.expand();
+  return { book, close: () => book.collapse() };
 }
 
 class TypesetOpen extends HTMLElement {

@@ -176,8 +176,8 @@ mod tests {
     fn finds_at_word_starts_and_maps_back() {
         let text = "In Spain the pain was naïve; “Pain,” he said.".to_string();
         let block = typeset_model::Block::new(1, typeset_model::Kind::P, text, vec![]);
-        let sec = typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![block] };
-        let book = Book { id: "t".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], cover: None };
+        let sec = typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![block], head: None };
+        let book = Book { id: "t".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], leading: None, cover: None };
         let ix = Index::build(&book);
         let f = ix.find("pain", 10);
         assert_eq!(f.total, 2);

@@ -55,11 +55,11 @@
      one column the width of the window, likewise: content wider than a small phone
      shrinks or wraps rather than widening the sheet past the screen) */
   .wrap { position: absolute; inset: var(--vv-top, 0px) 0 var(--kb, 0px) 0; z-index: 50; display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); align-items: end; justify-items: center; }
-  .back { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .22s; }
+  .back { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity var(--calm); }
   .sheet {
     position: relative; box-sizing: border-box; width: min(100%, 500px); max-height: calc(100% - max(24px, env(safe-area-inset-top) + 12px)); display: flex; flex-direction: column;
     background: var(--sheet); color: var(--ink); border-radius: var(--r-l) var(--r-l) 0 0;
-    transform: translateY(20px); opacity: 0; transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .22s;
+    transform: translateY(20px); opacity: 0; transition: transform var(--calm) cubic-bezier(.2,.8,.2,1), opacity var(--calm);
     outline: none;
   }
   .scroll { min-height: 0; border-radius: inherit; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; padding: 24px 22px calc(22px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
@@ -82,7 +82,7 @@
   .sheet :global(.opt) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 11px 12px; border-radius: var(--r-m); cursor: pointer; }
   :global(html:not(.touchui)) .sheet :global(.opt:hover) { background: var(--hover); }
   .sheet :global(.opt input) { appearance: none; margin: 0; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink-3); display: grid; place-content: center; }
-  .sheet :global(.opt input::before) { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform .15s; }
+  .sheet :global(.opt input::before) { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform var(--quick); }
   .sheet :global(.opt input:checked) { border-color: var(--accent); }
   .sheet :global(.opt input:checked::before) { transform: scale(1); }
   .sheet :global(.o-t) { font: 600 var(--t-m)/1.3 var(--f-ui); }
@@ -90,8 +90,8 @@
   .sheet :global(.tog) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 8px 2px; cursor: pointer; }
   .sheet :global(.t-t) { font: 600 var(--t-m)/1.3 var(--f-ui); }
   .sheet :global(.t-m) { display: block; font: 500 var(--t-s)/1.4 var(--f-ui); color: var(--ink-3); margin-top: 2px; }
-  .sheet :global(.tog input) { appearance: none; margin: 0; width: 46px; height: 28px; border-radius: 14px; background: var(--rule); position: relative; cursor: pointer; transition: background-color .2s; }
-  .sheet :global(.tog input::after) { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px oklch(0 0 0 / 0.25); transition: transform .2s; }
+  .sheet :global(.tog input) { appearance: none; margin: 0; width: 46px; height: 28px; border-radius: 14px; background: var(--rule); position: relative; cursor: pointer; transition: background-color var(--quick); }
+  .sheet :global(.tog input::after) { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px oklch(0 0 0 / 0.25); transition: transform var(--quick); }
   .sheet :global(.tog input:checked) { background: var(--accent); }
   .sheet :global(.tog input:checked::after) { transform: translateX(18px); }
   .sheet :global(.acts) { display: grid; gap: 8px; }

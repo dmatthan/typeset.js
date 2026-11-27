@@ -65,7 +65,7 @@
     </div></div>
   {/if}
   <button class="ibtn round" bind:this={btn} onclick={() => (open ? hide() : show())} aria-label="More" aria-haspopup="menu" aria-expanded={open} title="More">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h.01M12 12h.01M18 12h.01" /></svg>
+    <svg class="dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18" cy="12" r="1.3" /></svg>
   </button>
 </div>
 
@@ -73,28 +73,29 @@
   /* at the end of the foot, level with the page's number (and, with the notes' rail, at
      the end of the text's own foot); in a box on a page (`--pad`) as far from its foot as
      from its side, as the bar's buttons are from its top (ReaderView: the same sums) */
-  .more { position: absolute; z-index: 26; right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 2); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 40px) / 2, var(--pad, 0px) + 6px)); opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility .3s; }
+  .more { position: absolute; z-index: 26; right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 2); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 40px) / 2, var(--pad, 0px) + 6px)); opacity: 0; visibility: hidden; transition: opacity var(--calm) ease, visibility var(--calm); }
   .more.shown { opacity: 1; visibility: visible; }
   :global(.touchui) .more { right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 4); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)); }
   .ibtn {
     appearance: none; cursor: pointer; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%;
     display: grid; place-items: center; background: var(--surface); box-shadow: 0 0 0 1px var(--rule); color: var(--ink-2);
-    transition: color .15s, background-color .15s;
+    transition: color var(--quick), background-color var(--quick);
   }
   :global(html:not(.touchui)) .ibtn:hover, .ibtn[aria-expanded="true"] { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
   .ibtn:focus-visible, .menu button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-  .ibtn svg { stroke-width: 2.6; }
+  svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+  /* (points, not lines: filled) */
+  .dots { fill: currentColor; stroke: none; }
   /* the menu rises from the button, on the surface every menu of the reader's has */
   .menu {
     position: absolute; right: 0; bottom: calc(100% + 8px); min-width: 228px;
-    box-sizing: border-box; border-radius: 14px; background: var(--surface); border: 1px solid var(--rule);
+    box-sizing: border-box; border-radius: var(--r-l); background: var(--surface); border: 1px solid var(--rule);
     animation: rise .16s cubic-bezier(.2, .8, .2, 1); transform-origin: bottom right;
   }
   .items { display: grid; padding: 6px; max-height: calc(100vh - 120px); overflow-y: auto; border-radius: inherit; }
   @keyframes rise { from { opacity: 0; transform: translateY(6px) scale(.98); } }
   .menu button {
-    appearance: none; border: 0; background: none; cursor: pointer; min-height: 40px; padding: 0 12px; border-radius: 9px;
+    appearance: none; border: 0; background: none; cursor: pointer; min-height: 40px; padding: 0 12px; border-radius: calc(var(--r-l) - 6px);
     display: flex; align-items: center; gap: 12px; text-align: left; white-space: nowrap; font: 400 var(--t-m)/1.2 var(--f-ui); color: var(--ink);
   }
   .menu button svg { flex: none; color: var(--ink-2); }

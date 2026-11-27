@@ -12,6 +12,7 @@
  *  Safari is asked to look again when the colour changes (a strip that appears is sampled
  *  anew). */
 import { isSafari } from './env';
+import { embedded, tellPage } from './embed';
 
 let meta: HTMLMetaElement | null = null;
 let probe: CanvasRenderingContext2D | null = null;
@@ -52,6 +53,9 @@ export function edges(color: string, ms: number) {
       document.head.append(meta);
     }
     meta.content = hex(resolve(color));
+    // (a book on another site's page: that page paints its own edges with it while the book
+    // fills its window)
+    if (embedded) tellPage('paper', { paper: meta.content });
   });
 }
 

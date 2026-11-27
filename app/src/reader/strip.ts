@@ -21,6 +21,8 @@ export const enum Flag {
 export interface SecLayout {
   cols: number;
   n: number;
+  /** The rows the chapter's head takes atop its first column (the press's count). */
+  headRows: number;
   u: Uint32Array;
   f: Float32Array;
   /** Index of the first line of each column; length cols + 1. */
@@ -33,9 +35,9 @@ export function parseLayout(buf: ArrayBuffer): Map<number, SecLayout> {
   const u = new Uint32Array(buf), f = new Float32Array(buf);
   const out = new Map<number, SecLayout>();
   const ns = u[0];
-  let at = 1 + 3 * ns;
+  let at = 1 + 4 * ns;
   for (let i = 0; i < ns; i++) {
-    const idx = u[1 + 3 * i], cols = u[2 + 3 * i], n = u[3 + 3 * i];
+    const idx = u[1 + 4 * i], cols = u[2 + 4 * i], n = u[3 + 4 * i], headRows = u[4 + 4 * i];
     const lu = u.subarray(at, at + n * FIELDS), lf = f.subarray(at, at + n * FIELDS);
     const colStart = new Int32Array(cols + 1);
     let c = 0;
@@ -44,7 +46,7 @@ export function parseLayout(buf: ArrayBuffer): Map<number, SecLayout> {
       while (c < col) colStart[++c] = j;
     }
     while (c < cols) colStart[++c] = n;
-    out.set(idx, { cols, n, u: lu, f: lf, colStart });
+    out.set(idx, { cols, n, headRows, u: lu, f: lf, colStart });
     at += n * FIELDS;
   }
   return out;

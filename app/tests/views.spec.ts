@@ -28,8 +28,15 @@ async function selectWord(p: Page, touch: boolean, line = 4) {
   const lns = p.locator(`.col[data-k="${k}"] .ln[data-b]`);
   const n = Math.min(line, (await lns.count()) - 1);
   if (!touch) {
-    const b = (await lns.nth(n).boundingBox())!;
-    await p.mouse.dblclick(b.x + b.width * 0.4, b.y + b.height / 2);
+    // (the middle of a word: a point across the line may fall in a space)
+    const b = await lns.nth(n).evaluate(ln => {
+      const t = [...ln.childNodes].find(c => c.nodeType === 3 && /\S{4,}/.test(c.textContent!)) as Text;
+      const w = /\S{4,}/.exec(t.data)!, r = document.createRange();
+      r.setStart(t, w.index); r.setEnd(t, w.index + w[0].length);
+      const x = r.getBoundingClientRect();
+      return { x: x.left + x.width / 2, y: x.top + x.height / 2 };
+    });
+    await p.mouse.dblclick(b.x, b.y);
   } else await lns.nth(n).evaluate(ln => {
     const t = [...ln.childNodes].find(c => c.nodeType === 3 && /\S+\s+\S+/.test(c.textContent!)) as Text;
     const w = [...t.data.matchAll(/\S+/g)];
@@ -178,6 +185,11 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await p.keyboard.press('?');
     await expect(p.locator('.sheet')).toBeVisible();
     await check('help', ['.sheet']);
+    await esc('.sheet');
+    // a link out of the book, asked about (a long address: it wraps within the sheet)
+    await p.evaluate(() => (window as any).__typeset.reader.openLink('https://example.org/a/rather/long/address/for/a/phone/to/wrap/within/its/sheet?with=a&query=too'));
+    await expect(p.locator('.sheet')).toBeVisible();
+    await check('link', ['.sheet']);
     await esc('.sheet');
     await p.keyboard.press('/');
     await p.keyboard.type('Syme'); await p.keyboard.press('Enter');

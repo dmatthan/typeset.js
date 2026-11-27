@@ -61,26 +61,26 @@
 <style>
   .lb { position: fixed; inset: 0; z-index: 80; cursor: zoom-out; }
   .scrim {
-    position: absolute; inset: 0; opacity: 0; transition: opacity .28s ease;
+    position: absolute; inset: 0; opacity: 0; transition: opacity var(--calm) ease;
     background: radial-gradient(ellipse at 50% 46%, oklch(0.13 0.008 260 / 0.84) 0%, oklch(0.09 0.008 260 / 0.92) 60%, oklch(0.05 0.008 260 / 0.97) 100%);
   }
   img {
-    position: absolute; transform-origin: 0 0; border-radius: 3px; will-change: transform;
-    transition: transform .3s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
+    position: absolute; transform-origin: 0 0; border-radius: var(--r-xs); will-change: transform;
+    transition: transform var(--calm) cubic-bezier(.2, .8, .2, 1); box-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
     object-fit: contain; image-rendering: auto;
     /* line art often comes on a transparent ground: give it its paper */
     background: var(--paper);
   }
   .cap {
     position: absolute; left: 50%; transform: translateX(-50%); width: min(720px, 86vw); margin: 0; text-align: center;
-    font: 500 14px/1.45 var(--f-ui); color: oklch(0.92 0.005 260 / 0.82); opacity: 0; transition: opacity .2s ease .12s;
+    font: 500 14px/1.45 var(--f-ui); color: oklch(0.92 0.005 260 / 0.82); opacity: 0; transition: opacity var(--quick) ease var(--quick);
   }
   .shown .scrim { opacity: 1; }
   .shown .cap { opacity: 1; }
   .reduced img, .reduced .scrim, .reduced .cap { transition: none; }
   /* a rich block is ink on transparent: shown on a card of the page's paper, its ink
      turned light only where the paper is dark (as on the page: reader.css) */
-  .card { position: absolute; border-radius: 14px; background: var(--paper); opacity: 0; transition: opacity .3s ease; }
+  .card { position: absolute; border-radius: var(--r-l); background: var(--paper); opacity: 0; transition: opacity var(--calm) ease; }
   .shown .card { opacity: 1; }
   .lb.rich img { background: none; box-shadow: none; }
   :global(.dark-paper) .lb.rich img { filter: invert(1) hue-rotate(180deg); }

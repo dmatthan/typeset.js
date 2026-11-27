@@ -25,12 +25,26 @@ pub(super) fn matter_of(e: &ElementRef) -> bool {
 
 pub(super) struct RawBlock {
     pub(super) block: Block,
+    /// A heading as the book sets it (`head_metrics`).
+    pub(super) head: Option<HeadMetrics>,
+}
+
+/// A heading's size and the space above and below it, in the text's em, and where it is
+/// set across the measure (`HeadLine::align`).
+#[derive(Clone, Copy)]
+pub(super) struct HeadMetrics {
+    pub(super) size: f32,
+    pub(super) above: f32,
+    pub(super) below: f32,
+    pub(super) align: u8,
 }
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct Ctx {
     pub(super) quote: bool,
     pub(super) li: bool,
+    /// Inside an `hgroup`: its paragraphs are lines of the heading (a subtitle).
+    pub(super) hgroup: bool,
 }
 
 #[derive(Default)]
@@ -54,6 +68,12 @@ pub(super) struct Extractor {
     pub(super) asides: HashMap<String, (String, Vec<typeset_model::Run>, Vec<(u32, u32, String)>)>,
     /// Images to read once the walk is done: path, description, pixel density.
     pub(super) images: Vec<(String, String, f32)>,
+    /// The bottom margin of the block last set, in the text's em: the next paragraph's top
+    /// margin meets it (`Setting::above`).
+    pub(super) below: f32,
+    /// The text of the paragraphs set at each leading (a hundredth, 0 for none or the
+    /// browser's own), in bytes: the book's own leading is the most text's (`leading`).
+    pub(super) leadings: HashMap<u32, usize>,
     /// Images met inside a paragraph, set after it.
     pub(super) after_para: Vec<(String, String, f32)>,
     /// Rich blocks' XHTML (`rich:<n>` among the images), and the rules of the document
@@ -147,6 +167,12 @@ pub(super) fn is_noteref(e: &ElementRef) -> bool {
 }
 
 impl Extractor {
+    /// The leading the book sets its text in: the most text's, where that is one it says.
+    pub(super) fn leading(&self) -> Option<f32> {
+        let (&at, _) = self.leadings.iter().max_by_key(|&(k, n)| (n, k))?;
+        (at > 0).then(|| at as f32 / 100.0)
+    }
+
     pub(super) fn start_section(&mut self, label: Option<String>, matter: bool) {
         self.flush_para(Ctx::default());
         self.sections.push(RawSection { toc_label: label, blocks: Vec::new(), matter });
@@ -171,7 +197,7 @@ impl Extractor {
         if !links.is_empty() {
             self.raw_links.insert(key, links);
         }
-        self.sections.last_mut().unwrap().blocks.push(RawBlock { block: Block::new(key, kind, text, runs) });
+        self.sections.last_mut().unwrap().blocks.push(RawBlock { block: Block::new(key, kind, text, runs), head: None });
         Some(key)
     }
 
@@ -467,9 +493,7 @@ impl Extractor {
 
     /// Text collected inline from `e`, with what it noticed absorbed.
     pub(super) fn collect(&mut self, e: ElementRef, b: &mut TextBuilder, st: u8) {
-        let n = e.value().name().as_bytes();
-        let heading = n.len() == 2 && n[0].eq_ignore_ascii_case(&b'h') && n[1].is_ascii_digit();
-        let st = if heading { st } else { css::apply(st, css::of(&e)) };
+        let st = css::apply(st, css::of(&e));
         let path = std::mem::take(&mut self.path);
         let mut cx = Inl { path: &path, ids: vec![], images: vec![] };
         inline(e, b, st, &mut cx);
@@ -480,13 +504,26 @@ impl Extractor {
 
     pub(super) fn block(&mut self, e: ElementRef, name: &str, ctx: Ctx) {
         if name == "hr" {
-            self.push(Kind::Break, TextBuilder::new());
+            // a line where its border shows (a browser's own does: centred, the full width),
+            // its width and place as the book gives them; none, the reader's own break
+            let p = css::of(&e);
+            if self.push(Kind::Break, TextBuilder::new()).is_some() && p.border.unwrap_or(true) {
+                let rule = typeset_model::Rule { width: p.width.unwrap_or(1.0).clamp(0.05, 1.0), align: u8::from(p.centred.unwrap_or(true)) };
+                self.sections.last_mut().unwrap().blocks.last_mut().unwrap().block.rule = Some(rule);
+            }
             return;
         }
-        if name.strip_prefix('h').and_then(|d| d.parse::<u8>().ok()).is_some() {
+        if name.strip_prefix('h').and_then(|d| d.parse::<u8>().ok()).is_some() || (ctx.hgroup && name == "p") {
+            // (what the elements around it say flows into it, as a browser's would: a
+            // group's small capitals into its subtitle)
+            let inherited = e.ancestors().filter_map(ElementRef::wrap).take_while(|a| a.value().name() != "body").collect::<Vec<_>>().iter().rev().fold(0, |st, a| css::apply(st, css::of(a)));
             let mut b = TextBuilder::new();
-            self.collect(e, &mut b, 0);
-            self.push(Kind::H, b);
+            self.collect(e, &mut b, inherited);
+            if self.push(Kind::H, b).is_some() {
+                let m = head_metrics(&e);
+                self.below = m.below;
+                self.sections.last_mut().unwrap().blocks.last_mut().unwrap().head = Some(m);
+            }
             self.flush_para(ctx);
             return;
         }
@@ -519,7 +556,7 @@ impl Extractor {
             BLOCK.contains(&n.as_str()) || is_verse(&c) || contains_target(&c, &self.targets)
         });
         if has_block_child {
-            let c = Ctx { quote: ctx.quote || name == "blockquote", li: ctx.li };
+            let c = Ctx { quote: ctx.quote || name == "blockquote", li: ctx.li, hgroup: ctx.hgroup || name == "hgroup" };
             self.walk(e, c);
             self.flush_para(c);
             return;
@@ -541,9 +578,67 @@ impl Extractor {
         } else {
             Kind::P
         };
-        self.push(kind, b);
+        let pushed = self.push(kind, b).is_some();
+        // a paragraph as its book sets it: its indent (inherited, the nearest that says; the
+        // browser's none) and the space above (its top margin, the browser's 1 em, meeting
+        // the bottom one of the block before)
+        let p = css::of(&e);
+        if pushed && kind == Kind::P {
+            let indent = std::iter::once(e).chain(e.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).indent).unwrap_or(0.0);
+            let above = p.margin_top.unwrap_or(1.0).max(self.below);
+            let block = &mut self.sections.last_mut().unwrap().blocks.last_mut().unwrap().block;
+            // set ragged where the book sets it at the start apart from a justified text (its
+            // body's, the text's own: which a theme decides)
+            let aligned = |from: ElementRef| std::iter::once(from).chain(from.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).align);
+            let body = e.ancestors().filter_map(ElementRef::wrap).find(|a| a.value().name() == "body");
+            let ragged = aligned(e) == Some(3) && body.is_some_and(|b| aligned(b) == Some(0));
+            block.set = Some(typeset_model::Setting { indent, above, ragged });
+            // (line-height inherited too, from as far as the root)
+            let leading = std::iter::once(e).chain(e.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).leading).unwrap_or(0.0);
+            *self.leadings.entry((leading * 100.0).round() as u32).or_default() += block.text.len();
+        }
+        if pushed {
+            self.below = p.margin_bottom.unwrap_or(if name == "p" { 1.0 } else { 0.0 });
+        }
         self.flush_para(ctx);
     }
+}
+
+/// A heading's size and the space above and below it, in the text's em, as a browser sets
+/// them on a page: its size against its parents' up to the body (the browser's own for h1
+/// to h6 where the book gives none); above, the top paddings of the heading and of each
+/// element it opens (a group, a section; their margins are dropped at the page's top, where
+/// a head is); below, the largest bottom margin (margins meet, as a browser's do) and every
+/// bottom padding, of the heading and of each element it closes. Each in its own em.
+fn head_metrics(e: &ElementRef) -> HeadMetrics {
+    // the browser's: size and margins, h1 to h6
+    const UA: [(f32, f32); 6] = [(2.0, 0.67), (1.5, 0.83), (1.17, 1.0), (1.0, 1.33), (0.83, 1.67), (0.67, 2.33)];
+    let ua = |el: &ElementRef| el.value().name().strip_prefix('h').and_then(|d| d.parse::<usize>().ok()).filter(|d| (1..=6).contains(d)).map(|d| UA[d - 1]);
+    let mut chain = vec![*e];
+    while let Some(p) = chain.last().unwrap().parent().and_then(ElementRef::wrap).filter(|p| p.value().name() != "body") {
+        chain.push(p);
+    }
+    // each one's size in the text's em, from the body down
+    let mut sizes = vec![1.0f32; chain.len()];
+    let mut acc = 1.0;
+    for i in (0..chain.len()).rev() {
+        acc *= css::of(&chain[i]).size.or(ua(&chain[i]).map(|u| u.0)).unwrap_or(1.0);
+        sizes[i] = acc;
+    }
+    // (an element opens its parent only as its first, and closes it only as its last)
+    let opens = |i: usize| i == 0 || !chain[i - 1].prev_siblings().any(|s| ElementRef::wrap(s).is_some());
+    let closes = |i: usize| i == 0 || !chain[i - 1].next_siblings().any(|s| ElementRef::wrap(s).is_some());
+    let above = (0..chain.len()).take_while(|&i| opens(i)).map(|i| css::of(&chain[i]).padding_top.unwrap_or(0.0) * sizes[i]).sum();
+    let (mut margin, mut padding) = (0f32, 0f32);
+    for i in (0..chain.len()).take_while(|&i| closes(i)) {
+        let p = css::of(&chain[i]);
+        margin = margin.max(p.margin_bottom.or(ua(&chain[i]).map(|u| u.1)).unwrap_or(0.0) * sizes[i]);
+        padding += p.padding_bottom.unwrap_or(0.0) * sizes[i];
+    }
+    // (text-align inherited, from as far as the root; the start where nothing says, or
+    // justified, which a heading's line cannot be)
+    let align = std::iter::once(*e).chain(e.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).align).filter(|a| matches!(a, 1 | 2)).unwrap_or(0);
+    HeadMetrics { size: sizes[0], above, below: margin + padding, align }
 }
 
 pub(super) fn contains_target(e: &ElementRef, targets: &HashMap<String, String>) -> bool {

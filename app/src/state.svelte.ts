@@ -3,7 +3,7 @@
  *  parts all read and set it. */
 import type { Sel } from './reader/selection';
 
-export type Sheet = null | 'settings' | 'theme' | 'help' | 'remove' | 'note' | 'book' | 'shelf' | 'send' | 'share' | 'invite' | 'welcome' | 'fbexport' | 'draft' | 'newdraft' | 'epub';
+export type Sheet = null | 'settings' | 'theme' | 'help' | 'remove' | 'note' | 'book' | 'shelf' | 'send' | 'share' | 'invite' | 'welcome' | 'fbexport' | 'draft' | 'newdraft' | 'epub' | 'link';
 
 /** Reactive state the chrome reads. */
 export const ui = $state({
@@ -27,16 +27,21 @@ export const ui = $state({
   busy: '',
   /** Columns in focus right now, and whether the chosen layout had to give way. */
   cols: 1,
-  /** A phone-sized window: one column as a spread, the touch conventions. */
+  /** A phone-sized window: one column as a spread. */
   phone: false,
+  /** A touch screen (ui/touch.ts): gestures, not keys; controls sized for a finger. */
+  touch: false,
+  /** The address a link out of the book goes to, asked about before it is opened. */
+  leaving: '',
   /** The text being set again (a size, the window): the page's number is not shown until
    *  the whole book's is known (a first pass counts the chapters before by estimate). */
   settling: false,
   /** Arrows at the text's sides to turn by (geometry.ts says when). */
   arrows: false,
-  /** Full screen: the browser's, or (a book on another site's page with none) the page's
-   *  window filled with the book (ui/keys.ts, `toggleFull`). */
-  full: false,
+  /** Where a book on another site's page is (the page says; core/embed.ts): in its box on
+   *  the page, filling the page's window, or past it the screen (the browser's full screen,
+   *  the frame's own). */
+  place: 'box' as 'box' | 'window' | 'screen',
   /** Bumps when a tap asks the reader's bar to show or hide (touch). */
   barToggle: 0,
   colsReduced: false,

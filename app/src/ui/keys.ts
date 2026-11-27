@@ -1,7 +1,7 @@
 /** The keys of a book being read, the same wherever the reader is shown (the app, another
  *  site's page), less what that page has turned off (`features`). Each shell handles the
  *  keys only it has (the library, quitting) around these. Every key is listed in Help. */
-import { features, fullscreenBy, tellPage, type Features } from '../core/embed';
+import { embedded, embedOpts, features, tellPage, type Features } from '../core/embed';
 import { shell } from '../core/shell';
 import type { Contents } from '../reader/contents.svelte';
 import type { Reader } from '../reader/reader.svelte';
@@ -20,12 +20,25 @@ export interface Keyed {
 /** Focus is in a field: its keys are its own. */
 export const typing = (t: EventTarget | null) => !!(t as Element)?.closest?.('textarea, input:not([type=checkbox]):not([type=radio]), select, [contenteditable]');
 
-/** Full screen and back: the browser's own (the window, or a book's frame on another
- *  site's page), or the page asked to fill its window with the book where a frame has no
- *  full screen of its own (core/embed.ts, `fullscreenBy`). */
-export function toggleFull() {
-  if (fullscreenBy() === 'page') { ui.full = !ui.full; tellPage('full', { on: ui.full }); }
-  else shell.toggleFullscreen();
+/** A book on another site's page, one step bigger (its corner's control, F): from its box,
+ *  the page's window (the page fills it with the book); from there, the screen (the
+ *  browser's full screen, the frame's own, where it has one: an iPhone's frames have none);
+ *  from the screen, back to the window. The app: the system's full screen. */
+export function bigger() {
+  if (!embedded) { shell.toggleFullscreen(); return; }
+  if (ui.place === 'box') tellPage('expand');
+  else if (ui.place === 'screen' || document.fullscreenEnabled) shell.toggleFullscreen();
+}
+/** What the corner's control would do, named; none where it can do nothing. */
+export function biggerName(): string | null {
+  if (!embedded || embedOpts.ui !== 'full') return null;
+  return ui.place === 'box' ? 'Expand' : ui.place === 'screen' ? 'Leave full screen' : document.fullscreenEnabled ? 'Full screen' : null;
+}
+/** Out to the page, from any height in one step (× Close): the screen left, the book back
+ *  in its box (or, opened over the page, gone). */
+export function closeOut() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  tellPage('close');
 }
 
 export function openFind(k: Keyed) {
@@ -50,10 +63,11 @@ async function cycleLayout(reader: Reader) {
 const KEYS: Partial<Record<string, { need?: keyof Features; run: (k: Keyed) => void }>> = {
   m: { need: 'contents', run: k => k.contents.open() },
   b: { need: 'highlights', run: k => k.reader.toggleBookmark() },
+  Backspace: { run: k => k.reader.goBack() },
   ']': { run: k => k.contents.chapter(1) },
   '[': { run: k => k.contents.chapter(-1) },
   s: { need: 'settings', run: () => (ui.sheet = 'settings') },
-  '?': { run: () => (ui.sheet = 'help') },
+  '?': { need: 'help', run: () => (ui.sheet = 'help') },
   '/': { need: 'find', run: openFind },
   v: { need: 'highlights', run: k => k.reader.cursor.start() },
   c: { need: 'settings', run: k => cycleLayout(k.reader) },
@@ -75,11 +89,13 @@ export function readerKey(e: KeyboardEvent, k: Keyed): boolean {
     (e.target as HTMLElement).blur(); k.reader.stage?.focus({ preventScroll: true });
     return true;
   }
-  if (e.key === 'F11' || (e.key === 'f' && !ui.sheet)) { toggleFull(); return true; }
+  if (features.fullscreen && (e.key === 'F11' || (e.key === 'f' && !ui.sheet))) { bigger(); return true; }
   if (ui.sheet || ui.view !== 'reader') return false;
   if (ui.contents) return k.contents.key(e);
   if (ui.chip) return !!k.chip?.key(e);
   if (k.reader.input.key(e)) return true;
+  // (with nothing else to put away, Escape a step down: the window back to its box)
+  if (e.key === 'Escape' && embedded && ui.place === 'window') { closeOut(); return true; }
   const key = KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
   if (!key || (key.need && !features[key.need])) return false;
   key.run(k);

@@ -1,4 +1,4 @@
-import { devices, type Page } from '@playwright/test';
+import { devices, type Frame, type Page } from '@playwright/test';
 import { test, expect } from './base';
 import { layout, still } from './audit';
 import { execFileSync } from 'node:child_process';
@@ -99,7 +99,7 @@ async function hostPage(p: Page, body: string, origin = '') {
   // (a page as authors make them: sized for the device it is read on)
   await p.route(origin ? url : '**' + url, r => r.fulfill({ contentType: 'text/html', body: `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <script type="module" src="${elements}"></script>${body}
-    <script>window.heard = []; for (const t of ['ready', 'progress', 'end', 'error', 'back', 'full']) addEventListener('typeset-' + t, e => heard.push([t, e.detail]));</script>` }));
+    <script>window.heard = []; for (const t of ['ready', 'progress', 'end', 'error', 'back', 'place']) addEventListener('typeset-' + t, e => heard.push([t, e.detail]));</script>` }));
   await p.goto(url);
 }
 /** The package's site as two sites on the web see it: a public address (a page on one may not
@@ -138,7 +138,7 @@ async function fromMenu(p: Page, name: string, touch = false) {
 async function fullButton(p: Page, name: string, touch = false) {
   const f = p.frameLocator('typeset-book iframe');
   await barUp(p, touch);
-  const b = f.getByRole('button', { name });
+  const b = f.getByRole('button', { name, exact: true });
   await expect(b).toBeVisible();
   if (!touch) { await b.click(); return; }
   const r = (await b.boundingBox())!;
@@ -234,6 +234,31 @@ test('a page shows as much of the reader as it wants, and turns off what it does
 const channels = (c: string) => (c.startsWith('#') ? c.slice(1).match(/../g)!.map(h => parseInt(h, 16)) : c.match(/\d+/g)!.slice(0, 3).map(Number));
 const near = (a: string, b: string) => channels(a).every((v, i) => Math.abs(v - channels(b)[i]) <= 3);
 
+test('a page\'s paper, or a theme of its own, is a layer for the visit, not another theme: Aa offers six, Book on the page\'s paper; a page\'s theme in Book\'s place', async ({ page: p }) => {
+  await hostPage(p, '<div style="background: #f3ece0; padding: 20px"><typeset-book src="/books/meditations.epub" paper="page" style="height: 600px; width: 900px"></typeset-book></div>');
+  await ready(p);
+  const f = p.frameLocator('typeset-book iframe');
+  const paper = () => f.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--paper').trim());
+  await expect.poll(async () => near(await paper(), '#f3ece0')).toBe(true);
+  await f.locator('.stage').click({ position: { x: 5, y: 300 } });
+  await p.keyboard.press('s');
+  const names = () => f.locator('.panel .th .nm').allInnerTexts();
+  expect(await names()).toEqual(['Book', 'Slate', 'Linen', 'Clear', 'Warm', 'Open']);
+  await expect(f.locator('.th[aria-checked="true"] .nm')).toHaveText('Book');
+  // Book's swatch as the book looks here: on the page's paper
+  const swatch = (name: string) => f.locator('.th', { hasText: name }).locator('.aa').evaluate(e => getComputedStyle(e).getPropertyValue('--pp').trim());
+  expect(near(await swatch('Book'), '#f3ece0')).toBe(true);
+  // another theme its own paper; Book, the page's again
+  await f.locator('.th', { hasText: 'Slate' }).click();
+  await expect.poll(async () => near(await paper(), '#f3ece0')).toBe(false);
+  await f.locator('.th', { hasText: 'Book' }).click();
+  await expect.poll(async () => near(await paper(), '#f3ece0')).toBe(true);
+  // a theme the page made, in Book's place: still six
+  await p.evaluate(() => (document.querySelector('typeset-book') as any).setTheme({ format: 'typeset-theme/1', name: 'Harbour', font: { family: 'Charis' }, light: { paper: '#eef2f4', ink: '#1d2b33', accent: '#2f6f8f' }, dark: { paper: '#1b2328', ink: '#d3dde3', accent: '#7fb6d1' } }));
+  await expect.poll(names).toEqual(['Harbour', 'Slate', 'Linen', 'Clear', 'Warm', 'Open']);
+  await expect(f.locator('.th[aria-checked="true"] .nm')).toHaveText('Harbour');
+});
+
 test('on an author\'s page: the page\'s own paper, Back only when asked for, full screen; nothing of Volumen\'s own', async ({ page: p }) => {
   // inline, as most pages have it: the page is the way back, and the reader carries no brand
   await hostPage(p, '<div style="background: #f3ece0; padding: 20px"><typeset-book src="/books/meditations.epub" paper="page" style="height: 600px"></typeset-book></div>');
@@ -260,11 +285,6 @@ test('on an author\'s page: the page\'s own paper, Back only when asked for, ful
   await ready(p);
   await expect.poll(async () => near(await paper(), '#1e1c19')).toBe(true);
   expect(await f.locator('.reader').evaluate(el => el.classList.contains('dark-paper'))).toBe(true);
-  // full screen, the browser's own (in its menu)
-  await fullButton(p, 'Read full screen');
-  await expect.poll(() => f.locator('html').evaluate(() => !!document.fullscreenElement)).toBe(true);
-  await fullButton(p, 'Leave full screen');
-  await expect.poll(() => f.locator('html').evaluate(() => !!document.fullscreenElement)).toBe(false);
   // Back to an address the page names: a link out of the frame, in the page's own window
   await hostPage(p, '<typeset-book src="/books/meditations.epub" back="/shelf" style="height: 600px"></typeset-book>');
   await ready(p);
@@ -282,6 +302,105 @@ test('on an author\'s page: the page\'s own paper, Back only when asked for, ful
   await ready(p);
   await f.getByRole('button', { name: 'Back' }).click();
   await expect(p).toHaveURL(/:8791\/$/);
+});
+
+test('a margin step narrows the text in a box with arrows (the home page\'s, 493 wide), through the panel as a reader moves it', async ({ page: p }) => {
+  await hostPage(p, `<typeset-book src="/books/meditations.epub" style="height: 650px; width: 493px"></typeset-book>`);
+  await ready(p);
+  const f = p.frameLocator('typeset-book iframe');
+  await expect(f.getByRole('button', { name: 'Next page' })).toBeVisible();
+  const measure = () => f.locator('.col .ln').first().evaluate(el => el.closest('.col')!.getBoundingClientRect().width);
+  const w0 = await measure();
+  await f.locator('.stage').click({ position: { x: 5, y: 300 } });
+  await p.keyboard.press('s');
+  await f.getByRole('button', { name: /^Style/ }).click();
+  const margins = f.getByRole('slider', { name: /Margins/ });
+  await margins.focus();
+  // a press, a step: narrower at once (from the arrows' room, the least there is here)
+  await p.keyboard.press('ArrowRight');
+  await expect.poll(measure).toBeLessThan(w0);
+  // the slider's far end: a fifth of the line and more
+  await p.keyboard.press('End');
+  await expect.poll(measure).toBeLessThan(w0 * 0.8);
+});
+
+test('what a page does not show, its reader does not open: no key reaches what `ui` hid or `off` turned off', async ({ page: p }) => {
+  test.setTimeout(240000);
+  const KEYS = ['s', 'c', 'm', '/', 'Control+f', '?', 'b', 'v', ';', 'f'];
+  // what each key may open, as the reader sees it
+  const opened = (f: Frame) => f.evaluate(() => [
+    document.querySelector('[role=dialog]')?.getAttribute('aria-label') ?? '',
+    document.querySelector('.contents') ? 'contents' : '',
+    document.querySelector('.find') ? 'find' : '',
+    document.querySelector('.sns') ? 'notes' : '',
+    document.querySelector('.pick') ? 'a paragraph chosen' : '',
+    document.querySelector('.ribbon') ? 'a bookmark' : '',
+    document.fullscreenElement ? 'full screen' : '',
+  ].filter(Boolean).join(', '));
+  const got: Record<string, string> = {};
+  for (const attrs of ['', 'ui="minimal"', 'ui="none"', 'off="contents settings find highlights"']) {
+    for (const key of KEYS) {
+      await hostPage(p, `<typeset-book src="/books/meditations.epub" ${attrs} style="height: 600px; width: 1180px"></typeset-book>`);
+      await ready(p);
+      const fr = p.frames().find(f => f.url().includes('embed'))!;
+      // (a page of text: B, V and ; have nothing to do on the title page)
+      await p.evaluate(() => (document.querySelector('typeset-book') as any).goTo({ at: 0.03 }));
+      await expect(fr.locator('.col .ln[data-b]').first()).toBeVisible();
+      await still(fr);
+      await fr.locator('.stage').click({ position: { x: 5, y: 300 } });
+      await p.keyboard.press(key);
+      // (a key's work is done in the frame it reaches, at once; a moment for what it opens to show)
+      await p.waitForTimeout(300);
+      // (and F's: the book filling the page's window, which the page's element knows)
+      const big = await p.evaluate(() => (document.querySelector('typeset-book') as any).place === 'window');
+      const what = [await opened(fr), big ? 'expanded' : ''].filter(Boolean).join(', ');
+      if (what) got[`${attrs || 'everything'} ${key}`] = what;
+    }
+  }
+  // all of the reader where the page shows all of it (the test sees what opens); with
+  // features off, the full interface's Help and full screen still; with less interface, none
+  expect(got).toEqual({
+    'everything s': 'Type and appearance', 'everything m': 'contents', 'everything /': 'find', 'everything Control+f': 'find',
+    'everything ?': 'Keyboard shortcuts', 'everything b': 'a bookmark', 'everything v': 'a paragraph chosen', 'everything ;': 'notes', 'everything f': 'expanded',
+    'off="contents settings find highlights" ?': 'Keyboard shortcuts', 'off="contents settings find highlights" f': 'expanded',
+  });
+});
+
+test('a box narrower than a phone, on a page read with a mouse and keys: Help draws the keys, every one', async ({ page: p }) => {
+  await hostPage(p, `<typeset-book src="/books/meditations.epub" style="height: 650px; width: 493px"></typeset-book>`);
+  await ready(p);
+  const f = p.frameLocator('typeset-book iframe');
+  await f.locator('.stage').click({ position: { x: 5, y: 300 } });
+  await p.keyboard.press('?');
+  await expect(f.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeVisible();
+  const hidden = await f.locator('.sheet kbd').evaluateAll(ks => ks.filter(k => !k.getBoundingClientRect().width).map(k => k.textContent));
+  expect(hidden).toEqual([]);
+});
+
+test('nothing of the pages either side shows past the curtains, a box with arrows (the home page\'s, 493 wide) or a wide one', async ({ page: p }) => {
+  for (const width of [493, 900]) {
+    await hostPage(p, `<typeset-book src="/books/meditations.epub" style="height: 650px; width: ${width}px"></typeset-book>`);
+    await ready(p);
+    // a page of running text, its neighbours text too
+    await p.evaluate(() => (document.querySelector('typeset-book') as any).goTo({ at: 0.03 }));
+    const fr = p.frames().find(f => f.url().includes('embed'))!;
+    await p.mouse.move(0, 0);
+    // (at rest: the bar the reader shows on opening put away on its timer, and faded)
+    await expect(p.frameLocator('typeset-book iframe').locator('header.bar.away')).toHaveCount(1);
+    await still(fr);
+    const book = p.locator('typeset-book');
+    const before = await book.screenshot();
+    // the columns wholly beyond the curtains' inner edges, hidden: the screen must not change
+    const hid = await fr.evaluate(() => {
+      const [l, r] = [...document.querySelectorAll<HTMLElement>('.curtain')].map(c => c.getBoundingClientRect());
+      const beside = [...document.querySelectorAll<HTMLElement>('.col')].filter(c => { const b = c.getBoundingClientRect(); return b.width > 0 && (b.right <= l.right || b.left >= r.left); });
+      for (const c of beside) c.style.visibility = 'hidden';
+      return beside.length;
+    });
+    expect(hid, `width ${width}`).toBeGreaterThan(0);
+    await still(fr);
+    expect((await book.screenshot()).equals(before), `width ${width}: a neighbour shows through a curtain`).toBe(true);
+  }
 });
 
 test('on an author\'s page, quiet arrows at its sides turn it for a mouse; not in full screen, nor with less of the reader', async ({ page: p }) => {
@@ -308,13 +427,11 @@ test('on an author\'s page, quiet arrows at its sides turn it for a mouse; not i
   await p.evaluate(() => (document.querySelector('typeset-book') as any).goTo({ at: 1 }));
   await expect(next).toBeDisabled();
   await expect(prev).toBeEnabled();
-  // full screen is the reader as it is meant to be: none
-  if (await f.locator('html').evaluate(() => document.fullscreenEnabled)) {
-    await fullButton(p, 'Read full screen');
-    await expect(next).toHaveCount(0);
-    await fullButton(p, 'Leave full screen');
-    await expect(next).toBeVisible();
-  }
+  // filling the window (and the screen past it), the reader as it is meant to be: none
+  await fullButton(p, 'Expand');
+  await expect(next).toHaveCount(0);
+  await fullButton(p, 'Close');
+  await expect(next).toBeVisible();
   // a box narrower than a desktop's spread has them too, while the text keeps a measure the
   // layout would take; one narrower still keeps its measure instead
   for (const [w, shown] of [[560, 1], [440, 0]] as const) {
@@ -363,6 +480,35 @@ test('Help lists the keys of what the page offers, and only those', async ({ pag
   await p.keyboard.press('c');
   await expect(f.locator('.toast.show')).toHaveCount(0);
   expect(await cols()).toBe(before);
+});
+
+test('while a book is on its way: one waiting text in the middle of the frame, in its own words throughout, after a beat; the first page fading in', async ({ page: p }) => {
+  let release!: () => void;
+  const held = new Promise<void>(r => (release = r));
+  await p.route('**/books/meditations.epub', async r => { await held; await r.continue(); });
+  // (every waiting text the frame shows, and every fade begun on the reader's track)
+  await p.addInitScript(() => {
+    if (window === window.top) return;
+    (window as any).__said = [];
+    new MutationObserver(() => { for (const b of document.querySelectorAll('.busy')) if (!(window as any).__said.includes(b.textContent)) (window as any).__said.push(b.textContent); }).observe(document, { subtree: true, childList: true, characterData: true });
+    const animate = Element.prototype.animate;
+    (window as any).__faded = 0;
+    Element.prototype.animate = function (this: Element, k: any, o: any) { if (this.classList.contains('track') && JSON.stringify(k).includes('opacity')) (window as any).__faded++; return animate.call(this, k, o); };
+  });
+  await hostPage(p, '<typeset-book src="/books/meditations.epub" style="height: 460px"></typeset-book>');
+  const f = p.frameLocator('typeset-book iframe');
+  const busy = f.locator('.busy');
+  await expect(busy).toHaveText('Opening the book…');
+  // in the middle of the frame, not its corner; after a beat (a quick open shows nothing)
+  const at = await busy.evaluate(b => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2 - innerWidth / 2, r.top + r.height / 2 - innerHeight / 2].map(Math.round); });
+  expect(at.every(d => Math.abs(d) <= 2)).toBe(true);
+  expect(await busy.evaluate(b => b.getAnimations().some(a => Number((a.effect as KeyframeEffect).getTiming().delay) >= 300))).toBe(true);
+  release();
+  await ready(p);
+  await expect(busy).toHaveCount(0);
+  const fr = p.frames().find(x => x.url().includes('embed.html'))!;
+  expect(await fr.evaluate(() => (window as any).__said)).toEqual(['Opening the book…']);
+  expect(await fr.evaluate(() => (window as any).__faded)).toBeGreaterThan(0);
 });
 
 test('a book that cannot be read is said so, to the reader and the page', async ({ page: p }) => {
@@ -420,35 +566,108 @@ test('in a box narrower than its menu (a sidebar), the selection\'s menu stays i
   expect(await layout(fr, ['.chip-pop'], false)).toEqual([]);
 });
 
+// A book bigger than its box: one ladder (its box, the window, the screen), one control to go
+// up (Expand, then Full screen) and one way out (× Close: back in its box, in one press, from
+// any height); Escape a step down; the browser's Back too.
+const place = (p: Page) => p.evaluate(() => (window as any).heard.filter((h: any) => h[0] === 'place').map((h: any) => h[1].place));
+const fills = async (p: Page) => { const b = (await p.locator('typeset-book iframe').boundingBox())!, vp = p.viewportSize()!; return [b.x, b.y, b.width, b.height].map(Math.round).join() === [0, 0, vp.width, vp.height].join(); };
+
+test('a book in a box: Expand fills the window, Full screen the screen; × Close puts it back in its box in one press, from either; Escape a step down; the browser\'s Back too', async ({ page: p }) => {
+  await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><typeset-book src="/books/meditations.epub" style="height: 460px"></typeset-book><p style="height: 1400px">After.</p>');
+  await ready(p);
+  const f = p.frameLocator('typeset-book iframe'), book = p.locator('typeset-book');
+  await p.evaluate(() => scrollTo(0, 120));
+  const was = (await book.boundingBox())!;
+  // in its box: no way out (the page is there), one way up
+  await barUp(p);
+  await expect(f.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0);
+  await expect(f.getByRole('button', { name: 'Full screen', exact: true })).toHaveCount(0);
+  await fullButton(p, 'Expand');
+  await expect.poll(() => fills(p)).toBe(true);
+  expect(await p.evaluate(() => [scrollY, getComputedStyle(document.documentElement).overflow])).toEqual([120, 'hidden']);
+  expect(Math.round((await book.boundingBox())!.y)).toBe(Math.round(was.y));
+  // the window: up once more, to the screen; × Close from there, the box again at once
+  await fullButton(p, 'Full screen');
+  await expect.poll(() => f.locator('html').evaluate(() => !!document.fullscreenElement)).toBe(true);
+  await fullButton(p, 'Close');
+  await expect.poll(() => f.locator('html').evaluate(() => !!document.fullscreenElement)).toBe(false);
+  await expect.poll(() => fills(p)).toBe(false);
+  expect(await p.evaluate(() => [scrollY, getComputedStyle(document.documentElement).overflow])).toEqual([120, 'visible']);
+  // Escape: from the window, a step down; the browser's Back, the same
+  await fullButton(p, 'Expand');
+  await expect.poll(() => fills(p)).toBe(true);
+  await p.keyboard.press('Escape');
+  await expect.poll(() => fills(p)).toBe(false);
+  await fullButton(p, 'Expand');
+  await expect.poll(() => fills(p)).toBe(true);
+  await p.goBack();
+  await expect.poll(() => fills(p)).toBe(false);
+  expect(p.url()).toMatch(/\/t\/page\.html$/);
+  await expect.poll(() => place(p)).toEqual(['window', 'box', 'window', 'box', 'window', 'box']);
+});
+
 test.describe('a phone, whose frames have no full screen', () => {
   test.use(phone);
-  test('Read full screen fills the page\'s window with the book, and Leave gives the page back as it was', async ({ page: p }) => {
+  test('Expand fills the window, edge to edge in the reader\'s paper; no Full screen past it; × Close gives the page back as it was', async ({ page: p }) => {
     // (as an iPhone: no full screen for a frame)
     await p.addInitScript(() => Object.defineProperty(Document.prototype, 'fullscreenEnabled', { get: () => false }));
-    await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><typeset-book src="/books/meditations.epub" style="height: 460px"></typeset-book><p style="height: 1400px">After.</p>');
+    await hostPage(p, '<meta name="theme-color" content="#ffffff"><style>html { background: #ffffff }</style><p style="height: 300px; margin: 0">Before.</p><typeset-book src="/books/meditations.epub" style="height: 460px"></typeset-book><p style="height: 1400px">After.</p>');
     await ready(p);
-    const f = p.frameLocator('typeset-book iframe'), book = p.locator('typeset-book'), frame = p.locator('typeset-book iframe');
+    const f = p.frameLocator('typeset-book iframe');
     await p.evaluate(() => scrollTo(0, 120));
-    const was = (await book.boundingBox())!;
-    const vp = p.viewportSize()!;
-    await fullButton(p, 'Read full screen', true);
-    await expect.poll(async () => { const b = (await frame.boundingBox())!; return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]; }).toEqual([0, 0, vp.width, vp.height]);
-    // the page behind as it was (nothing reflowed, nothing scrolled)
-    expect(await p.evaluate(() => scrollY)).toBe(120);
-    expect(Math.round((await book.boundingBox())!.y)).toBe(Math.round(was.y));
-    await expect.poll(() => heardOf(p, 'full')).toEqual([{ on: true }]);
-    // the page behind stays put
-    expect(await p.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden');
+    await fullButton(p, 'Expand', true);
+    await expect.poll(() => fills(p)).toBe(true);
     // the reader laid out for the whole window, as the app is
+    const vp = p.viewportSize()!;
     await expect.poll(() => f.locator('html').evaluate(() => innerHeight)).toBe(vp.height);
-    await fullButton(p, 'Leave full screen', true);
-    await expect.poll(async () => Math.round((await frame.boundingBox())!.y)).toBe(Math.round(was.y));
+    // edge to edge in the reader's paper: the frame filling the window painted with it (Safari
+    // takes its bars' colour from a fixed element across the top and the foot), and the
+    // page's theme-color (other browsers' bars), the page's own given back after
+    // (the paper as the reader paints it around its own page, in its own theme-color: a
+    // plain colour, where its token is written in oklch)
+    const paper = (await f.locator('meta[name="theme-color"]').getAttribute('content'))!;
+    const edges = () => p.evaluate(() => [getComputedStyle(document.querySelector('typeset-book')!.shadowRoot!.querySelector('iframe')!).backgroundColor, document.querySelector('meta[name=theme-color]')!.getAttribute('content')]);
+    await expect.poll(async () => { const [bg, meta] = await edges(); return near(bg!, paper) && near(meta!, paper); }).toBe(true);
+    // the most a phone has: no Full screen past it
+    await barUp(p, true);
+    await expect(f.getByRole('button', { name: 'Full screen', exact: true })).toHaveCount(0);
+    await fullButton(p, 'Close', true);
+    await expect.poll(() => fills(p)).toBe(false);
     expect(await p.evaluate(() => [getComputedStyle(document.documentElement).overflow, scrollY])).toEqual(['visible', 120]);
-    await expect.poll(() => heardOf(p, 'full')).toEqual([{ on: true }, { on: false }]);
+    expect((await edges())[1]).toBe('#ffffff');
+    expect(await p.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(255, 255, 255)');
+  });
+
+  test('a book opened over the page shows in its paper from its first frame, the page\'s own background the paper while it is open (a theme changed too), given back after', async ({ page: p }) => {
+    // (Safari takes its bars' colour from the page's background, or from a fixed element as
+    // it is shown, and not again: so nothing of the book shows before its paper is known)
+    await hostPage(p, '<style>html { background: #ffffff }</style><typeset-open src="/books/meditations.epub"><button id="go">Read</button></typeset-open><p style="height: 1400px">After.</p>');
+    let release!: () => void;
+    const held = new Promise<void>(r => (release = r));
+    await p.route('**/embed.html*', async r => { await held; await r.continue(); });
+    await p.locator('#go').click();
+    const book = p.locator('typeset-book'), f = p.frameLocator('typeset-book iframe');
+    await expect(book).toHaveCount(1);
+    expect(await book.evaluate(b => getComputedStyle(b).visibility)).toBe('hidden');
+    release();
+    await ready(p);
+    await expect.poll(() => book.evaluate(b => getComputedStyle(b).visibility)).toBe('visible');
+    const root = () => p.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+    const paper = async () => (await f.locator('meta[name="theme-color"]').getAttribute('content'))!;
+    await expect.poll(async () => near(await root(), await paper())).toBe(true);
+    // another theme while open: the page's background follows
+    const was = await paper();
+    await book.evaluate(b => (b as any).setTheme('slate'));
+    await expect.poll(paper).not.toBe(was);
+    await expect.poll(async () => near(await root(), await paper())).toBe(true);
+    await barUp(p, true);
+    await f.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(book).toHaveCount(0);
+    expect(await root()).toBe('rgb(255, 255, 255)');
   });
 });
 
-test('a book opened from the page\'s own button: the reader over the whole window, Back (or the browser\'s) gives the page back as it was', async ({ page: p }) => {
+test('a book opened from the page\'s own button: the reader over the whole window, Close (or the browser\'s Back) gives the page back as it was', async ({ page: p }) => {
   await hostPage(p, '<p style="height: 300px; margin: 0">Before.</p><typeset-open src="/books/meditations.epub" chapters="3"><button id="go">Read chapter three</button></typeset-open><p style="height: 1400px">After.</p>');
   await p.evaluate(() => scrollTo(0, 120));
   const vp = p.viewportSize()!, book = p.locator('typeset-book'), f = p.frameLocator('typeset-book iframe');
@@ -458,8 +677,8 @@ test('a book opened from the page\'s own button: the reader over the whole windo
   await ready(p);
   await expect.poll(async () => { const b = (await book.boundingBox())!; return [b.x, b.y, b.width, b.height].map(Math.round); }).toEqual([0, 0, vp.width, vp.height]);
   expect(await p.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe('hidden');
-  // the reader's Back: the page as it was, the button that opened the book focused
-  await f.getByRole('button', { name: 'Back' }).click();
+  // the reader's Close: the page as it was, the button that opened the book focused
+  await f.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(book).toHaveCount(0);
   expect(await p.evaluate(() => [scrollY, getComputedStyle(document.documentElement).overflow, document.activeElement?.id])).toEqual([120, 'visible', 'go']);
   expect(p.url()).toMatch(/\/t\/page\.html$/);
@@ -501,6 +720,9 @@ for (const [size, use] of [['desktop', { viewport: { width: 1280, height: 800 } 
     await ready(p);
     const fr = p.frames().find(f => f.url().includes('embed.html'))!;
     const f = p.frameLocator('typeset-book iframe');
+    // (a page of text: the title page it opens on offers no bookmark, and its corner is measured)
+    await p.evaluate(() => (document.querySelector('typeset-book') as any).goTo({ at: 0.03 }));
+    await expect(f.locator('.col .ln[data-b]').first()).toBeVisible();
     const found: string[] = [];
     const check = async (where: string, roots: string[]) => { await still(fr); for (const x of await layout(fr, roots, touch)) found.push(`${where}: ${x}`); };
     await expect(f.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });

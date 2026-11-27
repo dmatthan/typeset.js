@@ -1,15 +1,22 @@
-/** A touch screen: key hints mean nothing there. The page marks itself `touchui` (main.ts)
- *  when the window is phone-sized, the pointer coarse, or the screen has been touched;
- *  tokens.css hides `kbd` and `.keys-only` then, and text that names a key asks this. */
+/** A touch screen, and a phone's own ways: what is a touch screen, the page never zooming,
+ *  what a phone's keyboard covers. */
+import { ui } from '../state.svelte';
+
+/** A touch screen: key hints mean nothing there. One answer, the device's (`ui.touch`):
+ *  the pointer coarse, or the screen touched; a narrow window, or a box on another site's
+ *  page, still has the keyboard and mouse it had. The page marks itself `touchui` with it
+ *  (tokens.css hides `kbd` and `.keys-only` then); what names a key asks this, and follows
+ *  it (a tablet with a keyboard is touched while Help shows its keys: Help turns to the
+ *  gestures, never keys without their caps). */
 export function touchUI(): boolean {
-  return typeof document !== 'undefined' && document.documentElement.classList.contains('touchui');
+  return ui.touch;
 }
 
 /** Marks the page as touch-driven (main.ts calls this first thing). */
 export function watchTouch() {
   const html = document.documentElement;
-  const mark = () => html.classList.add('touchui');
-  if (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 640px)').matches || (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches)) mark();
+  const mark = () => { ui.touch = true; html.classList.add('touchui'); };
+  if (matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches)) mark();
   addEventListener('touchstart', mark, { once: true, passive: true });
 }
 

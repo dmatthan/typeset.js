@@ -7,7 +7,10 @@ import { AxeBuilder } from '@axe-core/playwright';
  *    else, not overlapping another, and, on a touch screen, big enough for a finger;
  *  - its text is never below 13 px, never cut off (an ellipsis or a clamp is meant; nor
  *    the low or high strokes of a line, g and q, a box shorter than its face clips), never
- *    outside the screen or its panel, and never over other text.
+ *    outside the screen or its panel, and never over other text;
+ *  - it is of a piece: every icon drawn at one weight (`--stroke`), every corner on the
+ *    scale (`--r-*`) or concentric with its container's, every transition at one of two
+ *    paces (`--quick`, `--calm`).
  *  The book's own text (`.track`) is the press's, checked by fidelity, not here; `clear`
  *  names what the view's text must also keep off (the book's lines, under a bar with no
  *  paper of its own). `p`, a page or a frame in one (a book on another site's page).
@@ -94,7 +97,11 @@ export async function layout(p: Page | Frame, roots: string[], touch: boolean, c
           if (!v) continue;
           if (v.l < -1 || v.r > W + 1 || v.t < -1 || v.b > H + 1) { out.push(`text off the screen: ${name(el)}`); break; }
           if (v.l < panel.left - 1 || v.r > panel.right + 1 || v.t < panel.top - 1 || v.b > panel.bottom + 1) { out.push(`text outside ${name(root).split(' ')[0]}: ${name(el)}`); break; }
-          texts.push({ el, r: new DOMRect(v.l, v.t, v.w, v.h) });
+          // (a line as it is given room: where the leading is closer than the font's own box, as
+          // a book's often is, that box is taller than the line and meets the next line's while
+          // the letters keep apart; the line's share of the leading is what may not overlap)
+          const lh = parseFloat(s.lineHeight), t = lh < v.h ? v.t + (v.h - lh) / 2 : v.t;
+          texts.push({ el, r: new DOMRect(v.l, t, v.w, Math.min(v.h, lh || v.h)) });
         }
       }
     }
@@ -140,6 +147,34 @@ export async function layout(p: Page | Frame, roots: string[], touch: boolean, c
       if (a.el === z.el) continue;
       const w = Math.min(a.r.right, z.r.right) - Math.max(a.r.left, z.r.left), h = Math.min(a.r.bottom, z.r.bottom) - Math.max(a.r.top, z.r.top);
       if (w > 2 && h > 2) out.push(`text overlaps: ${name(a.el)} and ${name(z.el)}`);
+    }
+    // harmony: every icon drawn at one weight, whatever its size; a corner on the scale (or
+    // its container's less the space between, concentric; a pill or a circle any); every
+    // transition at one of two paces
+    const tok = getComputedStyle(document.documentElement), px = (v: string) => parseFloat(tok.getPropertyValue(v));
+    const stroke = px('--stroke'), scale = ['--r-xs', '--r-s', '--r-m', '--r-l'].map(px), paces = ['--quick', '--calm'].map(px);
+    for (const el of new Set(els.flatMap(r => [r, ...r.querySelectorAll('*')]))) {
+      if (!within(el)) continue;
+      const s = getComputedStyle(el);
+      if (el instanceof SVGGeometryElement) {
+        const svg = el.ownerSVGElement!, box = svg.getBoundingClientRect();
+        if (!box.width || s.stroke === 'none' || !(parseFloat(s.strokeWidth) > 0)) continue;
+        const w = parseFloat(s.strokeWidth) * (s.vectorEffect === 'non-scaling-stroke' ? 1 : box.width / (svg.viewBox.baseVal?.width || box.width));
+        if (Math.abs(w - stroke) > 0.05) out.push(`an icon's line ${w.toFixed(2)} px, not ${stroke}: ${name(svg.parentElement!)}`);
+        continue;
+      }
+      if (!shown(el)) continue;
+      const rad = parseFloat(s.borderTopLeftRadius), b = el.getBoundingClientRect();
+      // (a mark on text, inline, is the text's)
+      if (rad > 0 && b.width && s.display !== 'inline' && rad < Math.min(b.width, b.height) / 2 - 0.5 && !scale.some(x => Math.abs(x - rad) < 0.5)) {
+        // (concentric: its container's corner less the container's border and padding, on
+        // any side)
+        const ps = getComputedStyle(el.parentElement!), pr = parseFloat(ps.borderTopLeftRadius);
+        const pads = (['Left', 'Right', 'Top'] as const).map(k => parseFloat(ps[`padding${k}`]) + parseFloat(ps[`border${k}Width`]));
+        if (!(pr > 0 && pads.some(g => Math.abs(pr - g - rad) < 0.5))) out.push(`a corner of ${rad} px, off the scale: ${name(el)}`);
+      }
+      // (as numbers: a minified sheet writes ".15s", a browser reports "0.15s")
+      for (const d of s.transitionDuration.split(',').map(parseFloat)) if (d && !paces.includes(d)) out.push(`a transition of ${d}s: ${name(el)}`);
     }
     if (clear) for (const c of document.querySelectorAll(clear)) {
       if (!shown(c, true)) continue;

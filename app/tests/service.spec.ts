@@ -250,6 +250,14 @@ test('a writer’s shares follow their passkey to another device (its PRF secret
   await ctx.close();
 });
 
+test('the fonts and hyphenation patterns are kept a day, then checked again in the background, not asked for on every visit', async ({ request }) => {
+  for (const path of ['/fonts/Literata.ttf', '/hyph/en.bin']) {
+    const r = await request.get(path);
+    expect(r.status(), path).toBe(200);
+    expect(r.headers()['cache-control'], path).toBe('public, max-age=86400, stale-while-revalidate=604800');
+  }
+});
+
 test('a book embedded in another site\'s page: read in place, nothing else of the app, only /embed may be framed', async ({ browser, request }) => {
   // (a page this test serves counts as public, and Chrome asks before a public page
   // reaches localhost: the permission a person would give)

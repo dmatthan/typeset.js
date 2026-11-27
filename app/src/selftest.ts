@@ -154,7 +154,7 @@ export async function selftest(reader: Reader, log: (s: string) => Promise<void>
   // size, wide letter and word spacing, bold text, narrow margins
   const picks = ['Liberation Serif', 'DejaVu Sans', 'Noto Serif', 'Cantarell', 'Liberation Mono'].filter(f => sys.includes(f));
   for (const [i, fam] of picks.entries()) {
-    saveUserTheme({ id: 'selftest-sys', name: 'System', type: { family: fam, fallback: /Sans|Cantarell/.test(fam) ? 'sans' : 'serif', scale: 1.07, weight: 400, bold: 700, boldText: 500, axes: {} },
+    saveUserTheme({ id: 'selftest-sys', name: 'System', size: 15, type: { family: fam, fallback: /Sans|Cantarell/.test(fam) ? 'sans' : 'serif', weight: 400, bold: 700, boldText: 500, axes: {} },
       options: { boldText: i % 2 === 1, lineSpacing: 1.5, charSpacing: [2, 7, -2, 4, 0][i], wordSpacing: [4, 20, -6, 10, 0][i], margins: -2, justify: true, hyphenate: i !== 2 }, light: null, dark: null });
     settings.theme = 'selftest-sys';
     await reader.settingsChanged('layout');

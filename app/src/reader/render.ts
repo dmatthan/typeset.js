@@ -105,13 +105,18 @@ export function noteHTML(t: string, r: number[]): string {
 /** Dots in the gutter beside the line where each noted highlight starts: the note itself
  *  shows beside them on demand (SideNotes). */
 function noteDots(anns: Annotation[] | undefined, s: number, e: number, top: number, M: Metrics, others?: { id: string; s: number; colour: number }[]): string {
-  let out = '', n = 0;
-  // inside the focus zone's half of the gutter, so a press on it is the reader's
-  const at = () => `top:${top + M.lh / 2}px;left:${M.colW + Math.min(M.G * 0.36, 14) + n++ * 11}px`;
-  for (const a of anns ?? []) if (a.note && a.s >= s && a.s < e) out += `<span class="nd" data-a="${esc(a.id)}" style="${at()}" aria-hidden="true"></span>`;
+  const dots: { id: string; colour?: number }[] = [];
+  for (const a of anns ?? []) if (a.note && a.s >= s && a.s < e) dots.push({ id: a.id });
   // other readers' notes: a dot in their colour
-  for (const o of others ?? []) if (o.s >= s && o.s < e) out += `<span class="nd fd" data-a="${esc(o.id)}" style="${at()};--dc:var(--r${o.colour})" aria-hidden="true"></span>`;
-  return out;
+  for (const o of others ?? []) if (o.s >= s && o.s < e) dots.push({ id: o.id, colour: o.colour });
+  // in the column's half of the gutter, whole (a dot is 7 across, and 1 to spare before the
+  // middle, where the paper beside the spread begins: a phone's gutter is 24), so a press on
+  // it is the reader's; several on a line one above another, about its middle, 10 apart
+  const x = M.colW + Math.min(M.G / 2 - 4.5, 14);
+  return dots.map((d, i) => {
+    const y = top + M.lh / 2 + (i - (dots.length - 1) / 2) * 10;
+    return `<span class="nd${d.colour === undefined ? '' : ' fd'}" data-a="${esc(d.id)}" style="top:${y}px;left:${x}px${d.colour === undefined ? '' : `;--dc:var(--r${d.colour})`}" aria-hidden="true"></span>`;
+  }).join('');
 }
 
 /** Scripts written right to left. */
@@ -154,7 +159,7 @@ export function columnHTML(strip: Strip, k: number, M: Metrics, marks: Set<strin
   let html = '';
   const it = strip.itemAt(k)!;
   const sec = strip.book.sections[it.sec];
-  if (it.type === 'sect' && k === it.start && sec.k === 1) html += headHTML(strip.book, it.sec, M);
+  if (it.type === 'sect' && k === it.start && sec.k === 1) html += headHTML(strip.book, it.sec, M, strip.layouts.get(it.sec)?.headRows ?? M.headRows);
   if (!L) return html;
   const { u, f } = L.sl, d: Draw = { strip, M, marks, marksOf, imgSrc, fb };
   for (let j = L.from; j < L.to; j++) {
@@ -231,11 +236,22 @@ function textHTML({ flags, spaces, top, bi, b, x, avail, nat, s, e }: Line, { M,
     + noteDots(anns, s, e, top, M, fb ? fb.written(b.key).map(w => ({ id: w.r + '|' + w.n.id, s: w.n.s, colour: fb.colourOf(w.r) })) : undefined);
 }
 
-function headHTML(book: BookData, si: number, M: Metrics): string {
-  const s = book.sections[si];
+/** A chapter's head, in the `rows` the press gave it above the text: the book's own (its
+ *  lines as written, at their sizes, the space the book leaves under it), or for a book
+ *  without one (Word, Markdown) the house's, its label and title; either in the text's
+ *  face, at the band's foot (a line more than the press counted grows up, never into the
+ *  text). */
+function headHTML(book: BookData, si: number, M: Metrics, rows: number): string {
+  const s = book.sections[si], h = s.h;
+  const part = s.part ? `<div class="part">${esc(s.part)}</div>` : '';
+  if (h) {
+    // (each line where the book sets it: the start, the middle, the end)
+    const lines = h.lines.map(l => `<div class="hline a${l.a}" style="--z:${l.z}">${inline(l.b, 0, l.b.t.length)}</div>`).join('');
+    return `<header class="chead own" style="height:${rows * M.lh}px;padding-bottom:calc(var(--fs) * ${h.below})">${part}${lines}</header>`;
+  }
   const label = s.label || (s.title ? '' : `Chapter ${s.num}`);
-  return `<header class="chead" style="height:${M.headRows * M.lh}px">
-    ${s.part ? `<div class="part">${esc(s.part)}</div>` : ''}
+  return `<header class="chead" style="height:${rows * M.lh}px">
+    ${part}
     ${label ? `<div class="label">${esc(label)}</div>` : ''}
     ${s.title ? `<h2 class="title">${esc(s.title)}</h2>` : ''}
   </header>`;
@@ -254,13 +270,8 @@ export function chapTitle(book: BookData, si: number) {
   return s.label || s.title || `Chapter ${s.num}`;
 }
 
-export interface LeafCtx {
-  totalLines: number;
-  N: number;
-}
-
 /** Whole columns that are not running text. */
-export function leafHTML(strip: Strip, it: Item, ctx: LeafCtx): string {
+export function leafHTML(strip: Strip, it: Item): string {
   const b = strip.book;
   switch (it.type) {
     case 'title':
@@ -278,12 +289,11 @@ export function leafHTML(strip: Strip, it: Item, ctx: LeafCtx): string {
         <p class="co-title">${esc(b.title)}</p>
         <p class="co-way"><a class="btn primary" href="${esc(embedOpts.endHref)}" target="_top" rel="noopener">${esc(embedOpts.endLabel ?? 'Continue reading')}</a></p>
       </section>`;
+      // the end of the book, as a scribe ended one: Finis, the work, its length
       return `<section class="leaf colophon">
-        <p class="eyebrow">Colophon</p>
         <p class="co-finis">Finis</p>
         <p class="co-title">${esc(b.title)}</p>
-        <p class="co-stich">${b.words.toLocaleString('en-GB')} words<br>${ctx.totalLines.toLocaleString('en-GB')} lines in ${ctx.N.toLocaleString('en-GB')} columns at this setting</p>
-        <p class="note">Scribes often ended a manuscript with its count of lines, so a buyer could check that nothing was missing.</p>
+        <p class="co-words">${b.words.toLocaleString('en-GB')} words</p>
       </section>`;
     default:
       return '';

@@ -76,19 +76,19 @@
 <style>
   /* (one column the bar's width, not its field's: an input's own width would widen it) */
   .find { position: absolute; z-index: 44; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(600px, calc(100% - 28px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; container-type: inline-size; }
-  .field { display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 6px 0 12px; border-radius: 12px; background: var(--sheet); border: 1px solid var(--rule); color: var(--ink); }
+  .field { display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 6px 0 12px; border-radius: var(--r-m); background: var(--sheet); border: 1px solid var(--rule); color: var(--ink); }
   .mag { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
   /* the narrowest phone: the field keeps room for a finger, the magnifier (only a sign) goes */
   @container (max-width: 340px) { .mag { display: none; } }
-  svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
   input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0 6px; }
   input::placeholder { color: var(--ink-3); }
   .count { font: 600 13px/1 var(--f-ui); color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 4px; }
   button { appearance: none; border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 0; font: inherit; }
-  .field button { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+  .field button { width: 32px; height: 32px; border-radius: calc(var(--r-m) - 7px); display: grid; place-items: center; flex: none; }
   :global(html:not(.touchui)) .field button:hover:not(:disabled) { background: var(--hover); }
   .field button:disabled { opacity: .35; cursor: default; }
-  .frame { border-radius: 12px; background: var(--sheet); border: 1px solid var(--rule); }
+  .frame { border-radius: var(--r-m); background: var(--sheet); border: 1px solid var(--rule); }
   .list { max-height: min(56vh, 520px); overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; border-radius: inherit; padding: 6px; }
   .ch { position: sticky; top: -6px; background: var(--sheet); padding: 8px 10px 4px; font: 650 12.5px/1.2 var(--f-ui); color: var(--ink-3); z-index: 1; }
   .hit { display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left; padding: 8px 10px; border-radius: 9px; }

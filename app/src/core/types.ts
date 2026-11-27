@@ -3,7 +3,7 @@
 /** What the importer makes of a file, as a number: `typeset_ingest::VERSION` (scripts/rules.mjs
  *  checks they agree).
  *  Books read by an earlier one are read again from their kept file (reader/reread.ts). */
-export const IMPORTER_VERSION = 5;
+export const IMPORTER_VERSION = 7;
 
 /** The book as the reader receives it (offsets are UTF-16). Mirrors typeset_model::js. */
 export interface BookData {
@@ -14,6 +14,8 @@ export interface BookData {
   year: string;
   lang: string;
   words: number;
+  /** The leading the book sets its text in, where it sets one (an EPUB's styles). */
+  leading: number | null;
   sections: SectionData[];
   notes: NoteData[];
   /** Each image's width, height (0 for a rich block not yet measured), description, type. */
@@ -30,6 +32,10 @@ export interface SectionData {
   num: string;
   title: string;
   blocks: BlockData[];
+  /** The chapter's head as the book wrote it: its lines (each with its size, the text's
+   *  being 1, and where it is set: 0 the start, 1 centred, 2 the end) and the space above
+   *  and below, in the text's em; none for Word and Markdown. */
+  h?: { lines: { b: BlockData; z: number; a: 0 | 1 | 2 }[]; above: number; below: number } | null;
 }
 export interface BlockData {
   k: BlockKind;

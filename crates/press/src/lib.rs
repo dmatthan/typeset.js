@@ -10,7 +10,11 @@ pub mod shape;
 
 pub use fill::{PLine, Params, SectionLayout, flag};
 pub use shape::{Family, Typeface, Typo};
-use typeset_model::Book;
+use typeset_model::{Book, Head, SectionKind};
+
+/// A chapter head's line height, as a factor of each line's size (app/src/styles/reader.css
+/// sets the head's lines at it: the two must agree).
+pub const HEAD_LEADING: f32 = 1.2;
 
 pub struct Press {
     tf: Typeface,
@@ -45,8 +49,54 @@ impl Press {
         if stale {
             self.measurer = Some((blang.to_string(), shape::Measurer::new(&self.tf, p.typo, blang)));
         }
+        let sec = &book.sections[index];
+        // a chapter's head: the book's own, or the house's rows (a Word or Markdown book's);
+        // two rows of text kept under it however tall
+        let head_rows = match (sec.kind, &sec.head) {
+            (SectionKind::Front, _) => 0,
+            (_, Some(h)) => self.head_rows(h, p, blang),
+            (_, None) => p.head_rows,
+        }
+        .min(p.rows.max(4) - 2);
         let m = &mut self.measurer.as_mut().unwrap().1;
-        fill::layout_section(m, &mut self.mono, &book.sections[index], &book.images, p, lang)
+        fill::layout_section(m, &mut self.mono, sec, &book.images, p, lang, head_rows)
+    }
+
+    /// The rows a book's own head takes: each line broken at its own size as the text is
+    /// (first fit over the measure, each word in its style; a '\n' a break), set at
+    /// `HEAD_LEADING`, with the space above and below it, rounded up to whole rows.
+    fn head_rows(&self, h: &Head, p: &Params, lang: &str) -> u32 {
+        let mut px = (h.above + h.below) * p.typo.size;
+        for l in &h.lines {
+            let mut m = shape::Measurer::new(&self.tf, Typo { size: p.typo.size * l.size, ..p.typo }, lang);
+            let spans: Vec<(usize, usize, u8)> = l.block.spans().collect();
+            let style_at = |i: usize| spans.iter().find(|(s, e, _)| (*s..*e).contains(&i)).map_or(0, |x| x.2);
+            let mut lines = 0;
+            let mut at = 0;
+            for part in l.block.text.split('\n') {
+                lines += 1;
+                let (mut width, mut off) = (None::<f32>, at);
+                for w in part.split(' ') {
+                    let i = off;
+                    off += w.len() + 1;
+                    if w.is_empty() {
+                        continue;
+                    }
+                    let ww = m.width(w, style_at(i));
+                    width = Some(match width {
+                        Some(x) if x + m.space + ww > p.measure => {
+                            lines += 1;
+                            ww
+                        }
+                        Some(x) => x + m.space + ww,
+                        None => ww,
+                    });
+                }
+                at += part.len() + 1;
+            }
+            px += lines as f32 * l.size * p.typo.size * HEAD_LEADING;
+        }
+        (px / p.lh).ceil() as u32
     }
 
     /// Widths of probe strings in body text, for calibrating against the browser:
@@ -84,17 +134,18 @@ impl Press {
 pub const FIELDS: usize = 9;
 
 /// Encodes layouts as little-endian 32-bit words:
-/// `[n_sections, (cols, n_lines) × n_sections, lines…]`, each line being
+/// `[n_sections, (index, cols, n_lines, head_rows) × n_sections, lines…]`, each line being
 /// `col, row, block, s, e, flags | spaces << 16` as u32 then `x, avail, natural` as f32.
 pub fn encode(layouts: &[(u32, &SectionLayout)]) -> Vec<u8> {
     let n_lines: usize = layouts.iter().map(|(_, l)| l.lines.len()).sum();
-    let mut out: Vec<u8> = Vec::with_capacity(4 * (1 + 3 * layouts.len() + FIELDS * n_lines));
+    let mut out: Vec<u8> = Vec::with_capacity(4 * (1 + 4 * layouts.len() + FIELDS * n_lines));
     let mut put = |v: u32| out.extend_from_slice(&v.to_le_bytes());
     put(layouts.len() as u32);
     for (idx, l) in layouts {
         put(*idx);
         put(l.cols);
         put(l.lines.len() as u32);
+        put(l.head_rows);
     }
     for (_, l) in layouts {
         for ln in &l.lines {

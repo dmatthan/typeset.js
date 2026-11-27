@@ -2,8 +2,8 @@
   /** The reader's view: the page, its controls (the bar, the foot, the menu), and the
    *  panels and sheets it opens. */
   import { droppedFiles } from './files';
-  import { embedded, embedOpts, features, fullscreenBy, wayBack } from '../core/embed';
-  import { toggleFull } from './keys';
+  import { embedded, embedOpts, features, wayBack } from '../core/embed';
+  import { bigger, biggerName, closeOut } from './keys';
   import { isNotesMarkdown } from '../reader/notesmd';
   import { isWebAnno } from '../reader/webanno';
   import { onMount, untrack } from 'svelte';
@@ -23,6 +23,7 @@
   import Chip from './Chip.svelte';
   import ReaderMenu from './ReaderMenu.svelte';
   import NoteSheet from './NoteSheet.svelte';
+  import LinkSheet from './LinkSheet.svelte';
 
   let { reader, contents, hidden, chip = $bindable(), findBar = $bindable() }: { reader: Reader; contents: ContentsCtl; hidden: boolean; chip?: Chip; findBar?: FindBar } = $props();
   let stage: HTMLElement, track: HTMLElement;
@@ -33,16 +34,13 @@
   // start (the browser's, or where a frame has none, as on an iPhone, the page's window
   // filled with the book)
   const back = embedded ? wayBack() : null;
-  const fullscreenable = fullscreenBy() !== null;
-  onMount(() => {
-    const was = () => (ui.full = !!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', was);
-    return () => document.removeEventListener('fullscreenchange', was);
-  });
+  // the corner's step up (Expand, Full screen, Leave full screen), named; none where none
+  const step = $derived.by(() => { ui.place; return biggerName(); });
 
-  // The controls, few and the same at any size: at the top the way back (where there is
-  // one), the book's title in the middle of the window, a bookmark; at the foot where the
-  // reader is and the menu with the rest (ReaderMenu.svelte). They fade away while
+
+  // The controls, few and the same at any size: at the top × Close (or a page's own Back),
+  // the book's title in the middle of the window, a bookmark; at the foot where the reader
+  // is and the menu with the rest (ReaderMenu.svelte). They fade away while
   // reading, and come back when the pointer seeks either band (the top's, the foot's), a
   // finger taps the middle, or keyboard focus reaches them. Nothing here changes the
   // page's layout: all of it floats over bands the text never uses.
@@ -53,6 +51,9 @@
   const held = () => [bar, foot, more, full].some(el => el?.matches(':hover, :focus-within'));
   // the bar put away (Type and appearance keeps it, and finding hides it)
   const stepped = $derived((away && ui.sheet !== 'settings') || reader.finder.open);
+  // a page with nothing of its own to come back to (the title page, the colophon) offers no
+  // bookmark
+  const bookmarkable = $derived.by(() => { ui.layoutVersion; return reader.canBookmark(); });
   // the page in view marked (a ribbon over each column that is, while reading)
   const marked = $derived.by(() => {
     ui.page; ui.cols; ui.layoutVersion;
@@ -107,9 +108,11 @@
     onpointerup={e => { if (away && e.pointerType !== 'mouse') { show(); hideSoon(4000); } }}>
     <!-- (the sides keep their width, empty or not: the title stays in the middle) -->
     <div class="side">
-      {#if !embedded}
-        <button class="ibtn" onclick={() => reader.close()} aria-label="Back to the library" title="Back to the library (Q)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg>
+      <!-- a book above where it came from (the app's library; a page it is bigger than its
+           place on): × Close, back there in one press, the same everywhere -->
+      {#if !embedded || (ui.place !== 'box' && embedOpts.ui === 'full')}
+        <button class="ibtn" onclick={() => (embedded ? closeOut() : reader.close())} aria-label="Close" title="Close ({embedded ? 'Esc' : 'Q'})">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></svg>
         </button>
       {:else if back && embedOpts.ui === 'full'}
         {#if 'href' in back}
@@ -119,9 +122,15 @@
         {/if}
       {/if}
     </div>
-    <div class="runhead">{ui.title}</div>
+    <!-- (after a trip, the way back to where the reader was, in the title's place, until
+         they read on) -->
+    {#if reader.returnTo !== null && embedOpts.ui === 'full'}
+      <button class="return" onclick={() => reader.goBack()} title="Back to where you were (⌫)">Back to page {reader.returnTo + 1}</button>
+    {:else}
+      <div class="runhead">{ui.title}</div>
+    {/if}
     <div class="side right">
-      {#if features.highlights && embedOpts.ui === 'full'}
+      {#if features.highlights && bookmarkable}
         <button class="ibtn" onclick={() => reader.toggleBookmark()} aria-pressed={marked.length > 0} aria-label="Bookmark this page" title="Bookmark this page (B)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path class:on={marked.length > 0} d="M7 4h10v16l-5-4-5 4z" /></svg>
         </button>
@@ -141,10 +150,10 @@
   </div>
   {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} bind:el={foot} />{/if}
   {#if embedOpts.ui === 'full'}<ReaderMenu {reader} {contents} {findBar} shown={!away} bind:el={more} />{/if}
-  {#if fullscreenable}
+  {#if step}
     <div class="full" class:shown={!away} bind:this={full}>
-      <button class="ibtn" onclick={toggleFull} aria-label={ui.full ? 'Leave full screen' : 'Read full screen'} title="{ui.full ? 'Leave full screen' : 'Read full screen'} (F)">
-        {#if ui.full}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" /></svg>
+      <button class="ibtn" onclick={bigger} aria-label={step} title="{step} (F)">
+        {#if ui.place === 'screen'}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" /></svg>
         {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" /></svg>{/if}
       </button>
     </div>
@@ -172,6 +181,7 @@
 {#if !hidden && features.settings && ui.sheet === 'theme' && editor.draft}<ThemeEditor {reader} />{/if}
 {#if !hidden && ui.sheet === 'help'}<Help onclose={() => (ui.sheet = null)} />{/if}
 {#if !hidden && features.highlights && ui.sheet === 'note'}<NoteSheet {reader} />{/if}
+{#if !hidden && features.links && ui.sheet === 'link'}<LinkSheet />{/if}
 </div>
 
 <style>
@@ -182,10 +192,10 @@
   /* (a finger's buttons are larger: the same distance from the side as from the top) */
   :global(.touchui) .bar { padding-inline: calc(10px + var(--pad, 0px) / 4); }
   /* full screen at the foot's start, mirroring the menu at its end (ReaderMenu: the same sums) */
-  .full { position: absolute; z-index: 26; left: calc(10px + var(--pad, 0px) / 2); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 40px) / 2, var(--pad, 0px) + 6px)); opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility .3s; }
+  .full { position: absolute; z-index: 26; left: calc(10px + var(--pad, 0px) / 2); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 40px) / 2, var(--pad, 0px) + 6px)); opacity: 0; visibility: hidden; transition: opacity var(--calm) ease, visibility var(--calm); }
   .full.shown { opacity: 1; visibility: visible; }
   :global(.touchui) .full { left: calc(10px + var(--pad, 0px) / 4); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)); }
-  .side { display: flex; align-items: center; gap: 4px; transition: opacity .3s ease; }
+  .side { display: flex; align-items: center; gap: 4px; transition: opacity var(--calm) ease; }
   .away .side { opacity: 0; pointer-events: none; }
   /* (over the text, not the window, when the notes' rail is beside it: narrower by the
      rail and moved by half of it, so it keeps to its column and off the way back; text,
@@ -196,29 +206,37 @@
   .ibtn {
     appearance: none; border: 0; cursor: pointer; width: 40px; height: 40px; padding: 0; border-radius: 50%;
     display: grid; place-items: center; background: var(--surface); box-shadow: 0 0 0 1px var(--rule);
-    color: var(--ink-2); transition: color .15s, background-color .15s; text-decoration: none;
+    color: var(--ink-2); transition: color var(--quick), background-color var(--quick); text-decoration: none;
   }
   :global(html:not(.touchui)) .ibtn:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
-  .ibtn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .ibtn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
   /* a marked page's bookmark, filled */
   .ibtn path.on { fill: var(--accent); stroke: var(--accent); }
   .side, .runhead { position: relative; }
   /* (its line as tall as its face: the box clips, for the ellipsis, and a line set solid lost
      the foot of a g or a q) */
   .runhead { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; font: 500 var(--t-s)/1.4 var(--f-ui); color: var(--ink-3); }
+  /* the way back: a pill on the page's surface, as the round buttons beside it */
+  .return {
+    justify-self: center; max-width: 100%; height: 40px; padding: 0 16px; border-radius: 20px; appearance: none; border: 0; cursor: pointer;
+    background: var(--surface); box-shadow: 0 0 0 1px var(--rule); color: var(--ink-2); font: 500 var(--t-s)/1 var(--f-ui);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--quick), background-color var(--quick);
+  }
+  :global(.touchui) .return { height: 44px; border-radius: 22px; }
+  :global(html:not(.touchui)) .return:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
   /* a marked page's ribbon, hanging from the top of its column's corner */
-  .ribbon { position: absolute; z-index: 4; top: env(safe-area-inset-top); width: 12px; height: 20px; background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); transition: opacity .3s ease; pointer-events: none; }
+  .ribbon { position: absolute; z-index: 4; top: env(safe-area-inset-top); width: 12px; height: 20px; background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); transition: opacity var(--calm) ease; pointer-events: none; }
   .ribbon.hid { opacity: 0; }
   /* level with the middle of the text, 10 from the box's edge (and the notes' rail's) */
   .arrow {
     position: absolute; z-index: 4; top: calc(var(--y0) + var(--colH) / 2 - 20px); width: 40px; height: 40px; padding: 0;
     appearance: none; border: 0; border-radius: 20px; background: none; display: grid; place-items: center;
-    color: var(--ink-3); cursor: pointer; transition: color .15s, background-color .15s, opacity .15s;
+    color: var(--ink-3); cursor: pointer; transition: color var(--quick), background-color var(--quick), opacity var(--quick);
   }
   .arrow.prev { left: 10px; }
   .arrow.next { right: calc(var(--rail, 0px) + 10px); }
   .arrow:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
   .arrow:disabled { opacity: .35; cursor: default; }
   .arrow:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .arrow svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .arrow svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
 </style>

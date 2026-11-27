@@ -20,6 +20,8 @@ pub struct JsBook<'a> {
     /// Its characters beyond the bundled fonts' core files, each once (set by the engine;
     /// empty for most books): the page loads the extension faces that have them.
     pub ext: String,
+    /// The leading the book sets its text in, where it sets one (`Book::leading`).
+    pub leading: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -40,6 +42,24 @@ pub struct JsSection<'a> {
     pub num: &'a str,
     pub title: &'a str,
     pub blocks: Vec<JsBlock<'a>>,
+    /// The chapter's head as the book wrote it (`Section::head`); none for Word and Markdown.
+    pub h: Option<JsHead<'a>>,
+}
+
+#[derive(Serialize)]
+pub struct JsHead<'a> {
+    pub lines: Vec<JsHeadLine<'a>>,
+    pub above: f32,
+    pub below: f32,
+}
+
+#[derive(Serialize)]
+pub struct JsHeadLine<'a> {
+    pub b: JsBlock<'a>,
+    /// Its size, the text's being 1.
+    pub z: f32,
+    /// 0 at the start, 1 centred, 2 at the end (`HeadLine::align`).
+    pub a: u8,
 }
 
 #[derive(Serialize)]
@@ -102,6 +122,7 @@ pub fn to_js(book: &Book) -> JsBook<'_> {
         year: &book.meta.year,
         lang: &book.meta.lang,
         words: book.words(),
+        leading: book.leading,
         sections: book
             .sections
             .iter()
@@ -111,32 +132,8 @@ pub fn to_js(book: &Book) -> JsBook<'_> {
                 label: &s.label,
                 num: &s.num,
                 title: &s.title,
-                blocks: s
-                    .blocks
-                    .iter()
-                    .map(|b| {
-                        let mut cur = U16Cursor::new(&b.text);
-                        let mut r = Vec::with_capacity(b.runs.len() * 3);
-                        for run in &b.runs {
-                            r.push(cur.at(run.start as usize));
-                            r.push(cur.at(run.end as usize));
-                            r.push(run.style as u32);
-                        }
-                        let l = b
-                            .links
-                            .iter()
-                            .map(|l| {
-                                let to = match &l.to {
-                                    crate::Target::Note(i) => format!("n:{i}"),
-                                    crate::Target::Block(k) => format!("b:{k:016x}"),
-                                    crate::Target::Url(u) => format!("u:{u}"),
-                                };
-                                (cur.at(l.start as usize), cur.at(l.end as usize), to)
-                            })
-                            .collect();
-                        JsBlock { k: b.kind as u8, key: format!("{:016x}", b.key), t: &b.text, r, l, img: b.image, tb: b.table.as_ref() }
-                    })
-                    .collect(),
+                blocks: s.blocks.iter().map(js_block).collect(),
+                h: s.head.as_ref().map(|h| JsHead { lines: h.lines.iter().map(|l| JsHeadLine { b: js_block(&l.block), z: l.size, a: l.align }).collect(), above: h.above, below: h.below }),
             })
             .collect(),
         notes: book
@@ -156,4 +153,28 @@ pub fn to_js(book: &Book) -> JsBook<'_> {
         images: book.images.iter().map(|i| (i.w, i.h, i.alt.as_str(), i.mime.as_str())).collect(),
         ext: String::new(),
     }
+}
+
+/// A block as the page reads it: UTF-16 offsets for its runs and links.
+fn js_block(b: &crate::Block) -> JsBlock<'_> {
+    let mut cur = U16Cursor::new(&b.text);
+    let mut r = Vec::with_capacity(b.runs.len() * 3);
+    for run in &b.runs {
+        r.push(cur.at(run.start as usize));
+        r.push(cur.at(run.end as usize));
+        r.push(run.style as u32);
+    }
+    let l = b
+        .links
+        .iter()
+        .map(|l| {
+            let to = match &l.to {
+                crate::Target::Note(i) => format!("n:{i}"),
+                crate::Target::Block(k) => format!("b:{k:016x}"),
+                crate::Target::Url(u) => format!("u:{u}"),
+            };
+            (cur.at(l.start as usize), cur.at(l.end as usize), to)
+        })
+        .collect();
+    JsBlock { k: b.kind as u8, key: format!("{:016x}", b.key), t: &b.text, r, l, img: b.image, tb: b.table.as_ref() }
 }

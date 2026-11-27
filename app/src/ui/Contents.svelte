@@ -151,10 +151,10 @@
   h2 { margin: 0; font: 600 var(--t-m)/1.3 var(--f-ui); }
   .book p { margin: 3px 0 0; font-size: var(--t-s); color: var(--ink-3); }
   .close { flex: none; width: 32px; height: 32px; border: 0; border-radius: var(--r-s); background: none; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; }
-  .close svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; fill: none; }
-  .tabs, .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 2px; border-radius: 9px; background: var(--read); }
+  .close svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; fill: none; }
+  .tabs, .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 2px; border-radius: var(--r-m); background: var(--read); }
   .tabs { margin: 0 20px 10px; }
-  .tabs button, .seg button { height: 28px; border: 0; border-radius: 7px; background: none; font: 500 var(--t-s)/1 var(--f-ui); color: var(--ink-2); cursor: pointer; }
+  .tabs button, .seg button { height: 28px; border: 0; border-radius: calc(var(--r-m) - 2px); background: none; font: 500 var(--t-s)/1 var(--f-ui); color: var(--ink-2); cursor: pointer; }
   .tabs [aria-selected="true"], .seg [aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 0.5px var(--rule); }
   .list, .notes { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 0 10px 16px; }
   .row { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 0; border-radius: var(--r-s); background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
@@ -164,8 +164,10 @@
   .row.read .t { color: var(--ink-3); }
   .row[aria-current="true"] { background: var(--wash); }
   .row[aria-current="true"] .t { color: var(--accent); font-weight: 600; }
-  .row[aria-current="true"] .p { color: var(--ink-2); }
   :global(html:not(.touchui)) .row:hover, :global(html:not(.touchui)) .close:hover { background: var(--hover); }
+  /* (on a row's tint, the current or the one under the pointer, the quieter words step up an
+     ink: the quiet ink is fitted to 4.5:1 on the panel's paper, not on a tint over it) */
+  .row[aria-current="true"] .p, :global(html:not(.touchui)) .row:hover .p, :global(html:not(.touchui)) .row.read:hover .t { color: var(--ink-2); }
   .notes { display: flex; flex-direction: column; gap: 10px; padding-top: 2px; }
   .seg { margin: 0 10px; }
   .filter { margin: 0 10px; height: 34px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-s); background: var(--surface); font: inherit; font-size: var(--t-s); color: var(--ink); }
@@ -186,7 +188,7 @@
   .bmk .p, .bmk .d { font-size: var(--t-xs); color: var(--ink-3); font-variant-numeric: tabular-nums; }
   .bmk .q { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: italic 400 var(--t-s)/1.45 var(--f-book); color: var(--ink-2); }
   .bmk .rm { flex: none; width: 32px; height: 32px; margin-top: 6px; border: 0; border-radius: var(--r-s); background: none; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; }
-  .bmk .rm svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; fill: none; }
+  .bmk .rm svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; fill: none; }
   :global(html:not(.touchui)) .bmk .go:hover, :global(html:not(.touchui)) .bmk .rm:hover { background: var(--hover); }
   /* a phone: the whole width, from the top under the status bar */
   @media (max-width: 640px) { .contents { width: 100%; border-right: 0; } }
