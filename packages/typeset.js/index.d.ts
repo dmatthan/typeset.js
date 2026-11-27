@@ -55,8 +55,8 @@ export interface TypesetOpen extends HTMLElement {
 /** <typeset-library>: a shelf from a list of books, each opened in place. */
 export type TypesetLibrary = HTMLElement;
 
-/** A book over the whole window; Back (the reader's or the browser's) gives the page back
- *  as it was. */
+/** A book over the whole window; closing it (×, Escape or the browser's Back) removes it
+ *  and restores the page. */
 export function open(options: BookOptions, onclose?: () => void): { book: TypesetBook; close(): void };
 
 /** Where the reader's folder is served (`npx typeset.js` put it there), when not at /typeset/;
