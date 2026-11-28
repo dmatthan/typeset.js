@@ -62,7 +62,7 @@ async function cycleLayout(reader: Reader) {
  *  what each does and the feature it needs. A letter in either case. */
 const KEYS: Partial<Record<string, { need?: keyof Features; run: (k: Keyed) => void }>> = {
   m: { need: 'contents', run: k => k.contents.open() },
-  b: { need: 'highlights', run: k => k.reader.toggleBookmark() },
+  b: { need: 'highlights', run: k => k.reader.bookmarks.toggle() },
   Backspace: { run: k => k.reader.goBack() },
   ']': { run: k => k.contents.chapter(1) },
   '[': { run: k => k.contents.chapter(-1) },

@@ -6,7 +6,7 @@
 import { copyText } from '../core/clipboard';
 import { BlockKind } from '../core/types';
 import { ui, toast } from '../state.svelte';
-import { openingOf } from './bookmarks';
+import { openingOf } from './bookmarks.svelte';
 import { markdownOf, type NoteEntry } from './notebook';
 import { notesMarkdown } from './notesmd';
 import type { Reader } from './reader.svelte';
@@ -50,12 +50,12 @@ export class Contents {
     else this.open(tab);
   }
 
-  /** The bookmarks in the book's order, each where it is now (reading `reader.bookmarks`:
+  /** The bookmarks in the book's order, each where it is now (reading `reader.bookmarks.list`:
    *  a component deriving from this follows them). */
   bookmarks(): BookmarkItem[] {
     const r = this.r, strip = r.strip;
     if (!strip) return [];
-    return r.bookmarks.map(b => { const k = strip.resolve({ key: b.key, off: b.off }); return { id: b.id, k, page: k + 1, where: r.headFor(k), quote: openingOf(b), at: b.at }; }).sort((a, z) => a.k - z.k);
+    return r.bookmarks.list.map(b => { const k = strip.resolve({ key: b.key, off: b.off }); return { id: b.id, k, page: k + 1, where: r.headFor(k), quote: openingOf(b), at: b.at }; }).sort((a, z) => a.k - z.k);
   }
 
   setTab(t: typeof cs.tab) {
@@ -94,7 +94,7 @@ export class Contents {
     const fbIn = r.fb?.size ? r.fb.perSection() : null;
     cs.chapters = book.sections.map((s, sec) => {
       let n = 0, seen = 0;
-      for (const b of s.blocks) { if (b.k === BlockKind.Break) continue; n++; if (r.seen.has(b.key)) seen++; }
+      for (const b of s.blocks) { if (b.k === BlockKind.Break) continue; n++; if (r.progress.seen.has(b.key)) seen++; }
       return { sec, title: chapTitle(book, sec), page: strip.secStart[sec] + 1, read: n > 0 && seen / n > 0.95, current: here === sec, feedback: fbIn?.get(sec) ?? 0 };
     });
   }

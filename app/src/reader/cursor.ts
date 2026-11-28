@@ -67,11 +67,11 @@ export class Cursor {
     if (!this.active) return;
     const picked = [...document.querySelectorAll<HTMLElement>('.col .pick')];
     const fig = picked.find(el => el.classList.contains('img'));
-    if (fig) { this.r.openImage(+fig.dataset.i!, fig); return; }
+    if (fig) { this.r.references.openImage(+fig.dataset.i!, fig); return; }
     const nr = picked.map(el => el.querySelector<HTMLElement>('a.nr')).find(Boolean);
-    if (nr) { this.r.openNote(+nr.dataset.n!, nr); return; }
+    if (nr) { this.r.references.openNote(+nr.dataset.n!, nr); return; }
     const ur = picked.map(el => el.querySelector<HTMLElement>('a.ur')).find(Boolean);
-    if (ur) this.r.openLink(ur.dataset.u!);
+    if (ur) this.r.references.openLink(ur.dataset.u!);
     else toast('No note, image or link here.');
   }
 

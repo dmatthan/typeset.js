@@ -8,7 +8,7 @@ import { isReaction, type Annotation, type Reaction } from './annotations';
 import { chapTitle } from './render';
 import { isNotesMarkdown, parseNotesMarkdown } from './notesmd';
 import { isWebAnno, fromWebAnno } from './webanno';
-import { anchorOfBookmark, type Bookmark } from './bookmarks';
+import { anchorOfBookmark, type Bookmark } from './bookmarks.svelte';
 
 /* ---------- the notes file ---------- */
 

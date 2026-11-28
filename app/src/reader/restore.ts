@@ -7,7 +7,7 @@ import { Annotations, type Annotation } from './annotations';
 import { me } from '../core/identity';
 import type { FileNote, NotesFile } from './feedback';
 import { notebookOf, saveDigest } from './notebook';
-import { loadBookmarks, saveBookmarks } from './bookmarks';
+import { loadBookmarks, saveBookmarks } from './bookmarks.svelte';
 
 /** Whether a notes file is this reader's own (an export, or a copy from another device of
  *  theirs): put back as their notes, not shown as someone's feedback. */

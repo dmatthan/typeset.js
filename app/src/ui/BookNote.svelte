@@ -10,7 +10,7 @@
   let card: HTMLElement;
   const n = $derived(ui.bookNote!);
   const note = $derived(reader.book!.notes[n.i]);
-  const home = $derived(reader.noteHome(n.i));
+  const home = $derived(reader.references.noteHome(n.i));
   const W = 380;
   const left = $derived(Math.max(12, Math.min(n.x - W / 2, reader.stage.clientWidth - W - 12)));
 

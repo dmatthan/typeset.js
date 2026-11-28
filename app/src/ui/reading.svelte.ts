@@ -18,10 +18,10 @@ export function reading(core: Core): { reader: Reader; contents: Contents } {
     const v = `${ui.view}/${!!ui.lightbox}`;
     const viewChanged = edgeView.split('/')[0] !== ui.view;
     edgeView = v;
-    untrack(() => reader.paintEdges(viewChanged ? 0 : 250));
+    untrack(() => reader.appearance.paintEdges(viewChanged ? 0 : 250));
   });
   // appearance and the desktop's colours repaint, and only they: a theme, a face or an option
   // waits for its text to be set (`settingsChanged`), which the repaint must not read ahead of
-  $effect(() => { settings.appearance; themes.desktop; untrack(() => reader.themeChanged()); });
+  $effect(() => { settings.appearance; themes.desktop; untrack(() => reader.appearance.themeChanged()); });
   return { reader, contents };
 }

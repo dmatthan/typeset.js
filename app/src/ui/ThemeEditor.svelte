@@ -32,7 +32,7 @@
   const faces = FACES.map(f => f.family);
   const day = $derived(d.light ?? STOCK.light);
   // (the preview as the theme will look now: by night where the reader is)
-  const pal = $derived(reader.isDark() ? (d.dark ?? STOCK.dark) : day);
+  const pal = $derived(reader.appearance.isDark() ? (d.dark ?? STOCK.dark) : day);
   const previewStyle = $derived.by(() => {
     const t = d.type, o = d.options;
     const w = o.boldText ? t.boldText : t.weight;
