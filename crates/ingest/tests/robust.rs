@@ -70,7 +70,12 @@ fn a_document_of_headings_only_reads_them_as_text() {
 
 #[test]
 fn files_that_are_not_books_say_what_they_are() {
-    let err = |b: &[u8], n: &str| typeset_ingest::any(b, n).err().map(|e| e.to_string()).unwrap_or_default();
+    // (the messages reach readers on any site the package is on: they name no product)
+    let err = |b: &[u8], n: &str| {
+        let e = typeset_ingest::any(b, n).err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(!e.contains("Volumen"), "{e}");
+        e
+    };
     assert!(err(b"%PDF-1.7\n\x00\x01binary", "a.pdf").starts_with("it is a PDF"));
     assert!(err(b"\xff\xd8\xff\xe0\x00\x10JFIF", "IMG_0001.jpg").starts_with("it is an image"));
     assert!(err(b"\xff\xd8\xff\xe0\x00\x10JFIF", "book.epub").starts_with("it is an image"));

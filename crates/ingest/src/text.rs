@@ -39,8 +39,9 @@ fn cp1252(c: u8) -> char {
 }
 
 pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
-    let raw = decode(bytes)
-        .ok_or(Error::Unreadable("it is not a book or a text Volumen can read (EPUB, Word, Markdown or plain text)"))?;
+    let raw = decode(bytes).ok_or(Error::Unreadable(
+        "it is not a book or a text in a form read here (EPUB, Word, Markdown or plain text)",
+    ))?;
     let raw = raw.replace("\r\n", "\n").replace('\r', "\n");
     let mut meta = Meta { lang: "en".into(), ..Meta::default() };
     for l in raw.lines().take(80) {

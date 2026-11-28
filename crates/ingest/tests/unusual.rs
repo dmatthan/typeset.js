@@ -70,7 +70,7 @@ fn a_book_locked_by_its_shop_says_so() {
     let adept = br#"<?xml version="1.0"?><encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#"><EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/><CipherData><CipherReference URI="OEBPS/c0.xhtml"/></CipherData></EncryptedData></encryption>"#;
     for extra in [&[("META-INF/encryption.xml", &adept[..])][..], &[("META-INF/sinf.xml", &b"<fairplay/>"[..])][..]] {
         let e = typeset_ingest::any(&epub("en", &ch, extra), "b.epub").unwrap_err().to_string();
-        assert!(e.contains("DRM"), "{e}");
+        assert!(e.contains("DRM") && !e.contains("Volumen"), "{e}");
     }
     // fonts obfuscated for their licence are not a lock
     let fonts = br#"<?xml version="1.0"?><encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><enc:EncryptedData xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/><enc:CipherData><enc:CipherReference URI="OEBPS/f.ttf"/></enc:CipherData></enc:EncryptedData></encryption>"#;
