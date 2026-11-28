@@ -61,17 +61,24 @@ npx --prefix app tauri build          # desktop installers (target/release/bundl
 
 ## Releases
 
+One version covers the npm package, the desktop app and `typeset.js.zip`. It is kept in
+`packages/typeset.js/package.json`; the desktop app reads it from there, and
+`node scripts/version.mjs` checks that every manifest agrees.
+
+1. A pull request `chore(repo): release X.Y.Z` raises the version and writes the changelog
+   (`npx git-cliff@2 --tag vX.Y.Z -o CHANGELOG.md`).
+2. Once it is merged and CI has passed on `main`, tag that commit:
+
 ```sh
-git tag -a v0.3.0 -m … && git push origin v0.3.0   # the desktop app and typeset.js.zip
-git tag typeset.js-v0.3.0 && git push origin typeset.js-v0.3.0   # typeset.js, staged on npm
-npm stage list typeset.js && npm stage approve <id>   # … and made public, with a second factor
+git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
+npm stage list typeset.js && npm stage approve <id>   # the staged package made public, with a second factor
 ```
 
-A `v*` tag builds the desktop app for Linux, macOS and Windows and the package as a zip
-(`.github/workflows/release.yml`). A `typeset.js-v*` tag, naming the version in
-`packages/typeset.js/package.json`, builds and tests the package and stages it on npm
-(`.github/workflows/npm.yml`, npm's trusted publisher: no token is kept); it is public once
-a maintainer approves it.
+The tag builds the desktop app for Linux, macOS and Windows and the zip, attached to a
+release with notes from the commits (`.github/workflows/release.yml`), and builds, tests and
+stages the package on npm (`.github/workflows/npm.yml`, npm's trusted publisher: no token is
+kept). Both first check that the tag names the version and that CI passed on its commit
+(`.github/actions/release-gate`).
 
 ## Sharing service
 

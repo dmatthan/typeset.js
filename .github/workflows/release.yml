@@ -1,6 +1,8 @@
-# The desktop app for Linux, macOS and Windows, built on each and attached to a GitHub
-# release under fixed names, so https://github.com/dmatthan/typeset.js/releases/latest/download/<name>
-# always gives the newest. Runs for a tag v*, or by hand (a draft, for checking).
+# A release, for a tag `v<version>` (scripts/version.mjs) on a commit CI has passed: the
+# desktop app for Linux, macOS and Windows and typeset.js.zip, attached under fixed names
+# so https://github.com/dmatthan/typeset.js/releases/latest/download/<name> always gives
+# the newest, with notes from the commits since the last release (cliff.toml). The npm
+# package is staged from the same tag (npm.yml). By hand: a draft, for checking.
 name: Release
 
 on:
@@ -10,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 env:
   WASM_BINDGEN: "0.2.129"
@@ -17,9 +20,17 @@ env:
 
 jobs:
   draft:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes "Volumen $TAG" --target "$GITHUB_SHA"
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - if: github.ref_type == 'tag'
+        uses: ./.github/actions/release-gate
+      - uses: taiki-e/install-action@v2
+        with: { tool: git-cliff }
+      - run: |
+          git cliff ${{ github.ref_type == 'tag' && '--latest' || '--unreleased' }} --strip all > notes.md
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes-file notes.md --target "$GITHUB_SHA"
         env: { GH_TOKEN: "${{ github.token }}" }
 
   build:
