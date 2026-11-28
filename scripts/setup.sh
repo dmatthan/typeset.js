@@ -26,6 +26,6 @@ step "the pre-commit hook";                         git config core.hooksPath sc
 command -v python3 >/dev/null || note "python3 is needed by the package's browser tests (they serve files with it)"
 command -v wasm-opt >/dev/null || note "wasm-opt (binaryen) is wanted for the engine's release size; without it the engine builds unoptimised"
 if [[ "$(uname)" == Linux ]] && ! pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
-  note "the desktop app (and clippy over the whole workspace) needs the WebKitGTK development packages: the list is in .github/workflows/ci.yml"
+  note "the desktop app (and clippy over the whole workspace) needs the WebKitGTK development packages: the list is in .github/actions/setup/action.yml"
 fi
 step "ready: scripts/lint.sh, scripts/check.sh"

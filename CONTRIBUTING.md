@@ -14,7 +14,7 @@ scripts/setup.sh
 It installs the pinned Rust toolchain and wasm-bindgen CLI, cargo-machete, the npm packages,
 the engine built for the browser, Playwright's browsers and the pre-commit hook, and says
 what else is wanted: Python 3 for the package's browser tests, and on Linux the WebKitGTK
-development packages for the desktop app (listed in `.github/workflows/ci.yml`).
+development packages for the desktop app (listed in `.github/actions/setup/action.yml`).
 
 ## Flow
 
@@ -64,10 +64,14 @@ skips; locally, `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 ```sh
 scripts/lint.sh            # the fast checks, as the commit hook runs them
-scripts/check.sh           # everything CI runs: lint, crates, browser tests, the press
+scripts/check.sh           # lint, crates, browser tests, the press (CI also runs Firefox)
 npm --prefix app test      # the browser tests alone
 cargo test                 # the crates alone
 ```
+
+CI runs the fast checks, the crates' tests and each browser suite as jobs side by side;
+the pull request's `check` passes when all of them have. Every night CI also runs the reader
+in WebKit and `scripts/check.sh --slow`, and opens an issue when either fails.
 
 What the checks enforce: formatting, layers that import one way, files under 800 lines, functions
 under 30 branches, every module opening with what it is, no copied or unused code, no
