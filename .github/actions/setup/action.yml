@@ -9,9 +9,22 @@ inputs:
   registry:
     description: The npm registry, for publishing.
     default: ""
+  desktop:
+    description: On Linux, the desktop app's system libraries (WebKitGTK; patchelf for its AppImage).
+    default: "false"
+  wasm-opt:
+    description: On Linux, wasm-opt (binaryen), for the engine's release size.
+    default: "false"
 runs:
   using: composite
   steps:
+    - name: System packages
+      if: runner.os == 'Linux' && (inputs.desktop == 'true' || inputs.wasm-opt == 'true')
+      shell: bash
+      env:
+        DESKTOP: "${{ inputs.desktop == 'true' && 'libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf' || '' }}"
+        WASM_OPT: "${{ inputs.wasm-opt == 'true' && 'binaryen' || '' }}"
+      run: sudo apt-get update && sudo apt-get install -y $DESKTOP $WASM_OPT
     - uses: actions/setup-node@v5
       with: { node-version-file: .node-version, registry-url: "${{ inputs.registry }}" }
     - name: Rust, as rust-toolchain.toml pins it

@@ -1,9 +1,9 @@
-# Every push and pull request: the gates a commit passes locally (scripts/lint.sh), the
-# crates' tests, the browser tests (the app, its production build, the sharing service and
-# the package on an ordinary site; then the reader in Firefox), and what a page with
-# typeset.js downloads. Safari's engine is run by hand before a release (`test:webkit`):
-# Playwright's WebKit loses a fresh page's first load to its network process crashing,
-# a few tests in a long run, which loading the app alone never does.
+# Every push and pull request, in jobs that run side by side: the fast gate (scripts/lint.sh)
+# and what a page with typeset.js downloads; the crates' tests; the browser tests by suite
+# (the app in Chromium; its production build, the sharing service and the package on an
+# ordinary site; the app in Firefox). `check` passes once all of them have: it is the check
+# the branch protection requires, so the jobs can change without changing the rule. Safari's
+# engine, and the suites with the CPU slowed, run nightly (nightly.yml).
 name: CI
 
 on:
@@ -11,28 +11,62 @@ on:
     branches: [main]
   pull_request:
 
+# (a newer push to a pull request cancels its older run; every run on main finishes)
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
-  check:
+  lint:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      # (clippy builds the desktop app; wasm-opt gives the engine its released size)
       - uses: ./.github/actions/setup
-      # the desktop shell's libraries (clippy builds it), and wasm-opt (the engine's size)
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev binaryen
+        with: { desktop: "true", wasm-opt: "true" }
       - run: scripts/build-wasm.sh
       - run: npm --prefix app ci && npm --prefix service ci
       - run: scripts/lint.sh
-      - run: cargo test --workspace
       - run: (cd app && TYPESET_PACKAGE=1 npx vite build --logLevel warn) && node scripts/sizes.mjs
-      - run: npx --prefix app playwright install --with-deps chromium firefox
-      - run: npm --prefix app test
-      - run: npm --prefix app run test:firefox
+
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with: { desktop: "true" }
+      - run: cargo test --workspace
+
+  browsers:
+    name: browsers (${{ matrix.suite }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { suite: app, browser: chromium, projects: "--project=chromium" }
+          - { suite: site, browser: chromium, projects: "--project=build --project=service --project=package", service: true }
+          - { suite: firefox, browser: firefox, projects: "--project=firefox" }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with: { wasm-opt: "true" }
+      - run: scripts/build-wasm.sh
+      - run: npm --prefix app ci
+      - if: matrix.service
+        run: npm --prefix service ci
+      - uses: ./.github/actions/browsers
+        with: { browser: "${{ matrix.browser }}" }
+      - run: (cd app && npx playwright test ${{ matrix.projects }})
       - if: failure()
         uses: actions/upload-artifact@v4
-        with: { name: test-results, path: app/test-results, retention-days: 7 }
+        with: { name: "test-results-${{ matrix.suite }}", path: app/test-results, retention-days: 7 }
 
   # the package's command on the oldest Node its `engines` allows
   package-node:
@@ -46,3 +80,14 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: "${{ steps.floor.outputs.node }}" }
       - run: node packages/typeset.js/bin/typeset.mjs --help
+
+  check:
+    if: always()
+    needs: [lint, rust, browsers, package-node]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env: { RESULTS: "${{ join(needs.*.result, ' ') }}" }
+        run: |
+          echo "the jobs: $RESULTS"
+          [[ "$RESULTS" =~ ^success( success)*$ ]]

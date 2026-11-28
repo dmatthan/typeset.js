@@ -1,0 +1,68 @@
+# Every night, what is too slow or too unsteady for each pull request: the reader in Safari's
+# engine (Playwright's WebKit, which loses a fresh page's first load now and then: a test is
+# tried three times), and every gate with the CPU slowed 4× (scripts/check.sh --slow), where
+# what depends on timing fails. A test that fails here for a known reason is marked
+# `test.fixme` with its issue. A failed night opens an issue, or adds to the open one.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webkit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with: { wasm-opt: "true" }
+      - run: scripts/build-wasm.sh
+      - run: npm --prefix app ci
+      - uses: ./.github/actions/browsers
+        with: { browser: webkit }
+      - run: (cd app && npx playwright test --project=webkit --retries=2)
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: test-results-webkit, path: app/test-results, retention-days: 14 }
+
+  slow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+        with: { desktop: "true", wasm-opt: "true" }
+      - run: npm --prefix app ci && npm --prefix service ci
+      - uses: ./.github/actions/browsers
+        with: { browser: chromium }
+      - run: scripts/check.sh --slow
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: test-results-slow, path: app/test-results, retention-days: 14 }
+
+  report:
+    if: failure()
+    needs: [webkit, slow]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RESULTS: "webkit: ${{ needs.webkit.result }}, slow: ${{ needs.slow.result }}"
+        run: |
+          title="repo: the nightly run failed"
+          open=$(gh issue list --state open --label kind/ci --search "\"$title\" in:title" --json number -q '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Failed again: $RUN ($RESULTS)"
+          else
+            gh issue create --title "$title" --label kind/ci --body "The nightly run failed: $RUN ($RESULTS). The failing tests' results are the run's artifacts."
+          fi

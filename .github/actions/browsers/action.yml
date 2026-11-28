@@ -1,0 +1,22 @@
+# One of Playwright's browsers at the version app/package-lock.json installs, kept between
+# runs, with the system libraries it needs. Needs `npm --prefix app ci` first.
+name: Browser
+description: A Playwright browser, cached by Playwright's version.
+inputs:
+  browser:
+    description: chromium, firefox or webkit.
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      run: echo "playwright=$(node -p "require('./app/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.version.outputs.playwright }}-${{ inputs.browser }}
+    # (a cached browser is not downloaded again; its system libraries are installed each run)
+    - shell: bash
+      env: { BROWSER: "${{ inputs.browser }}" }
+      run: npx --prefix app playwright install --with-deps "$BROWSER"

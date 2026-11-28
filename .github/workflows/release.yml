@@ -46,9 +46,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
-        with: { targets: "${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin x86_64-apple-darwin' || '' }}" }
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
+        with:
+          targets: "${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin x86_64-apple-darwin' || '' }}"
+          desktop: "true"
       # the interface's engine for the web build (the app's types need it), then the app
       - run: scripts/build-wasm.sh
       - run: npm --prefix app ci
