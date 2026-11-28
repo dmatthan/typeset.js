@@ -312,13 +312,6 @@
   :global(.touchui) .bar {
     padding-inline: calc(10px + var(--pad, 0px) / 4);
   }
-  /* full screen at the foot's start, mirroring the menu at its end (ReaderMenu: the same sums) */
-  :global(.touchui) .full {
-    left: calc(10px + var(--pad, 0px) / 4);
-    bottom: calc(
-      env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)
-    );
-  }
   .side {
     display: flex;
     align-items: center;
@@ -341,29 +334,7 @@
   .right {
     justify-content: flex-end;
   }
-  /* a control at the top: a round button on the page's surface (as the menu's at the foot) */
-  .ibtn {
-    appearance: none;
-    border: 0;
-    cursor: pointer;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: var(--surface);
-    box-shadow: 0 0 0 1px var(--rule);
-    color: var(--ink-2);
-    transition:
-      color var(--quick),
-      background-color var(--quick);
-    text-decoration: none;
-  }
-  :global(html:not(.touchui)) .ibtn:hover {
-    color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 6%, var(--surface));
-  }
+  /* a control at the top: a round button on the page's surface (.ibtn, tokens.css) */
   .ibtn svg {
     width: 20px;
     height: 20px;

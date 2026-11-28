@@ -59,6 +59,19 @@
   opacity: 1;
   visibility: visible;
 }
+/* on a touch screen, for a finger's 44 px; in a box on a page (`--pad`) as far from the foot
+   as from the side, as the top bar's buttons are from its top (ReaderView's .bar) */
+.touchui .corner {
+  bottom: calc(
+    env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)
+  );
+}
+.touchui .corner.start {
+  left: calc(10px + var(--pad, 0px) / 4);
+}
+.touchui .corner.end {
+  right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 4);
+}
 .track {
   position: absolute;
   left: 0;

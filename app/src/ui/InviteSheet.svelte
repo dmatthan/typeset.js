@@ -68,6 +68,7 @@
     <label class="svc-name">
       <span>Your name, as your readers will know you</span>
       <input
+        class="field"
         type="text"
         bind:value={name}
         placeholder="Your name"

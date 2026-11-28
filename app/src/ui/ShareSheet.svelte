@@ -228,7 +228,7 @@
     {:else}
       <div class="steps">
         <input
-          class="link"
+          class="link field"
           type="text"
           readonly
           value={link}
@@ -276,12 +276,12 @@
         <label for="share-where"
           >Put it where your readers can fetch it (a web address), and give that address here.</label
         >
-        <input id="share-where" type="url" placeholder="https://…" bind:value={where} disabled={!key} />
+        <input class="field" id="share-where" type="url" placeholder="https://…" bind:value={where} disabled={!key} />
       </li>
       <li class:off={!fileLink}>
         <span>Send them the link.</span>
         <input
-          class="link"
+          class="link field"
           type="text"
           readonly
           value={fileLink}
@@ -320,19 +320,7 @@
     color: var(--accent);
   }
   .steps input {
-    height: 44px;
-    box-sizing: border-box;
-    border: 1.5px solid var(--rule);
-    border-radius: var(--r-m);
-    background: var(--surface);
-    color: var(--ink);
-    font: 500 var(--t-m) / 1 var(--f-ui);
-    padding: 0 12px;
-    outline: none;
     min-width: 0;
-  }
-  .steps input:focus {
-    border-color: var(--accent);
   }
   .steps .btn {
     justify-self: start;

@@ -161,6 +161,13 @@
     -webkit-appearance: none;
     opacity: 0;
     pointer-events: none;
+    /* the line, read up to --fill: one value for both engines' tracks below (a rule naming
+       both pseudo-elements would be dropped whole by each engine, for the other's name) */
+    --track: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--ink) 35%, transparent) var(--fill),
+      color-mix(in oklab, var(--ink) 9%, transparent) var(--fill)
+    );
   }
   .grip {
     position: absolute;
@@ -195,20 +202,12 @@
   input::-webkit-slider-runnable-track {
     height: 2px;
     border-radius: 1px;
-    background: linear-gradient(
-      to right,
-      color-mix(in oklab, var(--ink) 35%, transparent) var(--fill),
-      color-mix(in oklab, var(--ink) 9%, transparent) var(--fill)
-    );
+    background: var(--track);
   }
   input::-moz-range-track {
     height: 2px;
     border-radius: 1px;
-    background: linear-gradient(
-      to right,
-      color-mix(in oklab, var(--ink) 35%, transparent) var(--fill),
-      color-mix(in oklab, var(--ink) 9%, transparent) var(--fill)
-    );
+    background: var(--track);
   }
   input::-webkit-slider-thumb {
     -webkit-appearance: none;
