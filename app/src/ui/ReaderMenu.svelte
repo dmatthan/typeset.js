@@ -176,33 +176,8 @@
 </div>
 
 <style>
-  /* at the end of the foot, level with the page's number (and, with the notes' rail, at
-     the end of the text's own foot); in a box on a page (`--pad`) as far from its foot as
-     from its side, as the bar's buttons are from its top (ReaderView: the same sums) */
-  :global(.touchui) .more {
-    right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 4);
-    bottom: calc(
-      env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)
-    );
-  }
-  .ibtn {
-    appearance: none;
-    cursor: pointer;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: var(--surface);
-    box-shadow: 0 0 0 1px var(--rule);
-    color: var(--ink-2);
-    transition:
-      color var(--quick),
-      background-color var(--quick);
-  }
-  :global(html:not(.touchui)) .ibtn:hover,
+  /* (at the end of the foot, level with the page's number, and with the notes' rail at the
+     end of the text's own foot: .corner.end, reader.css; the button: .ibtn, tokens.css) */
   .ibtn[aria-expanded='true'] {
     color: var(--ink);
     background: color-mix(in srgb, var(--ink) 6%, var(--surface));

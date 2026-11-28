@@ -143,6 +143,7 @@
   <label class="svc-name">
     <span>Your name, as the writer will see it</span>
     <input
+      class="field"
       type="text"
       bind:value={name}
       placeholder="Your name"

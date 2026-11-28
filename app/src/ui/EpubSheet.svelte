@@ -48,8 +48,8 @@
     <p class="where">The whole book, or chosen chapters as a sample.</p>
   </div>
   <div class="range">
-    <label>Chapters from <input type="number" min="1" max={n} bind:value={from} /></label>
-    <label>to <input type="number" min="1" max={n} bind:value={to} /></label>
+    <label>Chapters from <input class="field" type="number" min="1" max={n} bind:value={from} /></label>
+    <label>to <input class="field" type="number" min="1" max={n} bind:value={to} /></label>
     <span class="of">of {n}</span>
   </div>
   <div class="acts two">
@@ -76,13 +76,6 @@
   }
   .range input {
     width: 4.5em;
-    height: 42px;
-    box-sizing: border-box;
-    border: 1.5px solid var(--rule);
-    border-radius: var(--r-m);
-    background: var(--surface);
-    color: var(--ink);
-    font: 500 var(--t-m) / 1 var(--f-ui);
     padding: 0 10px;
   }
   .of {

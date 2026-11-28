@@ -120,7 +120,7 @@
   <div class="nb-head">
     <input
       bind:this={field}
-      class="nb-filter"
+      class="nb-filter field"
       type="search"
       bind:value={query}
       onkeydown={fieldKey}
@@ -180,18 +180,6 @@
   .nb-filter {
     flex: 1 1 260px;
     min-width: 0;
-    height: 44px;
-    box-sizing: border-box;
-    border: 1.5px solid var(--rule);
-    border-radius: var(--r-m);
-    background: var(--surface);
-    color: var(--ink);
-    font: 500 var(--t-m) / 1 var(--f-ui);
-    padding: 0 14px;
-    outline: none;
-  }
-  .nb-filter:focus {
-    border-color: var(--accent);
   }
   .nb-list {
     display: grid;
