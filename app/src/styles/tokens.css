@@ -279,20 +279,6 @@ button {
   font: 600 var(--t-s) / 1.3 var(--f-ui);
   color: var(--ink-2);
 }
-.svc-name input {
-  height: 46px;
-  box-sizing: border-box;
-  border: 1.5px solid var(--rule);
-  border-radius: var(--r-m);
-  background: var(--surface);
-  color: var(--ink);
-  font: 500 var(--t-m) / 1 var(--f-ui);
-  padding: 0 14px;
-  outline: none;
-}
-.svc-name input:focus {
-  border-color: var(--accent);
-}
 .svc-check:empty {
   display: none;
 }
@@ -321,6 +307,45 @@ button {
   padding: 0 1px;
 }
 
+/* a text field in a sheet or panel: one height, frame and face throughout (its width and
+   place are its own) */
+.field {
+  height: 44px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-m);
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 var(--t-m) / 1 var(--f-ui);
+  padding: 0 14px;
+  outline: none;
+}
+.field:focus {
+  border-color: var(--accent);
+}
+/* a round icon button on the page's surface: the reader's top bar, and its menu at the foot */
+.ibtn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule);
+  color: var(--ink-2);
+  transition:
+    color var(--quick),
+    background-color var(--quick);
+  text-decoration: none;
+}
+html:not(.touchui) .ibtn:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
 /* buttons shared by leaves, sheets and panels */
 .btn {
   appearance: none;

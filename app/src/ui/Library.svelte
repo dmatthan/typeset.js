@@ -509,7 +509,13 @@
           addNew(b);
         }}
       >
-        <input type="text" placeholder="New collection" bind:value={newName} aria-label="New collection" />
+        <input
+          class="field"
+          type="text"
+          placeholder="New collection"
+          bind:value={newName}
+          aria-label="New collection"
+        />
         <button class="btn" type="submit" disabled={!newName.trim()}>Add</button>
       </form>
     </div>
@@ -609,7 +615,7 @@
         ui.sheet = null;
       }}
     >
-      <input type="text" bind:value={renaming} aria-label="Name" data-autofocus />
+      <input class="field" type="text" bind:value={renaming} aria-label="Name" data-autofocus />
       <button class="btn" type="submit" disabled={!renaming.trim() || renaming.trim() === c.name}>Rename</button>
     </form>
     <div class="acts two">
@@ -983,18 +989,6 @@
     flex: 1;
     min-width: 0;
     width: 0;
-    height: 44px;
-    box-sizing: border-box;
-    border: 1.5px solid var(--rule);
-    border-radius: var(--r-m);
-    background: var(--surface);
-    color: var(--ink);
-    font: 500 var(--t-m) / 1 var(--f-ui);
-    padding: 0 14px;
-    outline: none;
-  }
-  .new input:focus {
-    border-color: var(--accent);
   }
   h1 {
     margin: 0;
