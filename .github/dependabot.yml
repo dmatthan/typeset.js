@@ -1,11 +1,15 @@
 # Dependency updates, weekly: minor and patch versions grouped into one pull request per
 # ecosystem, majors one by one; titled in the repository's convention (build(deps): …).
+# Crates that must move together are a group of their own, at any version: harfrust reads
+# fonts through read-fonts, and the press uses both, so they take one version of it.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
     schedule: { interval: weekly }
-    groups: { cargo: { update-types: [minor, patch] } }
+    groups:
+      fonts: { patterns: [harfrust, read-fonts] }
+      cargo: { update-types: [minor, patch] }
     commit-message: { prefix: "build(deps)" }
     labels: [kind/deps]
   - package-ecosystem: npm
