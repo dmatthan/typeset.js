@@ -16,7 +16,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 rusqlite = { version = "0.43", features = ["bundled"] }
 typeset-engine = { path = "../crates/engine", features = ["parallel"] }
-fontdb = "0.23"
+fontdb = "0.24"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
