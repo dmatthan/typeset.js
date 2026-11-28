@@ -77,7 +77,7 @@ jobs:
         with: { sparse-checkout: packages/typeset.js }
       - id: floor
         run: echo "node=$(node -p "require('./packages/typeset.js/package.json').engines.node.replace(/[^0-9.]/g, '')")" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with: { node-version: "${{ steps.floor.outputs.node }}" }
       - run: node packages/typeset.js/bin/typeset.mjs --help
 
