@@ -21,7 +21,7 @@ jobs:
   draft:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - if: github.ref_type == 'tag'
         uses: ./.github/actions/release-gate
@@ -44,7 +44,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults: { run: { shell: bash } }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           targets: "${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin x86_64-apple-darwin' || '' }}"
