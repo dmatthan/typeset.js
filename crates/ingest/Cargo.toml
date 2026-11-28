@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 pulldown-cmark = { version = "0.13", default-features = false }
-quick-xml = "0.38"
+quick-xml = "0.42"
 ego-tree = "0.11"
 imagesize = "0.14"
 scraper = "0.27.0"
