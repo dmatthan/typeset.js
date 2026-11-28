@@ -1,2 +1,5 @@
 # Commits that only reformat, skipped by blame (GitHub reads this file; locally:
 # git config blame.ignoreRevsFile .git-blame-ignore-revs).
+
+# build(repo): adopt rustfmt and Prettier, and check formatting (#47)
+1b721bebc37295d3a9efee02b5aea8d4877c0aa6
