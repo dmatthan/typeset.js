@@ -11,7 +11,7 @@ touched() { [[ "${1:-}" != --staged ]] || git diff --cached --name-only | grep -
 step "shape: layers, file sizes";                       node scripts/rules.mjs
 if touched "${1:-}" '^scripts/'; then
   # (quiet when they pass, the whole report when one fails)
-  step "scripts: their own tests";                      out=$(node --test scripts/ 2>&1) || { echo "$out"; exit 1; }
+  step "scripts: their own tests";                      out=$(node --test 'scripts/*.test.mjs' 2>&1) || { echo "$out"; exit 1; }
 fi
 # a maintainer's private details (names, paths) kept out of the repository: the patterns
 # are their own, one extended regex a line, in .private/guard (never committed)

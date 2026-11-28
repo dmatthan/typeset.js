@@ -1,4 +1,4 @@
-// The pull request title rule (title.mjs), case by case: node --test scripts/
+// The pull request title rule (title.mjs), case by case: node --test 'scripts/*.test.mjs'
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { titleProblem } from './title.mjs';
