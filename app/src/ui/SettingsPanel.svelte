@@ -4,6 +4,7 @@
    *  one step in (Style), each a change from the theme's design that resets on its own.
    *  Nothing here blurs. */
   import { copyText } from '../core/clipboard';
+  import { wrapTab } from './focus';
   import { onMount, tick } from 'svelte';
   import { touchUI } from './touch';
   import type { Reader } from '../reader/reader.svelte';
@@ -109,17 +110,11 @@
     // (a field's keys are its own, and a slider's arrows move it)
     const typing = (e.target as Element).closest?.('input[type=text], input[type=range], input:not([type]), textarea, [contenteditable]');
     if (typing && k !== 'Escape') return;
-    if (k === 'Tab') { trap(e); return; }
+    if (k === 'Tab') { wrapTab(e, panel); return; }
     const run = BACK.has(k) && page !== 'main' ? () => go('main') : k === '0' && page === 'style' ? () => { resetOptions(theme); relayout(); } : KEYS[k];
     if (!run) return;
     run();
     e.preventDefault(); e.stopImmediatePropagation();
-  }
-  function trap(e: KeyboardEvent) {
-    const f = [...panel.querySelectorAll<HTMLElement>('button:not([disabled]), input')];
-    if (!f.length) return;
-    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
-    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
   }
 
   const card = (t: Theme) => {

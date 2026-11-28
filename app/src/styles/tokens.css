@@ -157,6 +157,18 @@ button { font: inherit; color: inherit; }
   *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
 
+/* a sheet's form to the sharing service (InviteSheet, SendSheet): the name it asks for, the
+   human check (Turnstile), and why the service said no */
+.svc-name { display: grid; gap: 6px; font: 600 var(--t-s)/1.3 var(--f-ui); color: var(--ink-2); }
+.svc-name input { height: 46px; box-sizing: border-box; border: 1.5px solid var(--rule); border-radius: var(--r-m); background: var(--surface); color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0 14px; outline: none; }
+.svc-name input:focus { border-color: var(--accent); }
+.svc-check:empty { display: none; }
+.svc-why { margin: 0; font: 600 var(--t-m)/1.45 var(--f-ui); color: var(--ink); }
+/* a search's hit in its own words, two lines at most, the match marked (FindBar,
+   LibraryResults: each its own size) */
+.snip { font-family: var(--f-book); font-weight: 400; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.snip b { color: var(--ink); font-weight: 650; background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; padding: 0 1px; }
+
 /* buttons shared by leaves, sheets and panels */
 .btn {
   appearance: none; cursor: pointer; border: 0; border-radius: var(--r-m); min-height: 44px; padding: 0 18px;

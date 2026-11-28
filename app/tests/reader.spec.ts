@@ -1299,6 +1299,32 @@ test('Aa\'s theme cards show their faces together, once all have come, not one b
   await expect.poll(async () => (await shown()).every(a => a === 1)).toBe(true);
 });
 
+test('the keyboard stays in Aa and in a dialog: Tab past the last control comes to the first, Shift+Tab before the first to the last', async ({ page: p }) => {
+  await openSample(p);
+  // (within a container: its controls as Tab reaches them, and where the focus is among them)
+  const wraps = async (sel: string) => {
+    const edge = (end: 'first' | 'last') => p.evaluate(([sel, end]) => {
+      const f = [...document.querySelector(sel)!.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type=radio]), input[type=radio]:checked, [tabindex="0"]')];
+      (end === 'first' ? f[0] : f[f.length - 1]).focus();
+      return f.length;
+    }, [sel, end] as const);
+    const at = () => p.evaluate(sel => { const f = [...document.querySelector(sel)!.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type=radio]), input[type=radio]:checked, [tabindex="0"]')]; return f.indexOf(document.activeElement as HTMLElement); }, sel);
+    const n = await edge('last');
+    await p.keyboard.press('Tab');
+    expect(await at()).toBe(0);
+    await edge('first');
+    await p.keyboard.press('Shift+Tab');
+    expect(await at()).toBe(n - 1);
+  };
+  await p.keyboard.press('s');
+  await expect(p.locator('.panel')).toBeVisible();
+  await wraps('.panel');
+  await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+  await p.keyboard.press('?');
+  await expect(p.locator('.sheet')).toBeVisible();
+  await wraps('.sheet');
+});
+
 test('the book\'s last page: Finis, its title, its words counted, and nothing more', async ({ page: p }) => {
   await openSample(p);
   await p.evaluate(() => { const r = (window as any).__typeset.reader; r.jump(r.strip.N - 1); });

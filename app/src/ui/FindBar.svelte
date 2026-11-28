@@ -94,8 +94,7 @@
   .hit { display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left; padding: 8px 10px; border-radius: 9px; }
   :global(html:not(.touchui)) .hit:not([aria-selected="true"]):hover { background: var(--hover); }
   .hit[aria-selected="true"] { background: var(--wash); }
-  .snip { flex: 1; font: 400 15px/1.4 var(--f-book); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .snip b { color: var(--ink); font-weight: 650; background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; padding: 0 1px; }
+  .snip { flex: 1; font-size: 15px; line-height: 1.4; }
   .n { font: 600 13px/1 var(--f-ui); color: var(--ink-3); }
   .more { padding: 8px 10px; font: 500 13px/1.4 var(--f-ui); color: var(--ink-3); }
 </style>
