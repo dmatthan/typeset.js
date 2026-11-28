@@ -15,24 +15,16 @@ permissions:
   actions: read
   id-token: write
 
-env:
-  WASM_BINDGEN: "0.2.129"
-
 jobs:
   publish:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/release-gate
-      - uses: actions/setup-node@v5
-        with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
+      - uses: ./.github/actions/setup
+        with: { registry: "https://registry.npmjs.org" }
       # (staging came with npm 12)
       - run: npm install -g npm@12.2.3
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-unknown-unknown }
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-bindgen@${{ env.WASM_BINDGEN }}" }
       - run: sudo apt-get update && sudo apt-get install -y binaryen
       - run: scripts/build-wasm.sh
       - run: npm --prefix app ci && npm --prefix service ci

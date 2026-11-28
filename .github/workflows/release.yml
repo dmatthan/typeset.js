@@ -15,7 +15,6 @@ permissions:
   actions: read
 
 env:
-  WASM_BINDGEN: "0.2.129"
   TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
 
 jobs:
@@ -46,14 +45,8 @@ jobs:
     defaults: { run: { shell: bash } }
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with: { node-version: 22 }
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown${{ matrix.target == 'universal-apple-darwin' && ',aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-bindgen@${{ env.WASM_BINDGEN }}" }
+      - uses: ./.github/actions/setup
+        with: { targets: "${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin x86_64-apple-darwin' || '' }}" }
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf
       # the interface's engine for the web build (the app's types need it), then the app

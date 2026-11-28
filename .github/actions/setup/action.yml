@@ -1,0 +1,28 @@
+# The toolchains at the versions the repository pins (.node-version, rust-toolchain.toml,
+# Cargo.lock), the Rust build cached. Needs the repository checked out.
+name: Toolchains
+description: Node, Rust and the wasm-bindgen CLI at the repository's pinned versions.
+inputs:
+  targets:
+    description: Rust targets beyond the toolchain file's (space-separated).
+    default: ""
+  registry:
+    description: The npm registry, for publishing.
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with: { node-version-file: .node-version, registry-url: "${{ inputs.registry }}" }
+    - name: Rust, as rust-toolchain.toml pins it
+      shell: bash
+      env: { TARGETS: "${{ inputs.targets }}" }
+      run: |
+        rustup toolchain install
+        if [ -n "$TARGETS" ]; then rustup target add $TARGETS; fi
+    - uses: Swatinem/rust-cache@v2
+    - name: The wasm-bindgen CLI's version, from Cargo.lock
+      shell: bash
+      run: echo "WASM_BINDGEN=$(scripts/bindgen-version.sh)" >> "$GITHUB_ENV"
+    - uses: taiki-e/install-action@v2
+      with: { tool: "wasm-bindgen@${{ env.WASM_BINDGEN }}" }

@@ -12,6 +12,6 @@
   "bin": { "typeset.js": "bin/typeset.mjs" },
   "files": ["index.js", "index.d.ts", "bin", "reader", "LICENSE"],
   "sideEffects": true,
-  "engines": { "node": ">=18" },
+  "engines": { "node": ">=22" },
   "scripts": { "prepack": "cp ../../LICENSE . && test -f reader/embed.html" }
 }
