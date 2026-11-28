@@ -95,26 +95,11 @@ the rest itself.
 `examples/` has a chapter on a blog (with a button that opens the whole book) and a
 library from a list, as a site would serve them.
 
-## Working on it
+## Contributing
 
-How the parts fit, at a glance: [ARCHITECTURE.md](ARCHITECTURE.md).
-
-```sh
-git config core.hooksPath scripts/hooks   # once: the checks below before every commit
-scripts/lint.sh                           # the fast checks: layers, file sizes, copied
-                                          # code, unused code, types, tangled functions,
-                                          # modules that say what they are, clippy
-node scripts/map.mjs                      # every module, in its own words
-scripts/check.sh                          # everything: lint, crates, Playwright, the press
-npm --prefix app test                     # the browser tests (Chromium; the app, its
-                                          # production build, the service, the package)
-npm --prefix app run test:engines         # the reader in Firefox and Safari's engine (WebKit
-                                          # by hand before a release; CI runs Firefox)
-node scripts/sizes.mjs                    # what a page with typeset.js downloads, against a budget
-```
-
-The same run on every push (`.github/workflows/ci.yml`), with Firefox after Chromium. A bug fixed comes with a test that
-failed before the fix.
+[CONTRIBUTING.md](CONTRIBUTING.md): setup, the issue and pull request flow, conventions and
+checks. [ARCHITECTURE.md](ARCHITECTURE.md): how the parts fit. Security reports:
+[SECURITY.md](SECURITY.md).
 
 ## License
 

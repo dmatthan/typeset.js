@@ -1,0 +1,34 @@
+name: Task
+description: Maintenance or structural work with no change of behaviour for users.
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: The change, in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why it is needed. Name files and lines; separate what was verified from what is inferred.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How a reviewer can tell it is done.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
