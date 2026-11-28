@@ -93,7 +93,7 @@
       <p class="where">{parts.length ? cap(parts.join(', ')) + '.' : 'Nothing to send yet.'} They go as one small file, which the writer opens in their library; their book shows your notes in place.</p>
     {/if}
   </div>
-  <label class="name">
+  <label class="svc-name">
     <span>Your name, as the writer will see it</span>
     <input type="text" bind:value={name} placeholder="Your name" data-autofocus onkeydown={e => { if (e.key === 'Enter') { e.preventDefault(); online ? sendBack() : send(); } }} />
   </label>
@@ -106,8 +106,8 @@
       <span><span class="t-t">Send new notes by themselves</span><span class="t-m">When you leave the book, if you added any or read on.</span></span>
       <input type="checkbox" bind:checked={auto} onchange={setAuto} />
     </label>
-    <div class="check" bind:this={check}></div>
-    {#if why}<p class="why" role="alert">{why}</p>{/if}
+    <div class="svc-check" bind:this={check}></div>
+    {#if why}<p class="svc-why" role="alert">{why}</p>{/if}
     <div class="acts two">
       <button class="btn" onclick={send} disabled={!name.trim() || !some}>Save as a file</button>
       <button class="btn primary" disabled={busy || !name.trim() || !some} onclick={sendBack}>{busy ? 'Sending…' : 'Send to the writer'}</button>
@@ -120,10 +120,3 @@
   {/if}
 </Sheet>
 
-<style>
-  .name { display: grid; gap: 6px; font: 600 var(--t-s)/1.3 var(--f-ui); color: var(--ink-2); }
-  .name input { height: 46px; box-sizing: border-box; border: 1.5px solid var(--rule); border-radius: var(--r-m); background: var(--surface); color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0 14px; outline: none; }
-  .name input:focus { border-color: var(--accent); }
-  .check:empty { display: none; }
-  .why { margin: 0; font: 600 var(--t-m)/1.45 var(--f-ui); color: var(--ink); }
-</style>

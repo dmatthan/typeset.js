@@ -78,7 +78,6 @@
   :global(html:not(.touchui)) .hit:hover { background: var(--hover); }
   .hit:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; background: var(--hover); }
   .ch { font: 600 12.5px/1.3 var(--f-ui); color: var(--ink-3); }
-  .snip { font: 400 16px/1.45 var(--f-book); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .snip b { color: var(--ink); font-weight: 650; background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 3px; padding: 0 1px; }
+  .snip { font-size: 16px; line-height: 1.45; }
   .more { margin: 2px 12px 0; font: 500 13px/1.4 var(--f-ui); color: var(--ink-3); }
 </style>

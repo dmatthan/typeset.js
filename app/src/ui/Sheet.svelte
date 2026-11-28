@@ -3,6 +3,7 @@
    *  or a press beside it closing it. */
   import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
+  import { wrapTab } from './focus';
 
   let { label, onclose, onkey, children, wide = false }: {
     label: string; onclose: () => void; onkey?: (e: KeyboardEvent) => boolean; children: Snippet; wide?: boolean;
@@ -31,13 +32,7 @@
 
   function keydown(e: KeyboardEvent) {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onclose(); return; }
-    if (e.key === 'Tab') {
-      const f = [...sheet.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type=radio]), input[type=radio]:checked, [tabindex="0"]')];
-      if (!f.length) return;
-      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
-      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
-      return;
-    }
+    if (e.key === 'Tab') { wrapTab(e, sheet); return; }
     if (!e.ctrlKey && !e.metaKey && !e.altKey && onkey?.(e)) e.preventDefault();
   }
 </script>

@@ -43,13 +43,13 @@
   {#if !canPasskey()}
     <p class="hint">This browser can’t make a passkey. Try another browser, on a device with a screen lock.</p>
   {:else}
-    <label class="name">
+    <label class="svc-name">
       <span>Your name, as your readers will know you</span>
       <input type="text" bind:value={name} placeholder="Your name" maxlength="60" data-autofocus onkeydown={e => { if (e.key === 'Enter') { e.preventDefault(); accept(); } }} />
     </label>
     <p class="where">You’ll sign in with a passkey: Face ID, a fingerprint or your PIN.</p>
-    <div class="check" bind:this={check}></div>
-    {#if why}<p class="why" role="alert">{why}</p>{/if}
+    <div class="svc-check" bind:this={check}></div>
+    {#if why}<p class="svc-why" role="alert">{why}</p>{/if}
   {/if}
   <div class="acts two">
     <button class="btn" onclick={close}>Not now</button>
@@ -57,10 +57,3 @@
   </div>
 </Sheet>
 
-<style>
-  .name { display: grid; gap: 6px; font: 600 var(--t-s)/1.3 var(--f-ui); color: var(--ink-2); }
-  .name input { height: 46px; box-sizing: border-box; border: 1.5px solid var(--rule); border-radius: var(--r-m); background: var(--surface); color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0 14px; outline: none; }
-  .name input:focus { border-color: var(--accent); }
-  .check:empty { display: none; }
-  .why { margin: 0; font: 600 var(--t-m)/1.45 var(--f-ui); color: var(--ink); }
-</style>

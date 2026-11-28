@@ -50,7 +50,7 @@
   });
 </script>
 
-<div class="more" class:shown={shown || open} bind:this={el}>
+<div class="more corner end" class:shown={shown || open} bind:this={el}>
   {#if open}
     <!-- svelte-ignore a11y_interactive_supports_focus -->
     <!-- (the shadow on the outer box, the scrolling, in a window too short for it, inside) -->
@@ -73,8 +73,6 @@
   /* at the end of the foot, level with the page's number (and, with the notes' rail, at
      the end of the text's own foot); in a box on a page (`--pad`) as far from its foot as
      from its side, as the bar's buttons are from its top (ReaderView: the same sums) */
-  .more { position: absolute; z-index: 26; right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 2); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 40px) / 2, var(--pad, 0px) + 6px)); opacity: 0; visibility: hidden; transition: opacity var(--calm) ease, visibility var(--calm); }
-  .more.shown { opacity: 1; visibility: visible; }
   :global(.touchui) .more { right: calc(var(--rail, 0px) + 10px + var(--pad, 0px) / 4); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)); }
   .ibtn {
     appearance: none; cursor: pointer; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%;

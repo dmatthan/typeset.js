@@ -151,7 +151,7 @@
   {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} bind:el={foot} />{/if}
   {#if embedOpts.ui === 'full'}<ReaderMenu {reader} {contents} {findBar} shown={!away} bind:el={more} />{/if}
   {#if step}
-    <div class="full" class:shown={!away} bind:this={full}>
+    <div class="full corner start" class:shown={!away} bind:this={full}>
       <button class="ibtn" onclick={bigger} aria-label={step} title="{step} (F)">
         {#if ui.place === 'screen'}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" /></svg>
         {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" /></svg>{/if}
@@ -192,8 +192,6 @@
   /* (a finger's buttons are larger: the same distance from the side as from the top) */
   :global(.touchui) .bar { padding-inline: calc(10px + var(--pad, 0px) / 4); }
   /* full screen at the foot's start, mirroring the menu at its end (ReaderMenu: the same sums) */
-  .full { position: absolute; z-index: 26; left: calc(10px + var(--pad, 0px) / 2); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 40px) / 2, var(--pad, 0px) + 6px)); opacity: 0; visibility: hidden; transition: opacity var(--calm) ease, visibility var(--calm); }
-  .full.shown { opacity: 1; visibility: visible; }
   :global(.touchui) .full { left: calc(10px + var(--pad, 0px) / 4); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)); }
   .side { display: flex; align-items: center; gap: 4px; transition: opacity var(--calm) ease; }
   .away .side { opacity: 0; pointer-events: none; }
