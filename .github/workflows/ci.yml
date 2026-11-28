@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # (clippy builds the desktop app; wasm-opt gives the engine its released size)
       - uses: ./.github/actions/setup
         with: { desktop: "true", wasm-opt: "true" }
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with: { desktop: "true" }
       - run: cargo test --workspace
@@ -54,7 +54,7 @@ jobs:
           - { suite: site, browser: chromium, projects: "--project=build --project=service --project=package", service: true }
           - { suite: firefox, browser: firefox, projects: "--project=firefox" }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with: { wasm-opt: "true" }
       - run: scripts/build-wasm.sh
@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with: { sparse-checkout: packages/typeset.js }
       - id: floor
         run: echo "node=$(node -p "require('./packages/typeset.js/package.json').engines.node.replace(/[^0-9.]/g, '')")" >> "$GITHUB_OUTPUT"
