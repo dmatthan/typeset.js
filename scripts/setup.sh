@@ -10,7 +10,9 @@ note() { printf 'note: %s\n' "$*" >&2; }
 
 step "Rust, as rust-toolchain.toml pins it";       rustup toolchain install
 want="$(scripts/bindgen-version.sh)"
-if [[ "$(wasm-bindgen --version 2>/dev/null | awk '{print $2}')" != "$want" ]]; then
+# where cargo installs it, on the PATH or not (as scripts/build-wasm.sh looks)
+bindgen="$(command -v wasm-bindgen || echo "${CARGO_HOME:-$HOME/.cargo}/bin/wasm-bindgen")"
+if [[ "$("$bindgen" --version 2>/dev/null | awk '{print $2}')" != "$want" ]]; then
   step "wasm-bindgen $want (Cargo.lock)";          cargo install -q wasm-bindgen-cli --version "$want" --locked
 fi
 step "npm packages";                                npm --prefix app ci && npm --prefix service ci
