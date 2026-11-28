@@ -9,7 +9,7 @@ import { nearest } from '../core/book';
 import { embedded, embedMoved, embedOpts } from '../core/embed';
 import { metrics, insets, RAIL, type Metrics } from './geometry';
 import { Strip, parseLayout, type Anchor } from './strip';
-import { columnHTML, leafHTML, chapName, esc } from './render';
+import { columnHTML, leafHTML, chapName } from './render';
 import { Surface } from './surface';
 import { Motion } from './motion';
 import { settings, reduceMotion } from './settings.svelte';
@@ -705,5 +705,3 @@ export class Reader {
     ui.sideNotes = { ids, pinned: true };
   }
 }
-
-export { esc };
