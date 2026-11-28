@@ -9,6 +9,7 @@
 
 use crate::Error;
 use crate::doc::{Doc, Para, assemble};
+use quick_xml::XmlVersion;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 use std::collections::HashMap;
@@ -60,21 +61,22 @@ impl RunProps {
     }
 }
 
-fn local(name: &[u8]) -> &[u8] {
-    name.rsplit(|&c| c == b':').next().unwrap_or(name)
+/// A name without its namespace prefix (`w:p` is `p`).
+pub(crate) fn local(name: &str) -> &str {
+    name.rsplit(':').next().unwrap_or(name)
 }
 
-fn attr(e: &BytesStart, key: &[u8]) -> Option<String> {
+fn attr(e: &BytesStart, key: &str) -> Option<String> {
     e.attributes()
         .flatten()
         .find(|a| local(a.key.as_ref()) == key)
-        .and_then(|a| a.unescape_value().ok())
+        .and_then(|a| a.normalized_value(XmlVersion::Explicit1_0).ok())
         .map(|v| v.into_owned())
 }
 
 /// A toggle property (`<w:i/>`, `<w:i w:val="0"/>`).
 fn toggle(e: &BytesStart) -> bool {
-    !matches!(attr(e, b"val").as_deref(), Some("0") | Some("false") | Some("off") | Some("none"))
+    !matches!(attr(e, "val").as_deref(), Some("0") | Some("false") | Some("off") | Some("none"))
 }
 
 fn read(z: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, path: &str) -> Option<String> {
@@ -93,23 +95,23 @@ fn styles(xml: &str) -> (HashMap<String, Style>, String) {
     loop {
         match r.read_event() {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                let n = local(e.name().as_ref()).to_vec();
-                match n.as_slice() {
-                    b"docDefaults" => in_defaults = true,
-                    b"style" => cur = Some((attr(&e, b"styleId").unwrap_or_default(), Style::default())),
-                    b"lang" if in_defaults && lang.is_empty() => lang = attr(&e, b"val").unwrap_or_default(),
+                let n = local(e.name().as_ref()).to_string();
+                match n.as_str() {
+                    "docDefaults" => in_defaults = true,
+                    "style" => cur = Some((attr(&e, "styleId").unwrap_or_default(), Style::default())),
+                    "lang" if in_defaults && lang.is_empty() => lang = attr(&e, "val").unwrap_or_default(),
                     _ => {
                         if let Some((_, s)) = cur.as_mut() {
-                            match n.as_slice() {
-                                b"name" => s.name = attr(&e, b"val").unwrap_or_default().to_lowercase(),
-                                b"basedOn" => s.based_on = attr(&e, b"val"),
-                                b"outlineLvl" => s.outline = attr(&e, b"val").and_then(|v| v.parse().ok()),
-                                b"numPr" => s.list = true,
-                                b"i" => s.i = Some(toggle(&e)),
-                                b"b" => s.b = Some(toggle(&e)),
-                                b"smallCaps" => s.sc = Some(toggle(&e)),
-                                b"vertAlign" => {
-                                    s.va = attr(&e, b"val").map(|v| {
+                            match n.as_str() {
+                                "name" => s.name = attr(&e, "val").unwrap_or_default().to_lowercase(),
+                                "basedOn" => s.based_on = attr(&e, "val"),
+                                "outlineLvl" => s.outline = attr(&e, "val").and_then(|v| v.parse().ok()),
+                                "numPr" => s.list = true,
+                                "i" => s.i = Some(toggle(&e)),
+                                "b" => s.b = Some(toggle(&e)),
+                                "smallCaps" => s.sc = Some(toggle(&e)),
+                                "vertAlign" => {
+                                    s.va = attr(&e, "val").map(|v| {
                                         if v == "superscript" {
                                             1
                                         } else if v == "subscript" {
@@ -126,8 +128,8 @@ fn styles(xml: &str) -> (HashMap<String, Style>, String) {
                 }
             }
             Ok(Event::End(e)) => match local(e.name().as_ref()) {
-                b"docDefaults" => in_defaults = false,
-                b"style" => {
+                "docDefaults" => in_defaults = false,
+                "style" => {
                     if let Some((id, s)) = cur.take() {
                         out.insert(id, s);
                     }
@@ -232,33 +234,33 @@ impl Walk<'_> {
             };
             match &ev {
                 Ok(Event::Start(e)) | Ok(Event::Empty(e)) if start => {
-                    let n = local(e.name().as_ref()).to_vec();
-                    match n.as_slice() {
-                        b"footnote" | b"endnote" if notes_part => {
-                            note_id = attr(e, b"id");
-                            skip_note = attr(e, b"type").is_some_and(|t| t != "normal");
+                    let n = local(e.name().as_ref()).to_string();
+                    match n.as_str() {
+                        "footnote" | "endnote" if notes_part => {
+                            note_id = attr(e, "id");
+                            skip_note = attr(e, "type").is_some_and(|t| t != "normal");
                         }
-                        b"p" if !empty => {
+                        "p" if !empty => {
                             b = Some(TextBuilder::new());
                             pstyle = None;
                             outline = None;
                             list = false;
                         }
-                        b"pPr" if !empty => in_ppr = true,
-                        b"pStyle" if in_ppr => pstyle = attr(e, b"val"),
-                        b"outlineLvl" if in_ppr => outline = attr(e, b"val").and_then(|v| v.parse().ok()),
-                        b"numPr" if in_ppr => list = true,
-                        b"r" if !empty => {
+                        "pPr" if !empty => in_ppr = true,
+                        "pStyle" if in_ppr => pstyle = attr(e, "val"),
+                        "outlineLvl" if in_ppr => outline = attr(e, "val").and_then(|v| v.parse().ok()),
+                        "numPr" if in_ppr => list = true,
+                        "r" if !empty => {
                             rstyle = None;
                             direct = RunProps::default();
                         }
-                        b"rPr" if !empty && !in_ppr => in_rpr = true,
-                        b"rStyle" if in_rpr => rstyle = attr(e, b"val"),
-                        b"i" | b"iCs" if in_rpr && n == b"i" => direct.i = Some(toggle(e)),
-                        b"b" if in_rpr => direct.b = Some(toggle(e)),
-                        b"smallCaps" if in_rpr => direct.sc = Some(toggle(e)),
-                        b"vertAlign" if in_rpr => {
-                            direct.va = attr(e, b"val").map(|v| {
+                        "rPr" if !empty && !in_ppr => in_rpr = true,
+                        "rStyle" if in_rpr => rstyle = attr(e, "val"),
+                        "i" | "iCs" if in_rpr && n == "i" => direct.i = Some(toggle(e)),
+                        "b" if in_rpr => direct.b = Some(toggle(e)),
+                        "smallCaps" if in_rpr => direct.sc = Some(toggle(e)),
+                        "vertAlign" if in_rpr => {
+                            direct.va = attr(e, "val").map(|v| {
                                 if v == "superscript" {
                                     1
                                 } else if v == "subscript" {
@@ -268,28 +270,26 @@ impl Walk<'_> {
                                 }
                             })
                         }
-                        b"del" | b"moveFrom" if !empty => deleted += 1,
-                        b"fldChar" => match attr(e, b"fldCharType").as_deref() {
+                        "del" | "moveFrom" if !empty => deleted += 1,
+                        "fldChar" => match attr(e, "fldCharType").as_deref() {
                             Some("begin") => field_code = true,
                             Some("separate") | Some("end") => field_code = false,
                             _ => {}
                         },
-                        b"t" if !empty => in_text = true,
-                        b"tab" if !in_ppr => self.push(&mut b, " ", &pstyle, &rstyle, direct, deleted, field_code),
-                        b"br" | b"cr" => {
-                            if !matches!(attr(e, b"type").as_deref(), Some("page") | Some("column"))
+                        "t" if !empty => in_text = true,
+                        "tab" if !in_ppr => self.push(&mut b, " ", &pstyle, &rstyle, direct, deleted, field_code),
+                        "br" | "cr" => {
+                            if !matches!(attr(e, "type").as_deref(), Some("page") | Some("column"))
                                 && deleted == 0
                                 && let Some(b) = b.as_mut()
                             {
                                 b.newline();
                             }
                         }
-                        b"noBreakHyphen" => {
-                            self.push(&mut b, "\u{2011}", &pstyle, &rstyle, direct, deleted, field_code)
-                        }
-                        b"footnoteReference" | b"endnoteReference" if deleted == 0 => {
-                            if let Some(id) = attr(e, b"id") {
-                                let i = self.note_index(n == b"endnoteReference", id);
+                        "noBreakHyphen" => self.push(&mut b, "\u{2011}", &pstyle, &rstyle, direct, deleted, field_code),
+                        "footnoteReference" | "endnoteReference" if deleted == 0 => {
+                            if let Some(id) = attr(e, "id") {
+                                let i = self.note_index(n == "endnoteReference", id);
                                 if let Some(b) = b.as_mut() {
                                     b.begin_link(format!("n:{i}"));
                                     b.push(&(i + 1).to_string(), style::SUP);
@@ -301,28 +301,28 @@ impl Walk<'_> {
                     }
                 }
                 Ok(Event::Text(t)) if in_text && deleted == 0 && !field_code => {
-                    let s = t.xml_content().map(|c| c.into_owned()).unwrap_or_default();
+                    let s = t.xml10_content().into_owned();
                     self.push(&mut b, &s, &pstyle, &rstyle, direct, deleted, field_code);
                 }
                 Ok(Event::GeneralRef(g)) if in_text && deleted == 0 && !field_code => {
                     // an entity in the text (&amp; and friends)
-                    let name: &[u8] = g;
+                    let name: &str = g;
                     let s = match name {
-                        b"amp" => "&",
-                        b"lt" => "<",
-                        b"gt" => ">",
-                        b"quot" => "\"",
-                        b"apos" => "'",
+                        "amp" => "&",
+                        "lt" => "<",
+                        "gt" => ">",
+                        "quot" => "\"",
+                        "apos" => "'",
                         _ => "",
                     };
                     self.push(&mut b, s, &pstyle, &rstyle, direct, deleted, field_code);
                 }
                 Ok(Event::End(e)) => match local(e.name().as_ref()) {
-                    b"t" => in_text = false,
-                    b"pPr" => in_ppr = false,
-                    b"rPr" => in_rpr = false,
-                    b"del" | b"moveFrom" => deleted = deleted.saturating_sub(1),
-                    b"p" => {
+                    "t" => in_text = false,
+                    "pPr" => in_ppr = false,
+                    "rPr" => in_rpr = false,
+                    "del" | "moveFrom" => deleted = deleted.saturating_sub(1),
+                    "p" => {
                         if let Some(tb) = b.take() {
                             if notes_part && skip_note {
                                 continue;
@@ -415,15 +415,15 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
     let mut meta = Meta { lang: lang.split('-').next().unwrap_or("").to_string(), ..Meta::default() };
     if let Some(core) = read(&mut z, "docProps/core.xml") {
         let mut r = Reader::from_str(&core);
-        let mut at = Vec::new();
+        let mut at = String::new();
         loop {
             match r.read_event() {
-                Ok(Event::Start(e)) => at = local(e.name().as_ref()).to_vec(),
+                Ok(Event::Start(e)) => at = local(e.name().as_ref()).to_string(),
                 Ok(Event::Text(t)) => {
-                    let v = t.xml_content().map(|c| c.trim().to_string()).unwrap_or_default();
-                    match at.as_slice() {
-                        b"title" if !v.is_empty() => meta.title = v,
-                        b"creator" if !v.is_empty() => meta.author = v,
+                    let v = t.xml10_content().trim().to_string();
+                    match at.as_str() {
+                        "title" if !v.is_empty() => meta.title = v,
+                        "creator" if !v.is_empty() => meta.author = v,
                         _ => {}
                     }
                 }

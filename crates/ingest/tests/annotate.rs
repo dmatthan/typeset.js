@@ -100,9 +100,9 @@ fn notes_become_word_comments_on_their_words() {
         let mut in_t = false;
         loop {
             match r.read_event() {
-                Ok(quick_xml::events::Event::Start(x)) if x.name().as_ref() == b"w:t" => in_t = true,
-                Ok(quick_xml::events::Event::End(x)) if x.name().as_ref() == b"w:t" => in_t = false,
-                Ok(quick_xml::events::Event::Text(x)) if in_t => t.push_str(&x.xml_content().unwrap()),
+                Ok(quick_xml::events::Event::Start(x)) if x.name().as_ref() == "w:t" => in_t = true,
+                Ok(quick_xml::events::Event::End(x)) if x.name().as_ref() == "w:t" => in_t = false,
+                Ok(quick_xml::events::Event::Text(x)) if in_t => t.push_str(&x.xml10_content()),
                 Ok(quick_xml::events::Event::Eof) | Err(_) => break,
                 _ => {}
             }

@@ -7,6 +7,7 @@
 //! one the readers read. A note not found is said so, never guessed. Only the body is
 //! annotated (`word/document.xml`); the file is otherwise copied as it was.
 
+use crate::docx::local;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use std::io::{Read, Write};
@@ -68,10 +69,6 @@ struct Para {
     pieces: Vec<Piece>,
 }
 
-fn local(name: &[u8]) -> &[u8] {
-    name.iter().rposition(|&c| c == b':').map_or(name, |i| &name[i + 1..])
-}
-
 /// The body's paragraphs: their text (as the importer reads it: deletions and field codes
 /// left out) and where each piece of it stands in the XML.
 fn paragraphs(xml: &str) -> Vec<Para> {
@@ -93,41 +90,41 @@ fn paragraphs(xml: &str) -> Vec<Para> {
         let after = r.buffer_position() as usize;
         match ev {
             Ok(Event::Start(e)) => match local(e.name().as_ref()) {
-                b"p" => para = Some(Para { text: Vec::new(), pieces: Vec::new() }),
-                b"r" => {
+                "p" => para = Some(Para { text: Vec::new(), pieces: Vec::new() }),
+                "r" => {
                     run_start = before;
                     rpr.clear();
                     open_pieces.clear();
                 }
-                b"pPr" => in_ppr = true,
-                b"rPr" if !in_ppr => rpr_start = Some(before),
-                b"t" => {
+                "pPr" => in_ppr = true,
+                "rPr" if !in_ppr => rpr_start = Some(before),
+                "t" => {
                     in_t = true;
                     t_tag = (before, after);
                 }
-                b"del" | b"moveFrom" => deleted += 1,
+                "del" | "moveFrom" => deleted += 1,
                 _ => {}
             },
             Ok(Event::Empty(e)) => match local(e.name().as_ref()) {
-                b"fldChar" => {
+                "fldChar" => {
                     let kind = e
                         .attributes()
                         .flatten()
-                        .find(|a| local(a.key.as_ref()) == b"fldCharType")
+                        .find(|a| local(a.key.as_ref()) == "fldCharType")
                         .map(|a| a.value.into_owned());
                     match kind.as_deref() {
-                        Some(b"begin") => field_code = true,
-                        Some(b"separate") | Some(b"end") => field_code = false,
+                        Some("begin") => field_code = true,
+                        Some("separate") | Some("end") => field_code = false,
                         _ => {}
                     }
                 }
                 // (as the importer reads them: a tab or a line break is a space)
-                b"tab" | b"br" | b"cr" if deleted == 0 && !field_code && !in_ppr => {
+                "tab" | "br" | "cr" if deleted == 0 && !field_code && !in_ppr => {
                     if let Some(p) = para.as_mut() {
                         p.text.push(' ');
                     }
                 }
-                b"noBreakHyphen" if deleted == 0 && !field_code => {
+                "noBreakHyphen" if deleted == 0 && !field_code => {
                     if let Some(p) = para.as_mut() {
                         p.text.push('-');
                     }
@@ -135,14 +132,14 @@ fn paragraphs(xml: &str) -> Vec<Para> {
                 _ => {}
             },
             Ok(Event::End(e)) => match local(e.name().as_ref()) {
-                b"pPr" => in_ppr = false,
-                b"rPr" => {
+                "pPr" => in_ppr = false,
+                "rPr" => {
                     if let Some(s) = rpr_start.take() {
                         rpr = xml[s..after].to_string();
                     }
                 }
-                b"t" => in_t = false,
-                b"r" => {
+                "t" => in_t = false,
+                "r" => {
                     if let Some(p) = para.as_mut() {
                         for &i in &open_pieces {
                             p.pieces[i].run.1 = after;
@@ -150,8 +147,8 @@ fn paragraphs(xml: &str) -> Vec<Para> {
                     }
                     open_pieces.clear();
                 }
-                b"del" | b"moveFrom" => deleted = deleted.saturating_sub(1),
-                b"p" => {
+                "del" | "moveFrom" => deleted = deleted.saturating_sub(1),
+                "p" => {
                     if let Some(p) = para.take() {
                         out.push(p);
                     }
@@ -160,7 +157,7 @@ fn paragraphs(xml: &str) -> Vec<Para> {
             },
             Ok(Event::Text(t)) if in_t && deleted == 0 && !field_code => {
                 if let Some(p) = para.as_mut() {
-                    let s = t.xml_content().map(|c| c.into_owned()).unwrap_or_default();
+                    let s = t.xml10_content().into_owned();
                     let from = p.text.len();
                     p.text.extend(s.chars());
                     open_pieces.push(p.pieces.len());
@@ -177,13 +174,13 @@ fn paragraphs(xml: &str) -> Vec<Para> {
             Ok(Event::GeneralRef(g)) if in_t && deleted == 0 && !field_code => {
                 // an entity inside the text: part of the piece before it (or its own)
                 if let Some(p) = para.as_mut() {
-                    let name: &[u8] = &g;
+                    let name: &str = &g;
                     let c = match name {
-                        b"amp" => '&',
-                        b"lt" => '<',
-                        b"gt" => '>',
-                        b"quot" => '"',
-                        b"apos" => '\'',
+                        "amp" => '&',
+                        "lt" => '<',
+                        "gt" => '>',
+                        "quot" => '"',
+                        "apos" => '\'',
                         _ => '\u{FFFD}',
                     };
                     let from = p.text.len();
