@@ -1,0 +1,17 @@
+# Before anything is published for a tag: the tag names the release version
+# (scripts/version.mjs), and CI passed on the tagged commit. Needs the repository checked
+# out and the token's `actions: read`.
+name: Release gate
+description: The tag names the release version, and CI passed on the tagged commit.
+runs:
+  using: composite
+  steps:
+    - name: The tag names the version every manifest carries
+      shell: bash
+      run: node scripts/version.mjs --tag "$GITHUB_REF_NAME"
+    - name: CI passed on the tagged commit
+      shell: bash
+      env: { GH_TOKEN: "${{ github.token }}" }
+      run: |
+        n=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId -q length)
+        [ "$n" -gt 0 ] || { echo "No successful CI run on $GITHUB_SHA: tag a commit on main after its CI has passed."; exit 1; }

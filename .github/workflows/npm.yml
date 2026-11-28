@@ -1,5 +1,5 @@
-# typeset.js to npm, on a tag `typeset.js-v<version>` (the package's own version, checked):
-# the engine and the package's reader built, the package's tests run, then staged as npm's
+# typeset.js to npm, on a release tag `v<version>` (on a commit CI has passed: the release
+# gate): the engine and the package's reader built, the package's tests run, then staged as npm's
 # trusted publisher (this workflow, by name, is the one npm accepts: no token is kept
 # anywhere, and npm records where each version was built). A staged version is public only
 # once the owner approves it, with their own second factor: `npm stage list typeset.js`,
@@ -8,10 +8,11 @@ name: npm
 
 on:
   push:
-    tags: ["typeset.js-v*"]
+    tags: ["v*"]
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 env:
@@ -22,10 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - name: The tag names the package's version
-        run: |
-          want="typeset.js-v$(node -p 'require("./packages/typeset.js/package.json").version')"
-          [ "$GITHUB_REF_NAME" = "$want" ] || { echo "tag $GITHUB_REF_NAME, package $want"; exit 1; }
+      - uses: ./.github/actions/release-gate
       - uses: actions/setup-node@v5
         with: { node-version: 24, registry-url: "https://registry.npmjs.org" }
       # (staging came with npm 12)
