@@ -672,13 +672,23 @@ test('Help lists the keys of what the page offers, and only those', async ({ pag
     'Notes beside the text',
   ])
     await expect(help).not.toContainText(gone);
-  // and the keys themselves do nothing (C changes the columns, a setting)
+  // and the keys themselves do nothing (C changes the columns, a setting): the columns in
+  // view stay as they were (all the columns would not: those either side are built at rest)
   await p.keyboard.press('Escape');
-  const cols = () => f.locator('.col').evaluateAll(c => c.length);
-  const before = await cols();
+  const inView = () =>
+    f.locator('.col').evaluateAll(
+      cs =>
+        cs.filter(c => {
+          const r = c.getBoundingClientRect();
+          return r.width > 0 && r.right > 1 && r.left < innerWidth - 1;
+        }).length,
+    );
+  const before = await inView();
   await p.keyboard.press('c');
+  // (an ignored key leaves nothing to wait for: a heard one shows in tens of milliseconds)
+  await p.waitForTimeout(500);
   await expect(f.locator('.toast.show')).toHaveCount(0);
-  expect(await cols()).toBe(before);
+  expect(await inView()).toBe(before);
 });
 
 test('while a book is on its way: one waiting text in the middle of the frame, in its own words throughout, after a beat; the first page fading in', async ({
