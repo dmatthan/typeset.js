@@ -48,6 +48,8 @@ if touched '^service/'; then
 fi
 if touched '(\.rs|Cargo\.toml|Cargo\.lock)$'; then
   step "rust: formatted";                               quiet cargo fmt --all -- --check
+  cargo machete --version >/dev/null 2>&1 || { echo "cargo-machete is missing: run scripts/setup.sh" >&2; exit 1; }
+  step "rust: no unused dependency (cargo-machete)";    quiet cargo machete
   if [[ "$mode" == --staged ]]; then members=(); else members=(--workspace); fi
   step "rust: clippy, warnings as errors";              quiet cargo clippy -q "${members[@]}" --all-targets -- -D warnings
 fi

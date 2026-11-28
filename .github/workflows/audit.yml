@@ -1,0 +1,35 @@
+# The dependencies, audited: the Rust crates' advisories, licences and sources (cargo-deny,
+# deny.toml) and the npm packages' runtime dependencies' advisories (npm audit). On a pull
+# request that changes them, and weekly: an advisory is published without a change here.
+# (Unused Rust dependencies are the fast gate's: scripts/lint.sh.)
+name: Audit
+
+on:
+  pull_request:
+    paths: ["**/Cargo.toml", "Cargo.lock", "deny.toml", "**/package.json", "**/package-lock.json", ".github/workflows/audit.yml"]
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-deny }
+      - run: cargo deny check
+
+  npm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version-file: .node-version }
+      - run: npm --prefix app audit --omit=dev
+      - run: npm --prefix service audit --omit=dev

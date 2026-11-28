@@ -1,0 +1,25 @@
+# What the Rust dependencies may be (cargo-deny: the audit workflow, and `cargo deny check`).
+
+[graph]
+all-features = true
+
+[advisories]
+# Every advisory fails the check. One that does not apply is listed here with its reason.
+ignore = []
+
+[licenses]
+# Permissive licences, as the project's own (MIT). MPL-2.0 is copyleft per file only:
+# cssparser and selectors (through scraper) are used unchanged.
+allow = ["MIT", "MIT-0", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-3-Clause", "0BSD", "ISC", "Zlib", "Unicode-3.0", "Unlicense", "CC0-1.0", "MPL-2.0"]
+confidence-threshold = 0.9
+
+[bans]
+# The desktop app's tree (Tauri) carries several versions of common crates; that is not a
+# defect here, and one version of each is not ours to choose.
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

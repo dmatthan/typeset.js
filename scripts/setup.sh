@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # What a clone needs before the checks and tests run: the Rust toolchain (rust-toolchain.toml),
-# the wasm-bindgen CLI at Cargo.lock's version, the npm packages, the engine built for the
-# browser, Playwright's browsers and the pre-commit hook. Says what else is wanted, and for what.
+# the wasm-bindgen CLI at Cargo.lock's version, cargo-machete, the npm packages, the engine
+# built for the browser, Playwright's browsers and the pre-commit hook. Says what else is
+# wanted, and for what.
 #   scripts/setup.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -14,6 +15,9 @@ want="$(scripts/bindgen-version.sh)"
 bindgen="$(command -v wasm-bindgen || echo "${CARGO_HOME:-$HOME/.cargo}/bin/wasm-bindgen")"
 if [[ "$("$bindgen" --version 2>/dev/null | awk '{print $2}')" != "$want" ]]; then
   step "wasm-bindgen $want (Cargo.lock)";          cargo install -q wasm-bindgen-cli --version "$want" --locked
+fi
+if ! cargo machete --version >/dev/null 2>&1; then
+  step "cargo-machete (the fast gate's unused-dependency check)"; cargo install -q cargo-machete --locked
 fi
 step "npm packages";                                npm --prefix app ci && npm --prefix service ci
 step "the engine for the browser";                  scripts/build-wasm.sh >/dev/null

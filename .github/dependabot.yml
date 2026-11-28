@@ -1,0 +1,28 @@
+# Dependency updates, weekly: minor and patch versions grouped into one pull request per
+# ecosystem, majors one by one; titled in the repository's convention (build(deps): …).
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly }
+    groups: { cargo: { update-types: [minor, patch] } }
+    commit-message: { prefix: "build(deps)" }
+    labels: [kind/deps]
+  - package-ecosystem: npm
+    directory: /app
+    schedule: { interval: weekly }
+    groups: { app: { update-types: [minor, patch] } }
+    commit-message: { prefix: "build(deps)" }
+    labels: [kind/deps]
+  - package-ecosystem: npm
+    directory: /service
+    schedule: { interval: weekly }
+    groups: { service: { update-types: [minor, patch] } }
+    commit-message: { prefix: "build(deps)" }
+    labels: [kind/deps, area/service]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups: { actions: { update-types: [minor, patch] } }
+    commit-message: { prefix: "build(deps)" }
+    labels: [kind/deps, kind/ci]

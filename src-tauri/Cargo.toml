@@ -1,5 +1,6 @@
 [package]
 name = "volumen"
+publish = false
 version = "0.4.0"
 description = "A book reader that unrolls sideways"
 edition.workspace = true
