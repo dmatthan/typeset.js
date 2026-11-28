@@ -1,18 +1,18 @@
 # Release notes and CHANGELOG.md from the commit history (git-cliff): the squash-merged
-# pull request titles, in the convention CONTRIBUTING.md describes, grouped by type.
+# pull request titles, in the convention CONTRIBUTING.md describes, grouped by type; a
+# release with none in the convention is left out.
 #   npx git-cliff@2 --tag v0.4.0 -o CHANGELOG.md   the release commit's changelog
 #   npx git-cliff@2 --latest --strip all          one release's notes
 
 [changelog]
 header = "# Changelog\n\nChanges since 0.3.0. Earlier changes are in the commit history.\n"
 body = """
-{% if version %}## {{ version | trim_start_matches(pat="v") }} ({{ timestamp | date(format="%Y-%m-%d") }}){% else %}## Unreleased{% endif %}
+{% if commits %}{% if version %}## {{ version | trim_start_matches(pat="v") }} ({{ timestamp | date(format="%Y-%m-%d") }}){% else %}## Unreleased{% endif %}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
 - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}{% endfor %}
-{% endfor %}
-"""
+{% endfor %}{% endif %}"""
 trim = false
 
 [git]
