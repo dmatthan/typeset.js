@@ -19,12 +19,27 @@ fn block(key: u64, kind: Kind, text: &str) -> Block {
     Block::new(key, kind, text.into(), vec![])
 }
 
+/// A book of one section.
+fn book_of(sec: Section) -> Book {
+    Book { id: "b".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], leading: None, cover: None }
+}
+
+/// A section with no chapter head (front matter) of `blocks`.
+fn front(blocks: Vec<Block>) -> Section {
+    Section { kind: SectionKind::Front, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks, head: None }
+}
+
+/// The press as these tests set text: 16 px on 30 rows of 21, `measure` wide, `head_rows`
+/// kept for the reader's own head.
+fn params(measure: f32, head_rows: u32) -> Params {
+    Params { typo: Typo::plain(16.0, false), measure, rows: 30, head_rows, lh: 21.0, link_runs: false, justify: true, hyphenate: false }
+}
+
 fn lay(head: Option<Head>, measure: f32) -> (SectionLayout, Params) {
     let text = (0..40).map(|i| block(i + 10, Kind::P, "The suburb of Saffron Park lay on the sunset side of London, as red and ragged as a cloud of sunset.")).collect();
     let sec = Section { kind: SectionKind::Chapter, part: String::new(), label: "Chapter I".into(), num: "I".into(), title: "The Two Poets".into(), blocks: text, head };
-    let book = Book { id: "b".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], leading: None, cover: None };
-    let p = Params { typo: Typo::plain(16.0, false), measure, rows: 30, head_rows: 7, lh: 21.0, link_runs: false, justify: true, hyphenate: false };
-    (press().section(&book, 0, &p, None), p)
+    let p = params(measure, 7);
+    (press().section(&book_of(sec), 0, &p, None), p)
 }
 
 fn thursday() -> Head {
@@ -67,10 +82,8 @@ fn a_book_without_heads_keeps_the_house_rows_and_a_head_leaves_room_for_text() {
 /// A chapter of paragraphs, each set as given (none: the house's), under no head.
 fn paras(sets: &[Option<typeset_model::Setting>]) -> (SectionLayout, Params) {
     let text = sets.iter().enumerate().map(|(i, s)| Block { set: *s, ..block(i as u64 + 10, Kind::P, "The suburb of Saffron Park lay on the sunset side of London, as red and ragged as a cloud of sunset.") }).collect();
-    let sec = Section { kind: SectionKind::Front, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: text, head: None };
-    let book = Book { id: "b".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], leading: None, cover: None };
-    let p = Params { typo: Typo::plain(16.0, false), measure: 400.0, rows: 30, head_rows: 0, lh: 21.0, link_runs: false, justify: true, hyphenate: false };
-    (press().section(&book, 0, &p, None), p)
+    let p = params(400.0, 0);
+    (press().section(&book_of(front(text)), 0, &p, None), p)
 }
 
 /// Each paragraph's first line: its row and its indent.
@@ -111,10 +124,8 @@ fn a_rule_the_book_draws_is_drawn_between_the_rows_of_its_break_at_its_width_and
     let p_ = |k: u64| block(k, Kind::P, "The suburb of Saffron Park lay on the sunset side of London.");
     let brk = |k: u64, rule: Option<Rule>| Block { rule, ..block(k, Kind::Break, "") };
     let blocks = vec![p_(1), brk(2, Some(Rule { width: 0.3, align: 0 })), p_(3), brk(4, Some(Rule { width: 0.5, align: 1 })), p_(5), brk(6, None), p_(7)];
-    let sec = Section { kind: SectionKind::Front, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks, head: None };
-    let book = Book { id: "b".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], leading: None, cover: None };
-    let p = Params { typo: Typo::plain(16.0, false), measure: 400.0, rows: 30, head_rows: 0, lh: 21.0, link_runs: false, justify: true, hyphenate: false };
-    let l = press().section(&book, 0, &p, None);
+    let p = params(400.0, 0);
+    let l = press().section(&book_of(front(blocks)), 0, &p, None);
     // the rules: (block, x, width), the row each is drawn at the second of its break's
     let rules: Vec<(u32, f32, f32)> = l.lines.iter().filter(|x| x.flags & flag::RULE != 0).map(|x| (x.block, x.x, x.avail)).collect();
     assert_eq!(rules, vec![(1, 0.0, 120.0), (3, 100.0, 200.0)]);
