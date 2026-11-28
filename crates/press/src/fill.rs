@@ -469,15 +469,27 @@ mod tests {
         Typeface::single(files.iter().map(|f| std::fs::read(format!("{d}{f}")).unwrap()).collect()).unwrap()
     }
 
+    /// The press as these tests set text: 19 px on rows of 28, `measure` wide.
+    fn params(measure: f32) -> Params {
+        Params { typo: Typo::plain(19.0, false), measure, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true }
+    }
+
+    /// Words measured in Literata at `p`'s size.
+    fn literata(p: &Params) -> Measurer {
+        Measurer::new(&face(&["Literata.ttf"]), p.typo, "en")
+    }
+
+    /// A chapter of one block.
+    fn alone(block: Block) -> Section {
+        Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block], head: None }
+    }
+
     /// A block of preformatted text set alone, in a measure of 400 px; the monospaced face
     /// it was set in, to measure with.
     fn preformatted(text: &str) -> (SectionLayout, Params, Mono) {
-        let block = Block { key: 1, kind: Kind::Pre, text: text.into(), runs: vec![], links: vec![], image: None, table: None, set: None, rule: None };
-        let sec = Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block], head: None };
-        let p = Params { typo: Typo::plain(19.0, false), measure: 400.0, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true };
-        let mut m = Measurer::new(&face(&["Literata.ttf"]), p.typo, "en");
+        let p = params(400.0);
         let mut mono = Mono::new(Some(face(&["JetBrainsMono.ttf"])));
-        (layout_section(&mut m, &mut mono, &sec, &[], &p, None, 0), p, mono)
+        (layout_section(&mut literata(&p), &mut mono, &alone(Block::new(1, Kind::Pre, text.into(), vec![])), &[], &p, None, 0), p, mono)
     }
 
     #[test]
@@ -524,15 +536,15 @@ mod tests {
         assert_eq!(pre.iter().map(|l| (l.e - l.s) as usize).sum::<usize>(), u16s.len());
     }
 
+    /// A chapter of one table of `cols` columns (rows by '\n', cells by '\t').
     fn table(text: &str, cols: u32) -> Section {
-        let block = Block { key: 1, kind: Kind::Table, text: text.into(), runs: vec![], links: vec![], image: None, table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }), set: None, rule: None };
-        Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block], head: None }
+        alone(Block { table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }), ..Block::new(1, Kind::Table, text.into(), vec![]) })
     }
 
     #[test]
     fn a_table_too_wide_for_the_measure_is_set_smaller_before_its_words_break() {
-        let p = Params { typo: Typo::plain(19.0, false), measure: 560.0, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true };
-        let mut m = Measurer::new(&face(&["Literata.ttf"]), p.typo, "en");
+        let p = params(560.0);
+        let mut m = literata(&p);
         let mut mono = Mono::default();
         // six columns whose widest words fill more than the measure at 19 px, less at 15
         let row = "Temperature\tPressure\tHumidity\tVisibility\tDirection\tVelocity";
@@ -553,8 +565,8 @@ mod tests {
 
     #[test]
     fn a_spanning_cell_widens_its_columns_into_the_room_left() {
-        let p = Params { typo: Typo::plain(19.0, false), measure: 560.0, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true };
-        let mut m = Measurer::new(&face(&["Literata.ttf"]), p.typo, "en");
+        let p = params(560.0);
+        let mut m = literata(&p);
         let mut sec = table("1.0\t2.0\t3.0\nA spanning cell of some length\t4.0", 3);
         sec.blocks[0].table.as_mut().unwrap().spans = vec![1, 1, 1, 2, 1];
         let lay = layout_section(&mut m, &mut Mono::default(), &sec, &[], &p, None, 0);
