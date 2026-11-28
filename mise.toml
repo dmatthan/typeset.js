@@ -1,3 +1,5 @@
-[tools]
-node = "26"
-rust = "stable"
+# Each toolchain is pinned where its own tools read it: Node in .node-version (read here),
+# Rust in rust-toolchain.toml (rustup), the wasm-bindgen CLI in Cargo.lock
+# (scripts/bindgen-version.sh).
+[settings]
+idiomatic_version_file_enable_tools = ["node"]

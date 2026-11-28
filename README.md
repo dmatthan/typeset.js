@@ -41,8 +41,9 @@ highlights and notes go back to the writer.
 
 ## Build
 
-Rust (stable) with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` 0.2.129,
-Node 20.19 or later.
+Rust as `rust-toolchain.toml` pins it (rustup installs it on first use), Node as
+`.node-version` says (mise reads it), and `wasm-bindgen-cli` at the version in `Cargo.lock`
+(`scripts/build-wasm.sh` names it, and the install command, if another is installed).
 
 ```sh
 scripts/build-wasm.sh                 # engine → app/src/core/pkg

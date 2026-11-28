@@ -14,21 +14,12 @@ on:
 permissions:
   contents: read
 
-env:
-  WASM_BINDGEN: "0.2.129"
-
 jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with: { node-version: 22 }
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-unknown-unknown, components: clippy }
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with: { tool: "wasm-bindgen@${{ env.WASM_BINDGEN }}" }
+      - uses: ./.github/actions/setup
       # the desktop shell's libraries (clippy builds it), and wasm-opt (the engine's size)
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev binaryen
       - run: scripts/build-wasm.sh
@@ -42,3 +33,16 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v4
         with: { name: test-results, path: app/test-results, retention-days: 7 }
+
+  # the package's command on the oldest Node its `engines` allows
+  package-node:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with: { sparse-checkout: packages/typeset.js }
+      - id: floor
+        run: echo "node=$(node -p "require('./packages/typeset.js/package.json').engines.node.replace(/[^0-9.]/g, '')")" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v5
+        with: { node-version: "${{ steps.floor.outputs.node }}" }
+      - run: node packages/typeset.js/bin/typeset.mjs --help
