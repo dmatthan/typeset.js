@@ -1,0 +1,22 @@
+# A pull request's title in the repository's convention (scripts/title.mjs,
+# CONTRIBUTING.md): pull requests are squash-merged, so the title becomes the commit.
+name: Title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with: { sparse-checkout: scripts }
+      # (the title through the environment, never into the script's text)
+      - run: node scripts/title.mjs "$TITLE"
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
