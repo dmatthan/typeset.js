@@ -25,7 +25,13 @@
   import NoteSheet from './NoteSheet.svelte';
   import LinkSheet from './LinkSheet.svelte';
 
-  let { reader, contents, hidden, chip = $bindable(), findBar = $bindable() }: { reader: Reader; contents: ContentsCtl; hidden: boolean; chip?: Chip; findBar?: FindBar } = $props();
+  let {
+    reader,
+    contents,
+    hidden,
+    chip = $bindable(),
+    findBar = $bindable(),
+  }: { reader: Reader; contents: ContentsCtl; hidden: boolean; chip?: Chip; findBar?: FindBar } = $props();
   let stage: HTMLElement, track: HTMLElement;
   // (none when the page around an embedded reader shows no bar)
   let bar: HTMLElement | undefined = $state();
@@ -35,8 +41,10 @@
   // filled with the book)
   const back = embedded ? wayBack() : null;
   // the corner's step up (Expand, Full screen, Leave full screen), named; none where none
-  const step = $derived.by(() => { ui.place; return biggerName(); });
-
+  const step = $derived.by(() => {
+    ui.place;
+    return biggerName();
+  });
 
   // The controls, few and the same at any size: at the top × Close (or a page's own Back),
   // the book's title in the middle of the window, a bookmark; at the foot where the reader
@@ -47,23 +55,41 @@
   const ZONE = 76;
   let away = $state(false);
   let hideT = 0;
-  let foot: HTMLElement | undefined = $state(), more: HTMLElement | undefined = $state(), full: HTMLElement | undefined = $state();
+  let foot: HTMLElement | undefined = $state(),
+    more: HTMLElement | undefined = $state(),
+    full: HTMLElement | undefined = $state();
   const held = () => [bar, foot, more, full].some(el => el?.matches(':hover, :focus-within'));
   // the bar put away (Type and appearance keeps it, and finding hides it)
   const stepped = $derived((away && ui.sheet !== 'settings') || reader.finder.open);
   // a page with nothing of its own to come back to (the title page, the colophon) offers no
   // bookmark
-  const bookmarkable = $derived.by(() => { ui.layoutVersion; return reader.bookmarks.canMark(); });
+  const bookmarkable = $derived.by(() => {
+    ui.layoutVersion;
+    return reader.bookmarks.canMark();
+  });
   // the page in view marked (a ribbon over each column that is, while reading)
   const marked = $derived.by(() => {
-    ui.page; ui.cols; ui.layoutVersion;
-    const M = reader.M, strip = reader.strip;
+    ui.page;
+    ui.cols;
+    ui.layoutVersion;
+    const M = reader.M,
+      strip = reader.strip;
     if (!M || !strip) return [];
     const at = new Set(reader.bookmarks.inView().map(b => strip.resolve({ key: b.key, off: b.off })));
-    return Array.from({ length: M.N }, (_, i) => i).filter(i => at.has(reader.cur + i)).map(i => M.x0 + i * M.P + M.colW);
+    return Array.from({ length: M.N }, (_, i) => i)
+      .filter(i => at.has(reader.cur + i))
+      .map(i => M.x0 + i * M.P + M.colW);
   });
-  const show = () => { clearTimeout(hideT); away = false; };
-  const hideSoon = (ms = 700) => { clearTimeout(hideT); hideT = window.setTimeout(() => { if (!held()) away = true; }, ms); };
+  const show = () => {
+    clearTimeout(hideT);
+    away = false;
+  };
+  const hideSoon = (ms = 700) => {
+    clearTimeout(hideT);
+    hideT = window.setTimeout(() => {
+      if (!held()) away = true;
+    }, ms);
+  };
   function onMove(e: PointerEvent) {
     if (hidden || e.buttons) return;
     const r = stage?.getBoundingClientRect();
@@ -71,12 +97,25 @@
     else if (!away) hideSoon();
   }
   // a book opening shows the bar for a moment, then it steps aside
-  $effect(() => { if (!hidden && !ui.sheet) { show(); hideSoon(1800); } });
+  $effect(() => {
+    if (!hidden && !ui.sheet) {
+      show();
+      hideSoon(1800);
+    }
+  });
   // a finger's tap in the middle of the page shows the bar (for a few seconds), or puts it
   // away (reader.svelte.ts)
   $effect(() => {
     if (!ui.barToggle) return;
-    untrack(() => { if (away) { show(); hideSoon(4000); } else { clearTimeout(hideT); away = true; } });
+    untrack(() => {
+      if (away) {
+        show();
+        hideSoon(4000);
+      } else {
+        clearTimeout(hideT);
+        away = true;
+      }
+    });
   });
 </script>
 
@@ -85,156 +124,365 @@
 <!-- the reader and all it shows (its menus, panels and sheets), under the theme's colours
      (reader.svelte.ts, paint); no box of its own -->
 <div class="look">
-<section class="reader" {hidden} aria-label="Reader"
-  ondragover={e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); }}
-  ondrop={async e => {
-    // notes on this book dropped onto it (files, or a folder of them): notes files,
-    // notebooks exported as Markdown, Web Annotations
-    if (!e.dataTransfer?.items.length) return;
-    e.preventDefault();
-    const texts: string[] = [];
-    for (const f of await droppedFiles(e.dataTransfer)) {
-      if (!/\.(vnotes|md|markdown|json|jsonld)$/i.test(f.name) || f.size > 8e6) continue;
-      const text = await f.text();
-      if (/\.vnotes$/i.test(f.name) || isNotesMarkdown(text) || isWebAnno(text)) texts.push(text);
-    }
-    if (texts.length) { const m = await reader.receiveNotes(texts).catch(e => `These notes could not be taken: ${(e as Error).message}`); toast(m, Math.max(5200, m.length * 60)); }
-  }}>
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <!-- a tap in the bar’s band while it is away brings it back (a phone has no pointer to
+  <section
+    class="reader"
+    {hidden}
+    aria-label="Reader"
+    ondragover={e => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    }}
+    ondrop={async e => {
+      // notes on this book dropped onto it (files, or a folder of them): notes files,
+      // notebooks exported as Markdown, Web Annotations
+      if (!e.dataTransfer?.items.length) return;
+      e.preventDefault();
+      const texts: string[] = [];
+      for (const f of await droppedFiles(e.dataTransfer)) {
+        if (!/\.(vnotes|md|markdown|json|jsonld)$/i.test(f.name) || f.size > 8e6) continue;
+        const text = await f.text();
+        if (/\.vnotes$/i.test(f.name) || isNotesMarkdown(text) || isWebAnno(text)) texts.push(text);
+      }
+      if (texts.length) {
+        const m = await reader
+          .receiveNotes(texts)
+          .catch(e => `These notes could not be taken: ${(e as Error).message}`);
+        toast(m, Math.max(5200, m.length * 60));
+      }
+    }}
+  >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- a tap in the bar’s band while it is away brings it back (a phone has no pointer to
        seek it with); its buttons take taps only once they show -->
-  {#if embedOpts.ui !== 'none'}
-  <header class="bar" class:away={stepped} bind:this={bar} onfocusin={show} onfocusout={() => hideSoon()}
-    onpointerup={e => { if (away && e.pointerType !== 'mouse') { show(); hideSoon(4000); } }}>
-    <!-- (the sides keep their width, empty or not: the title stays in the middle) -->
-    <div class="side">
-      <!-- a book above where it came from (the app's library; a page it is bigger than its
+    {#if embedOpts.ui !== 'none'}
+      <header
+        class="bar"
+        class:away={stepped}
+        bind:this={bar}
+        onfocusin={show}
+        onfocusout={() => hideSoon()}
+        onpointerup={e => {
+          if (away && e.pointerType !== 'mouse') {
+            show();
+            hideSoon(4000);
+          }
+        }}
+      >
+        <!-- (the sides keep their width, empty or not: the title stays in the middle) -->
+        <div class="side">
+          <!-- a book above where it came from (the app's library; a page it is bigger than its
            place on): × Close, back there in one press, the same everywhere -->
-      {#if !embedded || (ui.place !== 'box' && embedOpts.ui === 'full')}
-        <button class="ibtn" onclick={() => (embedded ? closeOut() : reader.close())} aria-label="Close" title="Close ({embedded ? 'Esc' : 'Q'})">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></svg>
-        </button>
-      {:else if back && embedOpts.ui === 'full'}
-        {#if 'href' in back}
-          <a class="ibtn" href={back.href} target="_top" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg></a>
-        {:else}
-          <button class="ibtn" onclick={back.go} aria-label="Back" title="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg></button>
-        {/if}
-      {/if}
-    </div>
-    <!-- (after a trip, the way back to where the reader was, in the title's place, until
+          {#if !embedded || (ui.place !== 'box' && embedOpts.ui === 'full')}
+            <button
+              class="ibtn"
+              onclick={() => (embedded ? closeOut() : reader.close())}
+              aria-label="Close"
+              title="Close ({embedded ? 'Esc' : 'Q'})"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></svg>
+            </button>
+          {:else if back && embedOpts.ui === 'full'}
+            {#if 'href' in back}
+              <a class="ibtn" href={back.href} target="_top" aria-label="Back" title="Back"
+                ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg></a
+              >
+            {:else}
+              <button class="ibtn" onclick={back.go} aria-label="Back" title="Back"
+                ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5" /></svg></button
+              >
+            {/if}
+          {/if}
+        </div>
+        <!-- (after a trip, the way back to where the reader was, in the title's place, until
          they read on) -->
-    {#if reader.returnTo !== null && embedOpts.ui === 'full'}
-      <button class="return" onclick={() => reader.goBack()} title="Back to where you were (⌫)">Back to page {reader.returnTo + 1}</button>
-    {:else}
-      <div class="runhead">{ui.title}</div>
+        {#if reader.returnTo !== null && embedOpts.ui === 'full'}
+          <button class="return" onclick={() => reader.goBack()} title="Back to where you were (⌫)"
+            >Back to page {reader.returnTo + 1}</button
+          >
+        {:else}
+          <div class="runhead">{ui.title}</div>
+        {/if}
+        <div class="side right">
+          {#if features.highlights && bookmarkable}
+            <button
+              class="ibtn"
+              onclick={() => reader.bookmarks.toggle()}
+              aria-pressed={marked.length > 0}
+              aria-label="Bookmark this page"
+              title="Bookmark this page (B)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"
+                ><path class:on={marked.length > 0} d="M7 4h10v16l-5-4-5 4z" /></svg
+              >
+            </button>
+          {/if}
+        </div>
+      </header>
     {/if}
-    <div class="side right">
-      {#if features.highlights && bookmarkable}
-        <button class="ibtn" onclick={() => reader.bookmarks.toggle()} aria-pressed={marked.length > 0} aria-label="Bookmark this page" title="Bookmark this page (B)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path class:on={marked.length > 0} d="M7 4h10v16l-5-4-5 4z" /></svg>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div
+      class="stage"
+      bind:this={stage}
+      tabindex="0"
+      role="region"
+      aria-label="Book text. Space turns the page, arrow keys move one column. Press ? for all keys."
+    >
+      <div class="spoken" aria-live="polite"></div>
+      <div class="track" bind:this={track}></div>
+      <div class="curtain l"></div>
+      <div class="curtain r"></div>
+      <Chip {reader} bind:this={chip} />
+      {#if ui.bookNote && reader.book}<BookNote {reader} />{/if}
+      {#if (ui.sideNotes || ui.railed) && reader.book}<SideNotes {reader} />{/if}
+    </div>
+    {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} bind:el={foot} />{/if}
+    {#if embedOpts.ui === 'full'}<ReaderMenu {reader} {contents} {findBar} shown={!away} bind:el={more} />{/if}
+    {#if step}
+      <div class="full corner start" class:shown={!away} bind:this={full}>
+        <button class="ibtn" onclick={bigger} aria-label={step} title="{step} (F)">
+          {#if ui.place === 'screen'}<svg viewBox="0 0 24 24" aria-hidden="true"
+              ><path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" /></svg
+            >
+          {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" /></svg
+            >{/if}
         </button>
-      {/if}
-    </div>
-  </header>
-  {/if}
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="stage" bind:this={stage} tabindex="0" role="region" aria-label="Book text. Space turns the page, arrow keys move one column. Press ? for all keys.">
-    <div class="spoken" aria-live="polite"></div>
-    <div class="track" bind:this={track}></div>
-    <div class="curtain l"></div>
-    <div class="curtain r"></div>
-    <Chip {reader} bind:this={chip} />
-    {#if ui.bookNote && reader.book}<BookNote {reader} />{/if}
-    {#if (ui.sideNotes || ui.railed) && reader.book}<SideNotes {reader} />{/if}
-  </div>
-  {#if embedOpts.ui !== 'none'}<Progress {reader} shown={!away} bind:el={foot} />{/if}
-  {#if embedOpts.ui === 'full'}<ReaderMenu {reader} {contents} {findBar} shown={!away} bind:el={more} />{/if}
-  {#if step}
-    <div class="full corner start" class:shown={!away} bind:this={full}>
-      <button class="ibtn" onclick={bigger} aria-label={step} title="{step} (F)">
-        {#if ui.place === 'screen'}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" /></svg>
-        {:else}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" /></svg>{/if}
-      </button>
-    </div>
-  {/if}
-  <!-- a marked page's ribbon, at its top corner, while reading (with the bar, its button says it) -->
-  {#each marked as x (x)}<span class="ribbon" class:hid={!stepped} style:left="{x - 22}px" aria-hidden="true"></span>{/each}
-  <!-- a book on another site's page, for a mouse: quiet arrows say it turns (geometry.ts
+      </div>
+    {/if}
+    <!-- a marked page's ribbon, at its top corner, while reading (with the bar, its button says it) -->
+    {#each marked as x (x)}<span class="ribbon" class:hid={!stepped} style:left="{x - 22}px" aria-hidden="true"
+      ></span>{/each}
+    <!-- a book on another site's page, for a mouse: quiet arrows say it turns (geometry.ts
        says when, and keeps them their room); a page at a time, as an arrow key -->
-  {#if ui.arrows}
-    <button class="arrow prev" onclick={() => reader.step(-1, 1)} disabled={ui.page <= 1} aria-label="Previous page" title="Previous page (←)">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
-    </button>
-    <button class="arrow next" onclick={() => reader.step(1, 1)} disabled={ui.page + ui.cols - 1 >= ui.pages} aria-label="Next page" title="Next page (→)">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
-    </button>
-  {/if}
-  {#if ui.lightbox && reader.book}<Lightbox {reader} />{/if}
-  {#if !hidden && reader.finder.open}<FindBar {reader} bind:this={findBar} />{/if}
-</section>
+    {#if ui.arrows}
+      <button
+        class="arrow prev"
+        onclick={() => reader.step(-1, 1)}
+        disabled={ui.page <= 1}
+        aria-label="Previous page"
+        title="Previous page (←)"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+      </button>
+      <button
+        class="arrow next"
+        onclick={() => reader.step(1, 1)}
+        disabled={ui.page + ui.cols - 1 >= ui.pages}
+        aria-label="Next page"
+        title="Next page (→)"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+      </button>
+    {/if}
+    {#if ui.lightbox && reader.book}<Lightbox {reader} />{/if}
+    {#if !hidden && reader.finder.open}<FindBar {reader} bind:this={findBar} />{/if}
+  </section>
 
-{#if features.contents}<Contents {contents} {reader} />{/if}
+  {#if features.contents}<Contents {contents} {reader} />{/if}
 
-<!-- the reader's own sheets; the app adds those about sharing (App.svelte) -->
-{#if !hidden && features.settings && ui.sheet === 'settings'}<SettingsPanel {reader} />{/if}
-{#if !hidden && features.settings && ui.sheet === 'theme' && editor.draft}<ThemeEditor {reader} />{/if}
-{#if !hidden && ui.sheet === 'help'}<Help onclose={() => (ui.sheet = null)} />{/if}
-{#if !hidden && features.highlights && ui.sheet === 'note'}<NoteSheet {reader} />{/if}
-{#if !hidden && features.links && ui.sheet === 'link'}<LinkSheet />{/if}
+  <!-- the reader's own sheets; the app adds those about sharing (App.svelte) -->
+  {#if !hidden && features.settings && ui.sheet === 'settings'}<SettingsPanel {reader} />{/if}
+  {#if !hidden && features.settings && ui.sheet === 'theme' && editor.draft}<ThemeEditor {reader} />{/if}
+  {#if !hidden && ui.sheet === 'help'}<Help onclose={() => (ui.sheet = null)} />{/if}
+  {#if !hidden && features.highlights && ui.sheet === 'note'}<NoteSheet {reader} />{/if}
+  {#if !hidden && features.links && ui.sheet === 'link'}<LinkSheet />{/if}
 </div>
 
 <style>
-  .look { display: contents; }
+  .look {
+    display: contents;
+  }
   /* (over the notes' rail and its cards: its controls are the window's; under the contents,
      the selection's menu and the sheets) */
-  .bar { position: absolute; top: calc(env(safe-area-inset-top) + var(--pad, 0px)); left: env(safe-area-inset-left); right: env(safe-area-inset-right); z-index: 26; height: 52px; will-change: transform; transform: translateZ(0); display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; padding-inline: calc(10px + var(--pad, 0px) / 2); gap: 8px; color: var(--ink-3); }
+  .bar {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + var(--pad, 0px));
+    left: env(safe-area-inset-left);
+    right: env(safe-area-inset-right);
+    z-index: 26;
+    height: 52px;
+    will-change: transform;
+    transform: translateZ(0);
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    padding-inline: calc(10px + var(--pad, 0px) / 2);
+    gap: 8px;
+    color: var(--ink-3);
+  }
   /* (a finger's buttons are larger: the same distance from the side as from the top) */
-  :global(.touchui) .bar { padding-inline: calc(10px + var(--pad, 0px) / 4); }
+  :global(.touchui) .bar {
+    padding-inline: calc(10px + var(--pad, 0px) / 4);
+  }
   /* full screen at the foot's start, mirroring the menu at its end (ReaderMenu: the same sums) */
-  :global(.touchui) .full { left: calc(10px + var(--pad, 0px) / 4); bottom: calc(env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)); }
-  .side { display: flex; align-items: center; gap: 4px; transition: opacity var(--calm) ease; }
-  .away .side { opacity: 0; pointer-events: none; }
+  :global(.touchui) .full {
+    left: calc(10px + var(--pad, 0px) / 4);
+    bottom: calc(
+      env(safe-area-inset-bottom) + max((var(--foot, 52px) - var(--pad, 0px) - 44px) / 2, var(--pad, 0px) + 4px)
+    );
+  }
+  .side {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: opacity var(--calm) ease;
+  }
+  .away .side {
+    opacity: 0;
+    pointer-events: none;
+  }
   /* (over the text, not the window, when the notes' rail is beside it: narrower by the
      rail and moved by half of it, so it keeps to its column and off the way back; text,
      it takes no presses) */
-  .runhead { translate: calc(var(--rail, 0px) / -2); justify-self: center; max-width: calc(100% - var(--rail, 0px)); pointer-events: none; }
-  .right { justify-content: flex-end; }
+  .runhead {
+    translate: calc(var(--rail, 0px) / -2);
+    justify-self: center;
+    max-width: calc(100% - var(--rail, 0px));
+    pointer-events: none;
+  }
+  .right {
+    justify-content: flex-end;
+  }
   /* a control at the top: a round button on the page's surface (as the menu's at the foot) */
   .ibtn {
-    appearance: none; border: 0; cursor: pointer; width: 40px; height: 40px; padding: 0; border-radius: 50%;
-    display: grid; place-items: center; background: var(--surface); box-shadow: 0 0 0 1px var(--rule);
-    color: var(--ink-2); transition: color var(--quick), background-color var(--quick); text-decoration: none;
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px var(--rule);
+    color: var(--ink-2);
+    transition:
+      color var(--quick),
+      background-color var(--quick);
+    text-decoration: none;
   }
-  :global(html:not(.touchui)) .ibtn:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
-  .ibtn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+  :global(html:not(.touchui)) .ibtn:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  }
+  .ibtn svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: var(--stroke);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   /* a marked page's bookmark, filled */
-  .ibtn path.on { fill: var(--accent); stroke: var(--accent); }
-  .side, .runhead { position: relative; }
+  .ibtn path.on {
+    fill: var(--accent);
+    stroke: var(--accent);
+  }
+  .side,
+  .runhead {
+    position: relative;
+  }
   /* (its line as tall as its face: the box clips, for the ellipsis, and a line set solid lost
      the foot of a g or a q) */
-  .runhead { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center; font: 500 var(--t-s)/1.4 var(--f-ui); color: var(--ink-3); }
+  .runhead {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: center;
+    font: 500 var(--t-s) / 1.4 var(--f-ui);
+    color: var(--ink-3);
+  }
   /* the way back: a pill on the page's surface, as the round buttons beside it */
   .return {
-    justify-self: center; max-width: 100%; height: 40px; padding: 0 16px; border-radius: 20px; appearance: none; border: 0; cursor: pointer;
-    background: var(--surface); box-shadow: 0 0 0 1px var(--rule); color: var(--ink-2); font: 500 var(--t-s)/1 var(--f-ui);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color var(--quick), background-color var(--quick);
+    justify-self: center;
+    max-width: 100%;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 20px;
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px var(--rule);
+    color: var(--ink-2);
+    font: 500 var(--t-s) / 1 var(--f-ui);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition:
+      color var(--quick),
+      background-color var(--quick);
   }
-  :global(.touchui) .return { height: 44px; border-radius: 22px; }
-  :global(html:not(.touchui)) .return:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+  :global(.touchui) .return {
+    height: 44px;
+    border-radius: 22px;
+  }
+  :global(html:not(.touchui)) .return:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  }
   /* a marked page's ribbon, hanging from the top of its column's corner */
-  .ribbon { position: absolute; z-index: 4; top: env(safe-area-inset-top); width: 12px; height: 20px; background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); transition: opacity var(--calm) ease; pointer-events: none; }
-  .ribbon.hid { opacity: 0; }
+  .ribbon {
+    position: absolute;
+    z-index: 4;
+    top: env(safe-area-inset-top);
+    width: 12px;
+    height: 20px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+    transition: opacity var(--calm) ease;
+    pointer-events: none;
+  }
+  .ribbon.hid {
+    opacity: 0;
+  }
   /* level with the middle of the text, 10 from the box's edge (and the notes' rail's) */
   .arrow {
-    position: absolute; z-index: 4; top: calc(var(--y0) + var(--colH) / 2 - 20px); width: 40px; height: 40px; padding: 0;
-    appearance: none; border: 0; border-radius: 20px; background: none; display: grid; place-items: center;
-    color: var(--ink-3); cursor: pointer; transition: color var(--quick), background-color var(--quick), opacity var(--quick);
+    position: absolute;
+    z-index: 4;
+    top: calc(var(--y0) + var(--colH) / 2 - 20px);
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    appearance: none;
+    border: 0;
+    border-radius: 20px;
+    background: none;
+    display: grid;
+    place-items: center;
+    color: var(--ink-3);
+    cursor: pointer;
+    transition:
+      color var(--quick),
+      background-color var(--quick),
+      opacity var(--quick);
   }
-  .arrow.prev { left: 10px; }
-  .arrow.next { right: calc(var(--rail, 0px) + 10px); }
-  .arrow:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
-  .arrow:disabled { opacity: .35; cursor: default; }
-  .arrow:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .arrow svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+  .arrow.prev {
+    left: 10px;
+  }
+  .arrow.next {
+    right: calc(var(--rail, 0px) + 10px);
+  }
+  .arrow:hover:not(:disabled) {
+    color: var(--ink);
+    background: var(--hover);
+  }
+  .arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .arrow:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .arrow svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: var(--stroke);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
 </style>

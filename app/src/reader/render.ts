@@ -7,7 +7,8 @@ import type { Annotation } from './annotations';
 import { F, FIELDS, Flag, type Item, type Strip } from './strip';
 import { RICH } from './rich';
 
-export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** Stretches of a block other readers marked, with their colours (feedback.ts). */
 export type FbSeg = { s: number; e: number; colours: number[]; ids: string[] };
@@ -15,7 +16,10 @@ export type FbSeg = { s: number; e: number; colours: number[]; ids: string[] };
 /** Underlines for a stretch other readers marked: one stripe per reader, stacked from
  *  the baseline down, drawn as backgrounds so the text's width is untouched. */
 function fbOpen(f: FbSeg) {
-  const bg = f.colours.slice(0, 3).map((c, i) => `linear-gradient(var(--r${c}),var(--r${c})) 0 calc(100% - ${i * 3}px)/100% 2px no-repeat`).join(',');
+  const bg = f.colours
+    .slice(0, 3)
+    .map((c, i) => `linear-gradient(var(--r${c}),var(--r${c})) 0 calc(100% - ${i * 3}px)/100% 2px no-repeat`)
+    .join(',');
   return `<span class="fb" data-f="${esc(f.ids.join(' '))}" style="background:${bg}">`;
 }
 
@@ -24,33 +28,51 @@ function fbOpen(f: FbSeg) {
  *  its whole run on the line, so it draws as one shape. Nothing here changes the text's
  *  width: links are colour and underline only. */
 function inline(b: BlockData, s: number, e: number, hls?: Annotation[], fbs?: FbSeg[]): string {
-  const t = b.t, r = b.r, ls = b.l;
+  const t = b.t,
+    r = b.r,
+    ls = b.l;
   const hs = hls?.filter(a => a.s < e && a.e > s);
   const fs = fbs?.filter(f => f.s < e && f.e > s);
   if (!hs?.length && !fs?.length && !ls?.length && !r.length) return esc(t.slice(s, e));
   // where anything starts or ends within [s, e): the runs between are each one thing
   const cuts = new Set([s, e]);
-  const cut = (x: number, y: number) => { for (const c of [x, y]) if (c > s && c < e) cuts.add(c); };
+  const cut = (x: number, y: number) => {
+    for (const c of [x, y]) if (c > s && c < e) cuts.add(c);
+  };
   for (let j = 0; j < r.length; j += 3) cut(r[j], r[j + 1]);
-  ls?.forEach(l => cut(l[0], l[1])); hs?.forEach(a => cut(a.s, a.e)); fs?.forEach(f => cut(f.s, f.e));
+  ls?.forEach(l => cut(l[0], l[1]));
+  hs?.forEach(a => cut(a.s, a.e));
+  fs?.forEach(f => cut(f.s, f.e));
   const pts = [...cuts].sort((x, y) => x - y);
   let out = '';
   let openH: Annotation | undefined, openF: FbSeg | undefined, openL: [number, number, string] | undefined;
   // nesting: mark ⟩ other readers' underline ⟩ link ⟩ style
   for (let i = 0; i + 1 < pts.length; i++) {
-    const a = pts[i], z = pts[i + 1];
+    const a = pts[i],
+      z = pts[i + 1];
     const h = hs?.find(x => x.s <= a && x.e > a);
     const f = fs?.find(x => x.s <= a && x.e > a);
     const L = ls?.find(x => x[0] <= a && x[1] > a);
     const inner = h !== openH || f !== openF;
-    if (inner || (L !== openL && openL)) { if (openL) { out += '</a>'; openL = undefined; } }
-    if (inner && openF) { out += '</span>'; openF = undefined; }
+    if (inner || (L !== openL && openL)) {
+      if (openL) {
+        out += '</a>';
+        openL = undefined;
+      }
+    }
+    if (inner && openF) {
+      out += '</span>';
+      openF = undefined;
+    }
     if (h !== openH) {
       if (openH) out += '</mark>';
       if (h) out += markOpen(h, s, e);
       openH = h;
     }
-    if (f && f !== openF) { out += fbOpen(f); openF = f; }
+    if (f && f !== openF) {
+      out += fbOpen(f);
+      openF = f;
+    }
     if (L !== openL) {
       if (L) out += linkOpen(L[2]);
       openL = L;
@@ -72,15 +94,27 @@ const markOpen = (h: Annotation, s: number, e: number) =>
 const hue = (c: unknown) => (Number.isInteger(c) && (c as number) >= 1 && (c as number) <= 6 ? c : 1);
 
 /** The styles a run can have, outermost first, and their elements. */
-const STYLES: [number, string, string][] = [[Style.Italic, '<i>', '</i>'], [Style.Bold, '<b>', '</b>'], [Style.SmallCaps, '<span class="sc">', '</span>'], [Style.Sup, '<sup>', '</sup>'], [Style.Sub, '<sub>', '</sub>']];
+const STYLES: [number, string, string][] = [
+  [Style.Italic, '<i>', '</i>'],
+  [Style.Bold, '<b>', '</b>'],
+  [Style.SmallCaps, '<span class="sc">', '</span>'],
+  [Style.Sup, '<sup>', '</sup>'],
+  [Style.Sub, '<sub>', '</sub>'],
+];
 function styled(st: number, html: string) {
-  let o = '', c = '';
-  for (const [bit, open, close] of STYLES) if (st & bit) { o += open; c = close + c; }
+  let o = '',
+    c = '';
+  for (const [bit, open, close] of STYLES)
+    if (st & bit) {
+      o += open;
+      c = close + c;
+    }
   return o + html + c;
 }
 
 function linkOpen(to: string): string {
-  const k = to[0], v = esc(to.slice(2));
+  const k = to[0],
+    v = esc(to.slice(2));
   if (k === 'n') return `<a class="nr" data-n="${v}">`;
   if (k === 'b') return `<a class="xr" data-b="${v}">`;
   return `<a class="ur" data-u="${v}">`;
@@ -94,7 +128,8 @@ function styleAt(b: BlockData, i: number) {
 /** HTML for a note's text (its own runs; lines become paragraphs). */
 export function noteHTML(t: string, r: number[]): string {
   const b: BlockData = { k: BlockKind.P, key: '', t, r };
-  let out = '', at = 0;
+  let out = '',
+    at = 0;
   for (const line of t.split('\n')) {
     out += `<p>${inline(b, at, at + line.length)}</p>`;
     at += line.length + 1;
@@ -104,7 +139,14 @@ export function noteHTML(t: string, r: number[]): string {
 
 /** Dots in the gutter beside the line where each noted highlight starts: the note itself
  *  shows beside them on demand (SideNotes). */
-function noteDots(anns: Annotation[] | undefined, s: number, e: number, top: number, M: Metrics, others?: { id: string; s: number; colour: number }[]): string {
+function noteDots(
+  anns: Annotation[] | undefined,
+  s: number,
+  e: number,
+  top: number,
+  M: Metrics,
+  others?: { id: string; s: number; colour: number }[],
+): string {
   const dots: { id: string; colour?: number }[] = [];
   for (const a of anns ?? []) if (a.note && a.s >= s && a.s < e) dots.push({ id: a.id });
   // other readers' notes: a dot in their colour
@@ -113,14 +155,17 @@ function noteDots(anns: Annotation[] | undefined, s: number, e: number, top: num
   // middle, where the paper beside the spread begins: a phone's gutter is 24), so a press on
   // it is the reader's; several on a line one above another, about its middle, 10 apart
   const x = M.colW + Math.min(M.G / 2 - 4.5, 14);
-  return dots.map((d, i) => {
-    const y = top + M.lh / 2 + (i - (dots.length - 1) / 2) * 10;
-    return `<span class="nd${d.colour === undefined ? '' : ' fd'}" data-a="${esc(d.id)}" style="top:${y}px;left:${x}px${d.colour === undefined ? '' : `;--dc:var(--r${d.colour})`}" aria-hidden="true"></span>`;
-  }).join('');
+  return dots
+    .map((d, i) => {
+      const y = top + M.lh / 2 + (i - (dots.length - 1) / 2) * 10;
+      return `<span class="nd${d.colour === undefined ? '' : ' fd'}" data-a="${esc(d.id)}" style="top:${y}px;left:${x}px${d.colour === undefined ? '' : `;--dc:var(--r${d.colour})`}" aria-hidden="true"></span>`;
+    })
+    .join('');
 }
 
 /** Scripts written right to left. */
-const RTL = /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Adlam}\p{Script=Samaritan}\p{Script=Mandaic}]/u;
+const RTL =
+  /[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Adlam}\p{Script=Samaritan}\p{Script=Mandaic}]/u;
 const rtlOf = new WeakMap<object, boolean>();
 /** A paragraph written right to left (Hebrew, Arabic): told by its first letter, as
  *  HTML's dir="auto" tells it. Its lines are set from the column's right edge, the
@@ -149,25 +194,65 @@ export interface FbView {
 /** The text lines of one column. */
 /** What a column's lines are drawn with: the strip, the geometry, the marked paragraphs,
  *  a block's highlights and hits, the pictures' addresses, other readers' notes. */
-interface Draw { strip: Strip; M: Metrics; marks: Set<string>; marksOf?: (key: string) => Annotation[] | undefined; imgSrc?: (i: number) => string; fb?: FbView }
+interface Draw {
+  strip: Strip;
+  M: Metrics;
+  marks: Set<string>;
+  marksOf?: (key: string) => Annotation[] | undefined;
+  imgSrc?: (i: number) => string;
+  fb?: FbView;
+}
 /** A line as the press set it (its encoded fields read out): its block, where it sits, and
  *  the stretch [s, e) of the block's text it holds. */
-interface Line { flags: number; spaces: number; top: number; bi: number; b: BlockData; x: number; avail: number; nat: number; s: number; e: number }
+interface Line {
+  flags: number;
+  spaces: number;
+  top: number;
+  bi: number;
+  b: BlockData;
+  x: number;
+  avail: number;
+  nat: number;
+  s: number;
+  e: number;
+}
 
-export function columnHTML(strip: Strip, k: number, M: Metrics, marks: Set<string>, marksOf?: (key: string) => Annotation[] | undefined, imgSrc?: (i: number) => string, fb?: FbView): string {
+export function columnHTML(
+  strip: Strip,
+  k: number,
+  M: Metrics,
+  marks: Set<string>,
+  marksOf?: (key: string) => Annotation[] | undefined,
+  imgSrc?: (i: number) => string,
+  fb?: FbView,
+): string {
   const L = strip.linesAt(k);
   let html = '';
   const it = strip.itemAt(k)!;
   const sec = strip.book.sections[it.sec];
-  if (it.type === 'sect' && k === it.start && sec.k === 1) html += headHTML(strip.book, it.sec, M, strip.layouts.get(it.sec)?.headRows ?? M.headRows);
+  if (it.type === 'sect' && k === it.start && sec.k === 1)
+    html += headHTML(strip.book, it.sec, M, strip.layouts.get(it.sec)?.headRows ?? M.headRows);
   if (!L) return html;
-  const { u, f } = L.sl, d: Draw = { strip, M, marks, marksOf, imgSrc, fb };
+  const { u, f } = L.sl,
+    d: Draw = { strip, M, marks, marksOf, imgSrc, fb };
   for (let j = L.from; j < L.to; j++) {
-    const o = j * FIELDS, bi = u[o + F.block];
-    html += lineHTML({
-      flags: u[o + F.flags] & 0xffff, spaces: u[o + F.flags] >>> 16, top: u[o + F.row] * M.lh, bi, b: sec.blocks[bi],
-      x: f[o + F.x], avail: f[o + F.avail], nat: f[o + F.natural], s: u[o + F.s], e: u[o + F.e],
-    }, d);
+    const o = j * FIELDS,
+      bi = u[o + F.block];
+    html += lineHTML(
+      {
+        flags: u[o + F.flags] & 0xffff,
+        spaces: u[o + F.flags] >>> 16,
+        top: u[o + F.row] * M.lh,
+        bi,
+        b: sec.blocks[bi],
+        x: f[o + F.x],
+        avail: f[o + F.avail],
+        nat: f[o + F.natural],
+        s: u[o + F.s],
+        e: u[o + F.e],
+      },
+      d,
+    );
   }
   return html;
 }
@@ -179,7 +264,8 @@ function lineHTML(ln: Line, d: Draw): string {
   const { flags, top, x, avail } = ln;
   if (flags & Flag.Break) return flags & Flag.First ? `<div class="ln brk" style="top:${top}px">⁂</div>` : '';
   if (flags & Flag.ImageRow) return '';
-  if (flags & Flag.Rule) return `<div class="trule" style="top:${top}px;left:${Math.round(x)}px;width:${Math.round(avail)}px"></div>`;
+  if (flags & Flag.Rule)
+    return `<div class="trule" style="top:${top}px;left:${Math.round(x)}px;width:${Math.round(avail)}px"></div>`;
   if (flags & Flag.Cell && ln.s === ln.e) return '';
   if (flags & Flag.Image) return imageHTML(ln, d);
   if (ln.b.k === BlockKind.Pre) return preHTML(ln, d);
@@ -188,21 +274,34 @@ function lineHTML(ln: Line, d: Draw): string {
 
 /** A picture, centred in the rows it spans, on whole pixels so its edges stay crisp. */
 function imageHTML({ spaces, top, bi, b, x, avail, nat }: Line, { strip, M, imgSrc }: Draw): string {
-  const h = spaces * M.lh, i = b.img ?? -1, src = imgSrc?.(i) ?? '';
+  const h = spaces * M.lh,
+    i = b.img ?? -1,
+    src = imgSrc?.(i) ?? '';
   const rich = strip.book.images[i]?.[3] === RICH;
-  return `<figure class="img${rich ? ' rich' : ''}" data-i="${i}" data-b="${bi}" style="top:${Math.round(top + (h - nat) / 2)}px;left:${Math.round(x)}px;width:${Math.round(avail)}px;height:${Math.round(nat)}px">`
-    + `<img data-i="${i}" alt="${esc(b.t)}" decoding="async"${src ? ` src="${esc(src)}"` : ''}></figure>`;
+  return (
+    `<figure class="img${rich ? ' rich' : ''}" data-i="${i}" data-b="${bi}" style="top:${Math.round(top + (h - nat) / 2)}px;left:${Math.round(x)}px;width:${Math.round(avail)}px;height:${Math.round(nat)}px">` +
+    `<img data-i="${i}" alt="${esc(b.t)}" decoding="async"${src ? ` src="${esc(src)}"` : ''}></figure>`
+  );
 }
 
 /** Preformatted text: its spaces are its own (white-space: pre), sized by the press. */
 function preHTML({ spaces, top, bi, b, x, avail, s, e }: Line, { M, marks, marksOf, fb }: Draw): string {
   const anns = marksOf?.(b.key);
-  return `<div class="ln pre${marks.has(b.key) ? ' mk' : ''}" style="top:${top}px;left:${x.toFixed(2)}px;width:${avail.toFixed(2)}px;font-size:${spaces / 16}px" data-b="${bi}" data-s="${s}">${inline(b, s, e, anns, fb?.segments(b.key))}</div>`
-    + noteDots(anns, s, e, top, M);
+  return (
+    `<div class="ln pre${marks.has(b.key) ? ' mk' : ''}" style="top:${top}px;left:${x.toFixed(2)}px;width:${avail.toFixed(2)}px;font-size:${spaces / 16}px" data-b="${bi}" data-s="${s}">${inline(b, s, e, anns, fb?.segments(b.key))}</div>` +
+    noteDots(anns, s, e, top, M)
+  );
 }
 
 /** The classes a text line's flags give it. */
-const LINE_CLASSES: [number, string][] = [[Flag.Justify, ' j'], [Flag.Hyph, ' hy'], [Flag.Right, ' r'], [Flag.Center, ' c'], [Flag.Head, ' hd'], [Flag.Cell, ' cell']];
+const LINE_CLASSES: [number, string][] = [
+  [Flag.Justify, ' j'],
+  [Flag.Hyph, ' hy'],
+  [Flag.Right, ' r'],
+  [Flag.Center, ' c'],
+  [Flag.Head, ' hd'],
+  [Flag.Cell, ' cell'],
+];
 
 /** A line of text: its classes (its flags'; a signature in small caps, fill.rs; a marked
  *  paragraph's), where it sits, the size a smaller table is set at, the spacing a line the
@@ -213,12 +312,13 @@ function textHTML({ flags, spaces, top, bi, b, x, avail, nat, s, e }: Line, { M,
   for (const [bit, c] of LINE_CLASSES) if (flags & bit) cls += c;
   if (b.k === BlockKind.Sign) cls += ' sc2';
   if (marks.has(b.key)) cls += ' mk';
-  const left = rtl(b) ? (cls += ' rtl', M.colW - x - avail) : x;
+  const left = rtl(b) ? ((cls += ' rtl'), M.colW - x - avail) : x;
   // an indented line knows its indent, so a mark's bar and wash start at the column's edge
   let style = `top:${top}px;left:${left.toFixed(2)}px;width:${avail.toFixed(2)}px${x > 0 ? `;--x:${x.toFixed(2)}px` : ''}`;
   // a table set smaller: its size, and optical sizes to match (as the press measures)
   const sized = flags & Flag.Sized ? spaces / 16 : 0;
-  if (sized) style += `;font-size:${sized}px;--opsz:${opsz(sized)};--opsz-s:${opsz(sized * 0.7)};--opsz-sc:${opsz(sized * 0.78)}`;
+  if (sized)
+    style += `;font-size:${sized}px;--opsz:${opsz(sized)};--opsz-s:${opsz(sized * 0.7)};--opsz-sc:${opsz(sized * 0.78)}`;
   // a line the press shrank: tighten the spaces so the browser's natural width fits; the
   // browser applies word spacing to every word separator on the line, the non-breaking
   // ones inside words included: spread the tightening over all of them
@@ -231,9 +331,20 @@ function textHTML({ flags, spaces, top, bi, b, x, avail, nat, s, e }: Line, { M,
   // a paragraph another reader marked: a bar in their colour beside it (its own element:
   // a line's ::after is its hyphen, its ::before one's own mark's bar)
   const fm = fb?.marked(b.key)[0];
-  return (fm ? `<div class="fmb" style="top:${top}px;left:-18px;--fmc:var(--r${fb!.colourOf(fm.r)})" aria-hidden="true"></div>` : '')
-    + `<div class="${cls}" style="${style}" data-b="${bi}" data-s="${s}">${bullet}${inline(b, s, e, anns, fb?.segments(b.key))}</div>`
-    + noteDots(anns, s, e, top, M, fb ? fb.written(b.key).map(w => ({ id: w.r + '|' + w.n.id, s: w.n.s, colour: fb.colourOf(w.r) })) : undefined);
+  return (
+    (fm
+      ? `<div class="fmb" style="top:${top}px;left:-18px;--fmc:var(--r${fb!.colourOf(fm.r)})" aria-hidden="true"></div>`
+      : '') +
+    `<div class="${cls}" style="${style}" data-b="${bi}" data-s="${s}">${bullet}${inline(b, s, e, anns, fb?.segments(b.key))}</div>` +
+    noteDots(
+      anns,
+      s,
+      e,
+      top,
+      M,
+      fb ? fb.written(b.key).map(w => ({ id: w.r + '|' + w.n.id, s: w.n.s, colour: fb.colourOf(w.r) })) : undefined,
+    )
+  );
 }
 
 /** A chapter's head, in the `rows` the press gave it above the text: the book's own (its
@@ -242,11 +353,14 @@ function textHTML({ flags, spaces, top, bi, b, x, avail, nat, s, e }: Line, { M,
  *  face, at the band's foot (a line more than the press counted grows up, never into the
  *  text). */
 function headHTML(book: BookData, si: number, M: Metrics, rows: number): string {
-  const s = book.sections[si], h = s.h;
+  const s = book.sections[si],
+    h = s.h;
   const part = s.part ? `<div class="part">${esc(s.part)}</div>` : '';
   if (h) {
     // (each line where the book sets it: the start, the middle, the end)
-    const lines = h.lines.map(l => `<div class="hline a${l.a}" style="--z:${l.z}">${inline(l.b, 0, l.b.t.length)}</div>`).join('');
+    const lines = h.lines
+      .map(l => `<div class="hline a${l.a}" style="--z:${l.z}">${inline(l.b, 0, l.b.t.length)}</div>`)
+      .join('');
     return `<header class="chead own" style="height:${rows * M.lh}px;padding-bottom:calc(var(--fs) * ${h.below})">${part}${lines}</header>`;
   }
   const label = s.label || (s.title ? '' : `Chapter ${s.num}`);
@@ -284,7 +398,8 @@ export function leafHTML(strip: Strip, it: Item): string {
       </section>`;
     case 'colophon':
       // an extract on someone else's page, with a way on (typeset.js: end-href)
-      if (embedOpts.endHref) return `<section class="leaf colophon">
+      if (embedOpts.endHref)
+        return `<section class="leaf colophon">
         <p class="eyebrow">The end of this extract</p>
         <p class="co-title">${esc(b.title)}</p>
         <p class="co-way"><a class="btn primary" href="${esc(embedOpts.endHref)}" target="_top" rel="noopener">${esc(embedOpts.endLabel ?? 'Continue reading')}</a></p>

@@ -27,9 +27,17 @@ function serviceWorker(): Plugin {
     generateBundle(_, bundle) {
       const files = Object.keys(bundle).filter(f => !f.endsWith('.map'));
       // (pages by their address, not their file: a host may redirect /x.html to /x)
-      const shell = [START, ...(WEB ? ['/embed'] : []), ...files.filter(f => !f.endsWith('.html')).map(f => '/' + f), '/app/manifest.webmanifest'];
+      const shell = [
+        START,
+        ...(WEB ? ['/embed'] : []),
+        ...files.filter(f => !f.endsWith('.html')).map(f => '/' + f),
+        '/app/manifest.webmanifest',
+      ];
       const version = createHash('sha256').update(files.sort().join('\n')).digest('hex').slice(0, 12);
-      const src = readFileSync(new URL('./sw.js', import.meta.url), 'utf8').replace('__VERSION__', version).replace('__SHELL__', JSON.stringify(shell)).replace('__START__', START);
+      const src = readFileSync(new URL('./sw.js', import.meta.url), 'utf8')
+        .replace('__VERSION__', version)
+        .replace('__SHELL__', JSON.stringify(shell))
+        .replace('__START__', START);
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: src });
     },
   };
@@ -45,12 +53,15 @@ function website(): Plugin {
     generateBundle(_, bundle) {
       const app = bundle['index.html'];
       if (app) {
-        delete bundle['index.html']; app.fileName = 'read.html'; bundle['read.html'] = app;
+        delete bundle['index.html'];
+        app.fileName = 'read.html';
+        bundle['read.html'] = app;
         // the same app, for a book embedded in another site's page (core/embed.ts)
         if (app.type === 'asset') this.emitFile({ type: 'asset', fileName: 'embed.html', source: app.source });
       }
       const dir = new URL('./site/', import.meta.url);
-      for (const f of readdirSync(dir)) this.emitFile({ type: 'asset', fileName: f, source: readFileSync(new URL(f, dir)) });
+      for (const f of readdirSync(dir))
+        this.emitFile({ type: 'asset', fileName: f, source: readFileSync(new URL(f, dir)) });
       // the elements, for the site's own pages (its demos), beside its embed.html
       this.emitFile({ type: 'asset', fileName: 'typeset.js', source: readFileSync(ELEMENTS) });
     },
@@ -65,7 +76,11 @@ function embedPolicy(): string {
   const headers = readFileSync(new URL('../assets/_headers', import.meta.url), 'utf8');
   const csp = /^\/embed\n(?:[ \t]+.*\n)*?[ \t]+Content-Security-Policy: (.+)$/m.exec(headers)?.[1];
   if (!csp) throw new Error('assets/_headers: no Content-Security-Policy for /embed');
-  return csp.split(';').map(d => d.trim()).filter(d => d && !d.startsWith('frame-ancestors')).join('; ');
+  return csp
+    .split(';')
+    .map(d => d.trim())
+    .filter(d => d && !d.startsWith('frame-ancestors'))
+    .join('; ');
 }
 
 /** The package's layout: the reader's page as embed.html, typeset.js beside it, and none of
@@ -78,19 +93,25 @@ function packaged(): Plugin {
     generateBundle(_, bundle) {
       const app = bundle['index.html'];
       if (app?.type === 'asset') {
-        delete bundle['index.html']; app.fileName = 'embed.html'; bundle['embed.html'] = app;
+        delete bundle['index.html'];
+        app.fileName = 'embed.html';
+        bundle['embed.html'] = app;
         // the policy first, before anything it governs; and none of the app's own head (its
         // name, its colours, installing it: files the package has not)
         const own = /<title>[\s\S]*?<link rel="apple-touch-icon"[^>]*>\n/;
-        if (!own.test(String(app.source))) throw new Error('index.html: the app\'s own head is not as the package expects');
-        app.source = String(app.source).replace(own, '<title>A book</title>\n').replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${embedPolicy()}">`);
+        if (!own.test(String(app.source)))
+          throw new Error("index.html: the app's own head is not as the package expects");
+        app.source = String(app.source)
+          .replace(own, '<title>A book</title>\n')
+          .replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${embedPolicy()}">`);
       }
       this.emitFile({ type: 'asset', fileName: 'typeset.js', source: readFileSync(ELEMENTS) });
     },
     closeBundle() {
       const out = new URL(PACKAGE_OUT, import.meta.url).pathname;
       // (and the library's cover shadow: the package has no library of its own)
-      for (const f of ['sample.epub', '_headers', 'app', 'ui/shadow-cover.png']) rmSync(out + f, { recursive: true, force: true });
+      for (const f of ['sample.epub', '_headers', 'app', 'ui/shadow-cover.png'])
+        rmSync(out + f, { recursive: true, force: true });
     },
   };
 }
@@ -103,6 +124,12 @@ export default defineConfig({
   publicDir: '../assets',
   clearScreen: false,
   server: { port: 5193, strictPort: true, fs: { allow: ['..'] } },
-  build: { target: 'es2022', outDir: PACKAGE ? PACKAGE_OUT : 'dist', emptyOutDir: true, assetsInlineLimit: 0, sourcemap: false },
+  build: {
+    target: 'es2022',
+    outDir: PACKAGE ? PACKAGE_OUT : 'dist',
+    emptyOutDir: true,
+    assetsInlineLimit: 0,
+    sourcemap: false,
+  },
   worker: { format: 'es' },
 });

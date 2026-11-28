@@ -3,14 +3,16 @@
 //! Sections follow the table of contents: every TOC target (a file, or an element id
 //! inside one) starts a section. Without a usable TOC, each spine document is one.
 
-use crate::heads;
 use crate::css;
+use crate::heads;
 use crate::rich;
 use crate::{Error, finish_book};
 use scraper::{ElementRef, Html, Node};
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
-use typeset_model::{Block, Head, HeadLine, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style};
+use typeset_model::{
+    Block, Head, HeadLine, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style,
+};
 
 mod blocks;
 mod images;
@@ -50,7 +52,8 @@ impl Zip<'_> {
     }
 }
 
-const VOID: &[&str] = &["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"];
+const VOID: &[&str] =
+    &["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"];
 
 /// XHTML allows `<a id="x"/>`; an HTML parser reads that as an open tag that swallows
 /// everything after it. Expands self-closing non-void tags to an explicit pair.
@@ -87,7 +90,8 @@ fn expand_self_closing(src: &str) -> std::borrow::Cow<'_, str> {
             break;
         }
         if b[j - 1] == b'/' {
-            let name_end = (i + 1..j).find(|&k| !(b[k].is_ascii_alphanumeric() || b[k] == b':' || b[k] == b'-')).unwrap_or(j);
+            let name_end =
+                (i + 1..j).find(|&k| !(b[k].is_ascii_alphanumeric() || b[k] == b':' || b[k] == b'-')).unwrap_or(j);
             let name = &src[i + 1..name_end];
             if !VOID.iter().any(|v| v.eq_ignore_ascii_case(name)) {
                 out.push_str(&src[last..j - 1]);
@@ -102,7 +106,6 @@ fn expand_self_closing(src: &str) -> std::borrow::Cow<'_, str> {
     out.push_str(&src[last..]);
     out.into()
 }
-
 
 /// Resolves `rel` against the directory of `base` (both zip paths).
 fn resolve(base: &str, rel: &str) -> String {
@@ -134,9 +137,14 @@ fn locked(z: &mut Zip) -> bool {
     }
     let Some(enc) = z.text("META-INF/encryption.xml") else { return false };
     let d = Html::parse_document(&enc);
-    let named = |e: &ElementRef, n: &str| e.value().name().rsplit(':').next().is_some_and(|l| l.eq_ignore_ascii_case(n));
+    let named =
+        |e: &ElementRef, n: &str| e.value().name().rsplit(':').next().is_some_and(|l| l.eq_ignore_ascii_case(n));
     d.root_element().descendent_elements().filter(|e| named(e, "encrypteddata")).any(|e| {
-        let alg = e.descendent_elements().find(|m| named(m, "encryptionmethod")).and_then(|m| m.attr("algorithm")).unwrap_or("");
+        let alg = e
+            .descendent_elements()
+            .find(|m| named(m, "encryptionmethod"))
+            .and_then(|m| m.attr("algorithm"))
+            .unwrap_or("");
         !(alg.contains("idpf.org/2008/embedding") || alg.contains("ns.adobe.com/pdf/enc#RC"))
     })
 }
@@ -156,7 +164,9 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     let mut z = Zip { z };
     let container = z.text("META-INF/container.xml").ok_or(Error::Unreadable("it has no META-INF/container.xml"))?;
     if locked(&mut z) {
-        return Err(Error::Unreadable("it is locked by the shop that sold it (DRM), and Volumen reads only books without DRM"));
+        return Err(Error::Unreadable(
+            "it is locked by the shop that sold it (DRM), and Volumen reads only books without DRM",
+        ));
     }
     let cdoc = Html::parse_document(&container);
     let opf_path = elements(&cdoc, "rootfile")
@@ -176,12 +186,15 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     if meta.lang.is_empty() {
         meta.lang = "en".into();
     }
-    if let Some((t, sub)) = meta.title.split_once(" / ").or_else(|| meta.title.split_once(": ")).or_else(|| meta.title.split_once("; "))
-        && !t.is_empty() && sub.len() < 80 {
-            let (t, sub) = (t.to_string(), sub.to_string());
-            meta.title = t;
-            meta.subtitle = sub;
-        }
+    if let Some((t, sub)) =
+        meta.title.split_once(" / ").or_else(|| meta.title.split_once(": ")).or_else(|| meta.title.split_once("; "))
+        && !t.is_empty()
+        && sub.len() < 80
+    {
+        let (t, sub) = (t.to_string(), sub.to_string());
+        meta.title = t;
+        meta.subtitle = sub;
+    }
 
     struct Item {
         href: String,
@@ -212,37 +225,44 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     // table of contents: EPUB 3 nav, else NCX
     let mut toc: Vec<TocEntry> = Vec::new();
     if let Some(nav) = manifest.values().find(|m| m.props.split_whitespace().any(|p| p == "nav"))
-        && let Some(src) = z.text(&nav.href) {
-            let d = Html::parse_document(&expand_self_closing(&src));
-            let navs: Vec<ElementRef> = elements(&d, "nav").collect();
-            let toc_nav = navs
-                .iter()
-                .find(|n| n.attr("epub:type").or_else(|| n.attr("type")).unwrap_or("").contains("toc"))
-                .or(navs.first());
-            if let Some(n) = toc_nav {
-                for a in n.descendent_elements().filter(|e| e.value().name() == "a") {
-                    if let Some(href) = a.attr("href") {
-                        let (f, frag) = split_href(href);
-                        toc.push(TocEntry { file: resolve(&nav.href, f), frag, label: text_of(a) });
-                    }
+        && let Some(src) = z.text(&nav.href)
+    {
+        let d = Html::parse_document(&expand_self_closing(&src));
+        let navs: Vec<ElementRef> = elements(&d, "nav").collect();
+        let toc_nav = navs
+            .iter()
+            .find(|n| n.attr("epub:type").or_else(|| n.attr("type")).unwrap_or("").contains("toc"))
+            .or(navs.first());
+        if let Some(n) = toc_nav {
+            for a in n.descendent_elements().filter(|e| e.value().name() == "a") {
+                if let Some(href) = a.attr("href") {
+                    let (f, frag) = split_href(href);
+                    toc.push(TocEntry { file: resolve(&nav.href, f), frag, label: text_of(a) });
                 }
             }
         }
+    }
     if toc.is_empty() {
-        let ncx = elements(&opf, "spine").find_map(|e| e.attr("toc")).and_then(|id| manifest.get(id)).map(|m| m.href.clone()).or_else(|| {
-            manifest.values().find(|m| m.media == "application/x-dtbncx+xml").map(|m| m.href.clone())
-        });
+        let ncx = elements(&opf, "spine")
+            .find_map(|e| e.attr("toc"))
+            .and_then(|id| manifest.get(id))
+            .map(|m| m.href.clone())
+            .or_else(|| manifest.values().find(|m| m.media == "application/x-dtbncx+xml").map(|m| m.href.clone()));
         if let Some(p) = ncx
-            && let Some(src) = z.text(&p) {
-                let d = Html::parse_document(&src);
-                for np in elements(&d, "navpoint") {
-                    let label = np.descendent_elements().find(|e| e.value().name() == "text").map(text_of).unwrap_or_default();
-                    if let Some(src) = np.descendent_elements().find(|e| e.value().name() == "content").and_then(|e| e.attr("src")) {
-                        let (f, frag) = split_href(src);
-                        toc.push(TocEntry { file: resolve(&p, f), frag, label });
-                    }
+            && let Some(src) = z.text(&p)
+        {
+            let d = Html::parse_document(&src);
+            for np in elements(&d, "navpoint") {
+                let label =
+                    np.descendent_elements().find(|e| e.value().name() == "text").map(text_of).unwrap_or_default();
+                if let Some(src) =
+                    np.descendent_elements().find(|e| e.value().name() == "content").and_then(|e| e.attr("src"))
+                {
+                    let (f, frag) = split_href(src);
+                    toc.push(TocEntry { file: resolve(&p, f), frag, label });
                 }
             }
+        }
     }
     // keep only entries that point into the spine, the first one per target (the sections
     // come in the spine's order, each file's entries with it)
@@ -266,21 +286,30 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
         let mut linked: Vec<String> = Vec::new();
         for l in elements(&doc, "link") {
             if l.attr("rel").is_some_and(|r| r.to_ascii_lowercase().contains("stylesheet"))
-                && let Some(h) = l.attr("href") {
-                    let p = resolve(path, split_href(h).0);
-                    if !sheets.contains_key(&p) {
-                        let parsed = z.text(&p).map(|t| css::parse_sheet(&t)).unwrap_or_default();
-                        sheets.insert(p.clone(), parsed);
-                    }
-                    linked.push(p);
+                && let Some(h) = l.attr("href")
+            {
+                let p = resolve(path, split_href(h).0);
+                if !sheets.contains_key(&p) {
+                    let parsed = z.text(&p).map(|t| css::parse_sheet(&t)).unwrap_or_default();
+                    sheets.insert(p.clone(), parsed);
                 }
+                linked.push(p);
+            }
         }
         for st in elements(&doc, "style") {
             own.push(css::parse_sheet(&st.text().collect::<String>()));
         }
         let all: Vec<&css::Sheet> = linked.iter().filter_map(|p| sheets.get(p)).chain(own.iter()).collect();
         css::set(css::cascade(&doc, &all));
-        ex.rules = linked.iter().flat_map(|p| raw_sheets.entry(p.clone()).or_insert_with(|| z.text(p).map(|t| css::raw_rules(&t)).unwrap_or_default()).clone()).collect();
+        ex.rules = linked
+            .iter()
+            .flat_map(|p| {
+                raw_sheets
+                    .entry(p.clone())
+                    .or_insert_with(|| z.text(p).map(|t| css::raw_rules(&t)).unwrap_or_default())
+                    .clone()
+            })
+            .collect();
         for st in elements(&doc, "style") {
             ex.rules.extend(css::raw_rules(&st.text().collect::<String>()));
         }
@@ -290,7 +319,12 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
         ex.targets.clear();
         let body = elements(&doc, "body").next().unwrap_or(doc.root_element());
         // the document's own semantics: its body's, or its first section's
-        ex.doc_matter = matter_of(&body) || body.descendants().filter_map(ElementRef::wrap).find(|e| matches!(e.value().name(), "section" | "article")).is_some_and(|e| matter_of(&e));
+        ex.doc_matter = matter_of(&body)
+            || body
+                .descendants()
+                .filter_map(ElementRef::wrap)
+                .find(|e| matches!(e.value().name(), "section" | "article"))
+                .is_some_and(|e| matter_of(&e));
         let entries = toc_by_file.get(path.as_str());
         if let Some(es) = entries {
             for e in es {
@@ -317,7 +351,10 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     let notes = resolve_links(&mut sections, &mut ex);
     // the cover: an item marked cover-image (EPUB 3), else the one <meta name="cover"> names
     let cover_item = manifest.values().find(|m| m.props.split_whitespace().any(|p| p == "cover-image")).or_else(|| {
-        elements(&opf, "meta").find(|e| e.attr("name") == Some("cover")).and_then(|e| e.attr("content")).and_then(|id| manifest.get(id))
+        elements(&opf, "meta")
+            .find(|e| e.attr("name") == Some("cover"))
+            .and_then(|e| e.attr("content"))
+            .and_then(|id| manifest.get(id))
     });
     let cover = cover_item
         .filter(|m| m.media.starts_with("image/") && !m.media.contains("svg"))
@@ -344,14 +381,19 @@ mod tests {
 
     #[test]
     fn apparatus_by_semantics() {
-        let doc = Html::parse_document(r#"<body><section epub:type="colophon">a</section><section role="doc-endnotes">b</section><section epub:type="preface">c</section><section epub:type="chapter">d</section><section epub:type="bodymatter">e</section></body>"#);
+        let doc = Html::parse_document(
+            r#"<body><section epub:type="colophon">a</section><section role="doc-endnotes">b</section><section epub:type="preface">c</section><section epub:type="chapter">d</section><section epub:type="bodymatter">e</section></body>"#,
+        );
         let got: Vec<bool> = elements(&doc, "section").map(|e| matter_of(&e)).collect();
         assert_eq!(got, [true, true, false, false, false]);
     }
 
     #[test]
     fn expands_self_closing() {
-        assert_eq!(expand_self_closing(r#"<h2><a id="x"/>Hi<br/></h2><p a='/>'/>"#), r#"<h2><a id="x"></a>Hi<br/></h2><p a='/>'></p>"#);
+        assert_eq!(
+            expand_self_closing(r#"<h2><a id="x"/>Hi<br/></h2><p a='/>'/>"#),
+            r#"<h2><a id="x"></a>Hi<br/></h2><p a='/>'></p>"#
+        );
     }
 
     #[test]

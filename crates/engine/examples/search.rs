@@ -17,6 +17,15 @@ fn main() {
         let t = Instant::now();
         let hits = in_book(&back, None, query, 3);
         let scan = t.elapsed();
-        println!("{}: {} KB saved, restore {restore:.1?}, fold {rows} paragraphs {fold:.1?}, whole-book search {scan:.1?}: {}", back.meta.title, saved.len() / 1024, hits.map(|h| format!("{} found, e.g. …{}[{}]{}", h.total, h.hits[0].before, h.hits[0].matched, h.hits[0].after)).unwrap_or("none".into()));
+        println!(
+            "{}: {} KB saved, restore {restore:.1?}, fold {rows} paragraphs {fold:.1?}, whole-book search {scan:.1?}: {}",
+            back.meta.title,
+            saved.len() / 1024,
+            hits.map(|h| format!(
+                "{} found, e.g. …{}[{}]{}",
+                h.total, h.hits[0].before, h.hits[0].matched, h.hits[0].after
+            ))
+            .unwrap_or("none".into())
+        );
     }
 }

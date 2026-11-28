@@ -1,0 +1,16 @@
+# Prettier formats the code: TypeScript, JavaScript, Svelte and CSS. Prose, data, HTML
+# (whose inline whitespace is meaning) and generated or vendored files keep their own form.
+*.md
+*.json
+*.jsonc
+*.yml
+*.yaml
+*.html
+app/src/core/pkg/
+app/src/styles/fonts.css
+app/dist*/
+app/package-site/
+app/test-results/
+packages/typeset.js/reader/
+assets/
+target/

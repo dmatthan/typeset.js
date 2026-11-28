@@ -36,7 +36,9 @@ export class Appearance {
   }
 
   /** The look the settings ask for now (the page's only once its text is set). */
-  wanted() { return resolve(themeById(settings.theme), this.isDark()); }
+  wanted() {
+    return resolve(themeById(settings.theme), this.isDark());
+  }
 
   /** Paints `look` on the page: the appearance on the root, the theme's colours on the
    *  reader and all it shows (its menus, panels and sheets: the theme's paper, softened, as
@@ -45,14 +47,24 @@ export class Appearance {
    *  anywhere are set as the lines are). Only with the text set for it (`Reader.commit`), or
    *  a look that sets nothing differently (another appearance: `themeChanged`). */
   paint(look: Resolved) {
-    const root = document.documentElement, stage = this.r.stage;
-    const want = settings.appearance === 'auto' ? (themes.desktop ? (themes.desktop.dark ? 'dark' : 'light') : null) : settings.appearance;
-    if (want) root.setAttribute('data-theme', want); else root.removeAttribute('data-theme');
+    const root = document.documentElement,
+      stage = this.r.stage;
+    const want =
+      settings.appearance === 'auto'
+        ? themes.desktop
+          ? themes.desktop.dark
+            ? 'dark'
+            : 'light'
+          : null
+        : settings.appearance;
+    if (want) root.setAttribute('data-theme', want);
+    else root.removeAttribute('data-theme');
     this.look = look;
     const el = stage?.closest<HTMLElement>('.look');
     if (el) {
       const pal = paletteVars(look.palette, this.isDark(), matchMedia('(prefers-contrast: more)').matches);
-      if (pal) setVars(el, pal); else for (const k of PALETTE) el.style.removeProperty(k);
+      if (pal) setVars(el, pal);
+      else for (const k of PALETTE) el.style.removeProperty(k);
     }
     // (dark paper: rich blocks, drawn in ink, are inverted: reader.css)
     stage?.parentElement?.classList.toggle('dark-paper', this.isDark());
@@ -64,14 +76,20 @@ export class Appearance {
   /** The colour around the page follows the surface in view (`core/edges.ts`); `ms` as the
    *  surface changes: the reader fades between themes over 1.4 s. */
   paintEdges(ms: number) {
-    const c = ui.lightbox ? '#0c0d11' : ui.view !== 'reader' ? 'var(--ground)' : this.look.palette?.paper ?? 'var(--paper)';
+    const c = ui.lightbox
+      ? '#0c0d11'
+      : ui.view !== 'reader'
+        ? 'var(--ground)'
+        : (this.look.palette?.paper ?? 'var(--paper)');
     edges(c, ms);
   }
 
   /** Another appearance (light, dark, the desktop's colours): the theme's other palette,
    *  nothing set differently. A theme, a face or an option changes through
    *  `Reader.settingsChanged`, with the text set for it. */
-  themeChanged() { this.paint(this.wanted()); }
+  themeChanged() {
+    this.paint(this.wanted());
+  }
 
   /** What of `look` the geometry needs (geometry.ts). */
   lookGeom(look = this.look): Look {
@@ -103,15 +121,34 @@ export class Appearance {
     // (justified as the theme or the reader says, at any measure: a phone's too, as Apple
     // Books sets them, hyphenation and the line breaker keeping a short line's spaces even)
     return {
-      size: M.fs, measure: M.colW, rows: M.rows, headRows: M.headRows, lh: M.lh, justify: o.justify, hyphenate: o.hyphenate, round: this.round, appUnits: this.appUnits,
-      font: L.chain, wght: L.wght, bold: L.bold, ls: +((o.charSpacing / 100) * M.fs).toFixed(3), ws: +((o.wordSpacing / 100) * M.fs).toFixed(3), axes: L.axes, spaceKern: this.spaceKern, linkRuns: this.linkRuns,
+      size: M.fs,
+      measure: M.colW,
+      rows: M.rows,
+      headRows: M.headRows,
+      lh: M.lh,
+      justify: o.justify,
+      hyphenate: o.hyphenate,
+      round: this.round,
+      appUnits: this.appUnits,
+      font: L.chain,
+      wght: L.wght,
+      bold: L.bold,
+      ls: +((o.charSpacing / 100) * M.fs).toFixed(3),
+      ws: +((o.wordSpacing / 100) * M.fs).toFixed(3),
+      axes: L.axes,
+      spaceKern: this.spaceKern,
+      linkRuns: this.linkRuns,
     };
   }
 
   /** Measures how this webview sets `look` at `M`, and keeps it for the layouts that follow. */
   async calibrate(look: Resolved, M: Metrics) {
     const cal = await this.calibrateFor(look, M);
-    this.round = cal.round; this.appUnits = cal.appUnits; this.spaceKern = cal.spaceKern; this.linkRuns = cal.linkRuns; this.calibErr = cal.err;
+    this.round = cal.round;
+    this.appUnits = cal.appUnits;
+    this.spaceKern = cal.spaceKern;
+    this.linkRuns = cal.linkRuns;
+    this.calibErr = cal.err;
   }
 
   /** Calibrates `look` at `M` on a probe host of its own (the page keeps its style), in
@@ -122,7 +159,11 @@ export class Appearance {
     host.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none';
     setVars(host, typeVars(look, M.fs));
     document.body.append(host);
-    try { return await calibrate(this.r.core, host, { ...this.params(M, look), round: false, appUnits: false }); } finally { host.remove(); }
+    try {
+      return await calibrate(this.r.core, host, { ...this.params(M, look), round: false, appUnits: false });
+    } finally {
+      host.remove();
+    }
   }
 
   /** The sizes either side of this one, measured while nothing else is happening: the
@@ -150,7 +191,10 @@ export class Appearance {
     await document.fonts.ready;
     if (this.r.book) return;
     this.paint(look);
-    await this.calibrateFor(look, metrics(Math.max(640, window.innerWidth), Math.max(480, window.innerHeight), this.lookGeom(look))).catch(() => {});
+    await this.calibrateFor(
+      look,
+      metrics(Math.max(640, window.innerWidth), Math.max(480, window.innerHeight), this.lookGeom(look)),
+    ).catch(() => {});
     if (!this.r.book) this.r.core.idle?.();
   }
 }

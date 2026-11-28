@@ -4,7 +4,11 @@ import { kv } from '../core/kv';
 import type { LibEntry } from '../core/types';
 
 /** A collection the reader makes and names; a book may be in any number of them. */
-export interface Collection { id: string; name: string; books: string[] }
+export interface Collection {
+  id: string;
+  name: string;
+  books: string[];
+}
 
 /** The shelves above the library: three that fill themselves, then the reader's own. */
 export const SMART = [
@@ -54,12 +58,19 @@ export function toggleShelf(id: string, book: string) {
 }
 export function addToShelf(id: string, book: string) {
   const c = shelves.list.find(c => c.id === id);
-  if (c && !c.books.includes(book)) { c.books = [...c.books, book]; save(); }
+  if (c && !c.books.includes(book)) {
+    c.books = [...c.books, book];
+    save();
+  }
 }
 /** A book leaving the library leaves its collections too. */
 export function forgetBook(book: string) {
   let changed = false;
-  for (const c of shelves.list) if (c.books.includes(book)) { c.books = c.books.filter(b => b !== book); changed = true; }
+  for (const c of shelves.list)
+    if (c.books.includes(book)) {
+      c.books = c.books.filter(b => b !== book);
+      changed = true;
+    }
   if (changed) save();
 }
 

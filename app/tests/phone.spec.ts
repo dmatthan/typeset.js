@@ -14,37 +14,60 @@ async function open(p: Page) {
   await p.evaluate(() => localStorage.clear());
   await p.goto('/');
   await p.locator('.book[data-id]').first().tap();
-  await p.waitForFunction(() => { const r = (window as any).__typeset.reader; return r.strip && r.strip.layouts.size === r.book.sections.length; });
-  await p.evaluate(() => (window as any).__typeset.reader.jump(10)); await settled(p);
+  await p.waitForFunction(() => {
+    const r = (window as any).__typeset.reader;
+    return r.strip && r.strip.layouts.size === r.book.sections.length;
+  });
+  await p.evaluate(() => (window as any).__typeset.reader.jump(10));
+  await settled(p);
 }
 
 /** A selection as the phone's own makes it (the system's handles and menu are its own;
  *  a test can only set what they would): words `from`–`to` of a line in the column in view. */
 async function select(p: Page, line: number | 'last', from = 1, to = 4) {
-  return p.evaluate(({ line, from, to }) => {
-    const r = (window as any).__typeset.reader;
-    const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
-    const ln = lns[line === 'last' ? lns.length - 1 : line];
-    const t = [...ln.childNodes].find(n => n.nodeType === 3 && /\S+\s+\S+\s+\S+\s+\S+/.test(n.textContent!)) as Text;
-    const words = [...t.data.matchAll(/\S+/g)];
-    getSelection()!.setBaseAndExtent(t, words[from].index!, t, words[to].index! + words[to][0].length);
-    const b = getSelection()!.getRangeAt(0).getBoundingClientRect();
-    return { top: b.top, bottom: b.bottom, text: getSelection()!.toString() };
-  }, { line, from, to });
+  return p.evaluate(
+    ({ line, from, to }) => {
+      const r = (window as any).__typeset.reader;
+      const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
+      const ln = lns[line === 'last' ? lns.length - 1 : line];
+      const t = [...ln.childNodes].find(n => n.nodeType === 3 && /\S+\s+\S+\s+\S+\s+\S+/.test(n.textContent!)) as Text;
+      const words = [...t.data.matchAll(/\S+/g)];
+      getSelection()!.setBaseAndExtent(t, words[from].index!, t, words[to].index! + words[to][0].length);
+      const b = getSelection()!.getRangeAt(0).getBoundingClientRect();
+      return { top: b.top, bottom: b.bottom, text: getSelection()!.toString() };
+    },
+    { line, from, to },
+  );
 }
-const box = (p: Page) => p.locator('.chip-pop').evaluate(e => { const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+const box = (p: Page) =>
+  p.locator('.chip-pop').evaluate(e => {
+    const r = e.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom };
+  });
 
-test('a phone: justified as the theme or the reader says, at any size, however few words a line holds; ragged only when asked', async ({ page: p }) => {
+test('a phone: justified as the theme or the reader says, at any size, however few words a line holds; ragged only when asked', async ({
+  page: p,
+}) => {
   await open(p);
   // a size up, and the column under 24 em: still justified, as Apple's are on a phone
   // (a change as the panel makes it, and the text set again for it, all of it)
   const set = async (fn: string) => {
-    const fs = await p.evaluate(fn => { const v = (window as any).__typeset; new Function('v', 'b', fn)(v, v.themeById('book')); const fs = v.reader.M.fs; v.reader.settingsChanged('layout'); return fs; }, fn);
+    const fs = await p.evaluate(fn => {
+      const v = (window as any).__typeset;
+      new Function('v', 'b', fn)(v, v.themeById('book'));
+      const fs = v.reader.M.fs;
+      v.reader.settingsChanged('layout');
+      return fs;
+    }, fn);
     return fs;
   };
-  const was = await set("v.settings.step = 4");
-  await p.waitForFunction(fs => { const M = (window as any).__typeset.reader.M; return M.fs !== fs && M.colW < M.fs * 24; }, was);
-  await p.evaluate(() => (window as any).__typeset.reader.whole); await settled(p);
+  const was = await set('v.settings.step = 4');
+  await p.waitForFunction(fs => {
+    const M = (window as any).__typeset.reader.M;
+    return M.fs !== fs && M.colW < M.fs * 24;
+  }, was);
+  await p.evaluate(() => (window as any).__typeset.reader.whole);
+  await settled(p);
   // (the reading columns' lines, not a probe's: the classes the page draws from the press's)
   const justified = () => p.evaluate(() => document.querySelectorAll('.col[data-k] .ln.j').length);
   expect(await justified()).toBeGreaterThan(5);
@@ -53,18 +76,33 @@ test('a phone: justified as the theme or the reader says, at any size, however f
   await expect.poll(justified).toBe(0);
 });
 
-test('a phone: the selection is the system\'s, and stays; our menu is in the reader\'s own band farther from it', async ({ page: p }) => {
+test("a phone: the selection is the system's, and stays; our menu is in the reader's own band farther from it", async ({
+  page: p,
+}) => {
   await open(p);
   const k = await cur(p);
   const menu = p.locator('.chip-pop');
   // the bands the text never uses: the bar's at the top, the page number's at the foot
-  const bands = await p.evaluate(() => { const r = (window as any).__typeset.reader, st = r.stage.getBoundingClientRect(); return { top: st.top + r.M.y0, foot: st.top + r.M.y0 + r.M.colH }; });
+  const bands = await p.evaluate(() => {
+    const r = (window as any).__typeset.reader,
+      st = r.stage.getBoundingClientRect();
+    return { top: st.top + r.M.y0, foot: st.top + r.M.y0 + r.M.colH };
+  });
   // (wherever the system puts its own, above or below the selection, it hugs it: ours is in
   // whichever band is farther, over no text, never beside the selection)
-  for (const [line, band] of [[8, 'foot'], [0, 'foot'], ['last', 'top']] as const) {
+  for (const [line, band] of [
+    [8, 'foot'],
+    [0, 'foot'],
+    ['last', 'top'],
+  ] as const) {
     const sel = await select(p, line);
     await expect(menu).toBeVisible();
-    await expect.poll(async () => { const m = await box(p); return band === 'foot' ? m.top >= bands.foot : m.bottom <= bands.top; }).toBe(true);
+    await expect
+      .poll(async () => {
+        const m = await box(p);
+        return band === 'foot' ? m.top >= bands.foot : m.bottom <= bands.top;
+      })
+      .toBe(true);
     const m = await box(p);
     expect(Math.min(Math.abs(m.top - sel.bottom), Math.abs(sel.top - m.bottom))).toBeGreaterThan(60);
     // no Copy (the system has its own); and it stays selected while the menu shows
@@ -84,7 +122,9 @@ test('a phone: the selection is the system\'s, and stays; our menu is in the rea
   const sel = await select(p, 8);
   await menu.getByRole('button', { name: 'Highlight colour 2' }).tap();
   await expect(menu).toHaveCount(0);
-  expect(await p.evaluate(() => (window as any).__typeset.reader.ann.list.map((a: any) => a.quote))).toEqual([sel.text]);
+  expect(await p.evaluate(() => (window as any).__typeset.reader.ann.list.map((a: any) => a.quote))).toEqual([
+    sel.text,
+  ]);
   await select(p, 4);
   await menu.getByRole('button', { name: 'Note' }).tap();
   const sheet = p.locator('.sheet');
@@ -92,7 +132,11 @@ test('a phone: the selection is the system\'s, and stays; our menu is in the rea
   await sheet.getByRole('textbox', { name: 'Your note' }).fill('From a phone.');
   await sheet.getByRole('button', { name: 'Done' }).tap();
   await expect(sheet).toHaveCount(0);
-  expect(await p.evaluate(() => (window as any).__typeset.reader.ann.list.filter((a: any) => a.note).map((a: any) => a.note))).toEqual(['From a phone.']);
+  expect(
+    await p.evaluate(() =>
+      (window as any).__typeset.reader.ann.list.filter((a: any) => a.note).map((a: any) => a.note),
+    ),
+  ).toEqual(['From a phone.']);
 });
 
 test('a phone: a highlight tapped has its menu in one row, in a band, over none of its text', async ({ page: p }) => {
@@ -101,10 +145,12 @@ test('a phone: a highlight tapped has its menu in one row, in a band, over none 
   const id = await p.evaluate(() => {
     const r = (window as any).__typeset.reader;
     const lns = [...document.querySelectorAll<HTMLElement>(`.col[data-k="${r.cur}"] .ln[data-b]`)];
-    const sec = r.strip.itemAt(r.cur).sec, blocks = r.book.sections[sec].blocks;
+    const sec = r.strip.itemAt(r.cur).sec,
+      blocks = r.book.sections[sec].blocks;
     // (from the middle on, the first line with 120 characters of its paragraph still to come)
     const ln = lns.slice(Math.floor(lns.length / 2)).find(l => blocks[+l.dataset.b!].t.length - +l.dataset.s! >= 120)!;
-    const b = blocks[+ln.dataset.b!], s0 = +ln.dataset.s!;
+    const b = blocks[+ln.dataset.b!],
+      s0 = +ln.dataset.s!;
     const a = r.ann.add(b.key, s0, s0 + 120, 3, 'A thought.');
     r.marking.refreshSection(sec);
     return a.id ?? a;
@@ -115,32 +161,79 @@ test('a phone: a highlight tapped has its menu in one row, in a band, over none 
   const pop = p.locator('.chip-pop');
   await expect(pop).toBeVisible();
   await expect(pop.getByRole('button', { name: 'Remove highlight' })).toBeVisible();
-  const rows = await pop.locator(':scope > button').evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().top))).size);
+  const rows = await pop
+    .locator(':scope > button')
+    .evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().top))).size);
   expect(rows, 'the menu in one row').toBe(1);
   // over no line of the page (a band of the reader's own: no text there)
   const m = (await pop.boundingBox())!;
-  const over = await p.locator('.col .ln').evaluateAll((els, m) => els.filter(e => { const r = e.getBoundingClientRect(); return r.width && r.left < m.x + m.width && r.right > m.x && r.top < m.y + m.height && r.bottom > m.y; }).length, m);
+  const over = await p.locator('.col .ln').evaluateAll(
+    (els, m) =>
+      els.filter(e => {
+        const r = e.getBoundingClientRect();
+        return r.width && r.left < m.x + m.width && r.right > m.x && r.top < m.y + m.height && r.bottom > m.y;
+      }).length,
+    m,
+  );
   expect(over).toBe(0);
 });
 
-test('a phone: a press whose end the page never hears (the system took it, to select) leaves the page turning', async ({ page: p }) => {
+test('a phone: a press whose end the page never hears (the system took it, to select) leaves the page turning', async ({
+  page: p,
+}) => {
   await open(p);
   const box = (await p.locator('.stage').boundingBox())!;
   const y = box.y + box.height / 2;
   // a finger down on the text, as iOS sends it before its selection takes the press over;
   // its lift goes to the system, or lands outside the page (never here)
-  await p.evaluate(([x, y]) => {
-    const ln = document.elementFromPoint(x, y)!;
-    ln.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true }));
-    document.body.dispatchEvent(new PointerEvent('pointerup', { pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true }));
-  }, [box.x + box.width / 2, y]);
+  await p.evaluate(
+    ([x, y]) => {
+      const ln = document.elementFromPoint(x, y)!;
+      ln.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerId: 77,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+        }),
+      );
+      document.body.dispatchEvent(
+        new PointerEvent('pointerup', {
+          pointerId: 77,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+        }),
+      );
+    },
+    [box.x + box.width / 2, y],
+  );
   // the next taps at the edge still turn, each one finger (not a second beside one gone)
   const k = await cur(p);
-  await p.touchscreen.tap(box.x + box.width * 0.92, y); await settled(p);
+  await p.touchscreen.tap(box.x + box.width * 0.92, y);
+  await settled(p);
   expect(await cur(p)).toBe(k + 1);
   // and one whose lift is never sent at all: the next finger down is a first one again
-  await p.evaluate(([x, y]) => document.elementFromPoint(x, y)!.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 78, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true })), [box.x + box.width / 2, y]);
-  await p.touchscreen.tap(box.x + box.width * 0.92, y); await settled(p);
+  await p.evaluate(
+    ([x, y]) =>
+      document.elementFromPoint(x, y)!.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerId: 78,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+        }),
+      ),
+    [box.x + box.width / 2, y],
+  );
+  await p.touchscreen.tap(box.x + box.width * 0.92, y);
+  await settled(p);
   expect(await cur(p)).toBe(k + 2);
 });
 
@@ -153,23 +246,41 @@ test('a phone: a finger held on the text and lifted is not a tap (the system sel
   const st = (await p.locator('.stage').boundingBox())!;
   // held in the middle (a tap there shows the bar) and at the edge (a tap there turns)
   for (const at of [0.5, 0.9]) {
-    await p.evaluate(async ({ x, y }) => {
-      const s = document.querySelector('.stage')!;
-      const ev = (type: string) => s.dispatchEvent(new PointerEvent(type, { pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, bubbles: true, buttons: type === 'pointerup' ? 0 : 1 }));
-      ev('pointerdown'); await new Promise(r => setTimeout(r, 700)); ev('pointerup');
-    }, { x: st.x + st.width * at, y: st.y + st.height * 0.5 });
+    await p.evaluate(
+      async ({ x, y }) => {
+        const s = document.querySelector('.stage')!;
+        const ev = (type: string) =>
+          s.dispatchEvent(
+            new PointerEvent(type, {
+              pointerId: 9,
+              pointerType: 'touch',
+              isPrimary: true,
+              clientX: x,
+              clientY: y,
+              bubbles: true,
+              buttons: type === 'pointerup' ? 0 : 1,
+            }),
+          );
+        ev('pointerdown');
+        await new Promise(r => setTimeout(r, 700));
+        ev('pointerup');
+      },
+      { x: st.x + st.width * at, y: st.y + st.height * 0.5 },
+    );
     await settled(p);
     expect(await cur(p)).toBe(k);
     expect(await p.locator('.bar').getAttribute('class')).toBe(away);
   }
 });
-test('a phone: a picture tapped opens large and stays (the tap\'s own click does not close it)', async ({ page: p }) => {
+test("a phone: a picture tapped opens large and stays (the tap's own click does not close it)", async ({ page: p }) => {
   test.setTimeout(120000);
   await openFile(p, '../bench/fixtures/beagle.epub', 'Beagle');
   const k = await firstCol(p, 'figure.img');
   await settled(p);
   // the click a touch screen sends after the tap, waited for
-  const clicked = p.evaluate(() => new Promise<void>(r => addEventListener('click', () => r(), { capture: true, once: true })));
+  const clicked = p.evaluate(
+    () => new Promise<void>(r => addEventListener('click', () => r(), { capture: true, once: true })),
+  );
   await p.locator(`.col[data-k="${k}"] figure.img img`).first().tap();
   await clicked;
   await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -182,15 +293,20 @@ test('a phone: a picture tapped opens large and stays (the tap\'s own click does
 
 test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; no key hints', async ({ page: p }) => {
   await open(p);
-  const M = await p.evaluate(() => { const m = (window as any).__typeset.reader.M; return { N: m.N, x0: m.x0, colW: m.colW }; });
+  const M = await p.evaluate(() => {
+    const m = (window as any).__typeset.reader.M;
+    return { N: m.N, x0: m.x0, colW: m.colW };
+  });
   expect(M.N).toBe(1);
   expect(M.x0).toBeGreaterThanOrEqual(16);
   const box = (await p.locator('.stage').boundingBox())!;
   const y = box.y + box.height / 2;
   const k = await cur(p);
-  await p.touchscreen.tap(box.x + box.width * 0.92, y); await settled(p);
+  await p.touchscreen.tap(box.x + box.width * 0.92, y);
+  await settled(p);
   expect(await cur(p)).toBe(k + 1);
-  await p.touchscreen.tap(box.x + box.width * 0.08, y); await settled(p);
+  await p.touchscreen.tap(box.x + box.width * 0.08, y);
+  await settled(p);
   expect(await cur(p)).toBe(k);
   // the middle: the bar's controls come, and go again; while reading only the page's number
   // shows under the text, with the bar the line and "N of Total"
@@ -205,7 +321,10 @@ test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; 
   await p.getByRole('button', { name: 'More' }).tap();
   await p.getByRole('menuitem', { name: 'Find in the book' }).tap();
   await expect(p.getByRole('textbox', { name: 'Find in book' })).toBeFocused();
-  await p.locator('.find').getByRole('button', { name: /End the search/ }).tap();
+  await p
+    .locator('.find')
+    .getByRole('button', { name: /End the search/ })
+    .tap();
   await expect(p.locator('.find')).toHaveCount(0);
   await expect(p.locator('.bar')).not.toHaveClass(/away/);
   await expect(p.locator('.pn')).not.toBeVisible();
@@ -213,27 +332,50 @@ test('a phone: taps at the edges turn, the middle shows the bar, a swipe turns; 
   await p.touchscreen.tap(box.x + box.width * 0.5, y);
   await expect(p.locator('.bar')).toHaveClass(/away/);
   // a swipe to the left: the next page
-  await p.evaluate(({ x, y }) => {
-    const st = document.querySelector('.stage')!;
-    const ev = (type: string, cx: number) => st.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: cx, clientY: y, bubbles: true, buttons: type === 'pointerup' ? 0 : 1 }));
-    ev('pointerdown', x + 300);
-    for (let i = 1; i <= 10; i++) ev('pointermove', x + 300 - i * 22);
-    ev('pointerup', x + 80);
-  }, { x: box.x, y });
+  await p.evaluate(
+    ({ x, y }) => {
+      const st = document.querySelector('.stage')!;
+      const ev = (type: string, cx: number) =>
+        st.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId: 7,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: cx,
+            clientY: y,
+            bubbles: true,
+            buttons: type === 'pointerup' ? 0 : 1,
+          }),
+        );
+      ev('pointerdown', x + 300);
+      for (let i = 1; i <= 10; i++) ev('pointermove', x + 300 - i * 22);
+      ev('pointerup', x + 80);
+    },
+    { x: box.x, y },
+  );
   await settled(p);
   expect(await cur(p)).toBe(k + 1);
   // no key hints on a touch screen
-  await p.evaluate(() => { (window as any).__typeset.ui.sheet = 'settings'; });
+  await p.evaluate(() => {
+    (window as any).__typeset.ui.sheet = 'settings';
+  });
   await expect(p.locator('kbd').first()).toBeHidden();
 });
 
-test('a phone: back closes the contents, then the book; the bar comes back from its band; nothing pans', async ({ page: p }) => {
+test('a phone: back closes the contents, then the book; the bar comes back from its band; nothing pans', async ({
+  page: p,
+}) => {
   await open(p);
   // (hints, where there are any, are off under automation: on, as a reader has them; none
   // comes as the book is reopened below)
   await p.evaluate(() => (window as any).__typeset.setHints?.(true));
   // the page cannot be moved sideways
-  expect(await p.evaluate(() => { window.scrollTo(300, 0); return [window.scrollX, document.documentElement.scrollWidth <= innerWidth]; })).toEqual([0, true]);
+  expect(
+    await p.evaluate(() => {
+      window.scrollTo(300, 0);
+      return [window.scrollX, document.documentElement.scrollWidth <= innerWidth];
+    }),
+  ).toEqual([0, true]);
   // the bar, away: a tap in its band brings it
   await expect(p.locator('.bar')).toHaveClass(/away/, { timeout: 10_000 });
   const bar = (await p.locator('.bar').boundingBox())!;
@@ -259,16 +401,21 @@ test('a phone: back closes the contents, then the book; the bar comes back from 
   await expect(p.locator('kbd').first()).toBeHidden();
 });
 
-test('a phone: settings are a sheet from the bottom edge; help shows gestures; a tap beside the sheet only closes it', async ({ page: p }) => {
+test('a phone: settings are a sheet from the bottom edge; help shows gestures; a tap beside the sheet only closes it', async ({
+  page: p,
+}) => {
   await open(p);
   const vw = p.viewportSize()!;
-  await p.evaluate(() => { (window as any).__typeset.ui.sheet = 'settings'; });
+  await p.evaluate(() => {
+    (window as any).__typeset.ui.sheet = 'settings';
+  });
   const panel = p.locator('.panel');
   await expect(panel).toBeVisible();
   // (where it rests, once it has slid in)
   await panel.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => {}))));
   const r = (await panel.boundingBox())!;
-  expect(r.x).toBe(0); expect(Math.round(r.width)).toBe(vw.width);
+  expect(r.x).toBe(0);
+  expect(Math.round(r.width)).toBe(vw.width);
   expect(Math.round(r.y + r.height)).toBe(vw.height);
   // nothing a phone cannot use: the view and the columns
   await expect(panel.getByRole('radiogroup', { name: 'Columns' })).toHaveCount(0);
@@ -279,13 +426,17 @@ test('a phone: settings are a sheet from the bottom edge; help shows gestures; a
   // (a turn would have begun within the tap)
   expect([await cur(p), await p.evaluate(() => (window as any).__typeset.reader.motion.moving)]).toEqual([k, false]);
   // help, on a touch screen: the gestures
-  await p.evaluate(() => { (window as any).__typeset.ui.sheet = 'settings'; });
+  await p.evaluate(() => {
+    (window as any).__typeset.ui.sheet = 'settings';
+  });
   await panel.getByRole('button', { name: 'Gestures' }).tap();
   await expect(p.locator('.sheet h2')).toHaveText('Gestures');
   await expect(p.locator('.sheet')).toContainText('Tap an edge');
 });
 
-test('a phone: the colour around the page follows it; nothing scrolls the frame; the menu keeps clear of the screen edges', async ({ page: p }) => {
+test('a phone: the colour around the page follows it; nothing scrolls the frame; the menu keeps clear of the screen edges', async ({
+  page: p,
+}) => {
   await p.goto('/');
   await p.evaluate(() => localStorage.clear());
   await p.goto('/');
@@ -296,37 +447,81 @@ test('a phone: the colour around the page follows it; nothing scrolls the frame;
   await p.locator('.book[data-id]').first().tap();
   await p.waitForFunction(() => (window as any).__typeset.reader.reading);
   // the book's paper, as the reader paints it
-  const paper = await p.evaluate(() => { const c = document.createElement('canvas').getContext('2d')!; c.fillStyle = getComputedStyle(document.querySelector('.reader')!).backgroundColor; c.fillRect(0, 0, 1, 1); return '#' + [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join(''); });
+  const paper = await p.evaluate(() => {
+    const c = document.createElement('canvas').getContext('2d')!;
+    c.fillStyle = getComputedStyle(document.querySelector('.reader')!).backgroundColor;
+    c.fillRect(0, 0, 1, 1);
+    return '#' + [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join('');
+  });
   await expect.poll(edge).toBe(paper);
   expect(paper).not.toBe(library);
   // Safari's (WebKit's) own: a box it can find at the top, else an installed app's top is
   // blurred, the bar with it (its height is the status bar's band, none here)
   if (p.context().browser()?.browserType().name() === 'webkit') {
-    const top = () => p.evaluate(() => {
-      const el = document.querySelector('.edge-strip.top')!, s = getComputedStyle(el);
-      const c = document.createElement('canvas').getContext('2d')!; c.fillStyle = s.backgroundColor; c.fillRect(0, 0, 1, 1);
-      return { seen: s.visibility, position: s.position, wide: el.getBoundingClientRect().width / innerWidth >= 0.9, z: +s.zIndex,
-        colour: '#' + [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join('') };
-    });
-    const bar = +await p.locator('.bar').evaluate(e => getComputedStyle(e).zIndex);
+    const top = () =>
+      p.evaluate(() => {
+        const el = document.querySelector('.edge-strip.top')!,
+          s = getComputedStyle(el);
+        const c = document.createElement('canvas').getContext('2d')!;
+        c.fillStyle = s.backgroundColor;
+        c.fillRect(0, 0, 1, 1);
+        return {
+          seen: s.visibility,
+          position: s.position,
+          wide: el.getBoundingClientRect().width / innerWidth >= 0.9,
+          z: +s.zIndex,
+          colour:
+            '#' + [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join(''),
+        };
+      });
+    const bar = +(await p.locator('.bar').evaluate(e => getComputedStyle(e).zIndex));
     await expect.poll(top).toMatchObject({ seen: 'visible', position: 'fixed', wide: true, colour: paper });
     expect((await top()).z).toBeGreaterThan(bar);
   }
   // the page itself never zooms
   expect(await p.evaluate(() => getComputedStyle(document.documentElement).touchAction)).toBe('pan-x pan-y');
   // controls at the screen's foot take focus without scrolling anything
-  await p.evaluate(() => { (window as any).__typeset.ui.sheet = 'settings'; });
+  await p.evaluate(() => {
+    (window as any).__typeset.ui.sheet = 'settings';
+  });
   await p.locator('.panel .row.nav').first().tap();
   await p.locator('.panel .back').first().tap();
   await p.locator('.panel .row.nav').nth(1).tap();
-  expect(await p.evaluate(() => [document.querySelector('.app')!.scrollTop, document.querySelector('.app')!.scrollLeft, visualViewport!.scale])).toEqual([0, 0, 1]);
-  await p.evaluate(() => { (window as any).__typeset.ui.sheet = null; });
+  expect(
+    await p.evaluate(() => [
+      document.querySelector('.app')!.scrollTop,
+      document.querySelector('.app')!.scrollLeft,
+      visualViewport!.scale,
+    ]),
+  ).toEqual([0, 0, 1]);
+  await p.evaluate(() => {
+    (window as any).__typeset.ui.sheet = null;
+  });
   // the selection's menu, for a selection in a corner: on the screen, clear of its sides,
   // over no text (in a band of the reader's own)
   const vw = p.viewportSize()!;
-  const text = await p.evaluate(() => { const r = (window as any).__typeset.reader; return [r.M.y0, r.M.y0 + r.M.colH]; });
-  for (const [x, y] of [[vw.width - 10, 20], [10, vw.height - 70]]) {
-    await p.evaluate(([x, y]) => { (window as any).__typeset.ui.chip = null; (window as any).__typeset.ui.chip = { x, y, b: y + 20, finger: true, sel: { a: [3, 2, 0], z: [3, 2, 20] }, ann: null }; }, [x, y]);
+  const text = await p.evaluate(() => {
+    const r = (window as any).__typeset.reader;
+    return [r.M.y0, r.M.y0 + r.M.colH];
+  });
+  for (const [x, y] of [
+    [vw.width - 10, 20],
+    [10, vw.height - 70],
+  ]) {
+    await p.evaluate(
+      ([x, y]) => {
+        (window as any).__typeset.ui.chip = null;
+        (window as any).__typeset.ui.chip = {
+          x,
+          y,
+          b: y + 20,
+          finger: true,
+          sel: { a: [3, 2, 0], z: [3, 2, 20] },
+          ann: null,
+        };
+      },
+      [x, y],
+    );
     await expect(p.locator('.chip-pop')).toBeVisible();
     const r = (await p.locator('.chip-pop').boundingBox())!;
     expect(r.x).toBeGreaterThanOrEqual(10);
@@ -337,7 +532,9 @@ test('a phone: the colour around the page follows it; nothing scrolls the frame;
   }
 });
 
-test('a phone: the bookmark button marks the page in view and turns nothing; tapped again, no mark is left anywhere', async ({ page: p }) => {
+test('a phone: the bookmark button marks the page in view and turns nothing; tapped again, no mark is left anywhere', async ({
+  page: p,
+}) => {
   await open(p);
   await p.evaluate(() => (window as any).__typeset.reader.go(6));
   await expect.poll(() => cur(p)).toBe(6);
@@ -345,16 +542,24 @@ test('a phone: the bookmark button marks the page in view and turns nothing; tap
   await expect(p.locator('header.bar.away')).toHaveCount(1);
   const st = (await p.locator('.stage').boundingBox())!;
   await p.touchscreen.tap(st.x + st.width / 2, st.y + st.height / 2);
-  const bm = p.locator('.bar').getByRole('button', { name: /Bookmark this page|Remove this page’s bookmark|Remove the bookmark/ });
+  const bm = p
+    .locator('.bar')
+    .getByRole('button', { name: /Bookmark this page|Remove this page’s bookmark|Remove the bookmark/ });
   await expect(bm).toBeVisible();
-  const marked = () => p.evaluate(() => { const r = (window as any).__typeset.reader; return { cur: r.cur, on: r.bookmarks.list.map((b: any) => r.strip.resolve({ key: b.key, off: b.off })) }; });
+  const marked = () =>
+    p.evaluate(() => {
+      const r = (window as any).__typeset.reader;
+      return { cur: r.cur, on: r.bookmarks.list.map((b: any) => r.strip.resolve({ key: b.key, off: b.off })) };
+    });
   await bm.tap();
   await expect.poll(marked).toEqual({ cur: 6, on: [6] });
   await bm.tap();
   await expect.poll(marked).toEqual({ cur: 6, on: [] });
 });
 
-test('a phone: a press on the progress line goes nowhere, shown or not; only a drag along it travels', async ({ page: p }) => {
+test('a phone: a press on the progress line goes nowhere, shown or not; only a drag along it travels', async ({
+  page: p,
+}) => {
   await open(p);
   await p.evaluate(() => (window as any).__typeset.reader.go(6));
   await expect.poll(() => cur(p)).toBe(6);
@@ -371,15 +576,26 @@ test('a phone: a press on the progress line goes nowhere, shown or not; only a d
   expect(await cur(p)).toBe(6);
   // a drag along it, from anywhere on it, moves the place by as far as the finger went
   await expect(p.locator('header.bar.away')).toHaveCount(0);
-  const y = box.y + box.height / 2, x0 = box.x + box.width * 0.3;
+  const y = box.y + box.height / 2,
+    x0 = box.x + box.width * 0.3;
   // (a finger's drag, as the browser hands it to the page: pointer events, a touch's)
-  await p.evaluate(([x0, y, w]) => {
-    const at = (x: number) => ({ pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: x, clientY: y, bubbles: true });
-    const el = document.elementFromPoint(x0, y)!;
-    el.dispatchEvent(new PointerEvent('pointerdown', at(x0)));
-    for (let i = 1; i <= 10; i++) el.dispatchEvent(new PointerEvent('pointermove', at(x0 + i * w * 0.02)));
-    el.dispatchEvent(new PointerEvent('pointerup', at(x0 + w * 0.2)));
-  }, [x0, y, box.width]);
+  await p.evaluate(
+    ([x0, y, w]) => {
+      const at = (x: number) => ({
+        pointerType: 'touch',
+        pointerId: 7,
+        isPrimary: true,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+      });
+      const el = document.elementFromPoint(x0, y)!;
+      el.dispatchEvent(new PointerEvent('pointerdown', at(x0)));
+      for (let i = 1; i <= 10; i++) el.dispatchEvent(new PointerEvent('pointermove', at(x0 + i * w * 0.02)));
+      el.dispatchEvent(new PointerEvent('pointerup', at(x0 + w * 0.2)));
+    },
+    [x0, y, box.width],
+  );
   await expect.poll(() => cur(p)).toBeGreaterThan(30);
   // and the way back is offered, in the title's place, until one reads on
   const back = p.locator('.bar').getByRole('button', { name: 'Back to page 7' });
@@ -389,10 +605,16 @@ test('a phone: a press on the progress line goes nowhere, shown or not; only a d
   await expect(back).toHaveCount(0);
 });
 
-test('a phone: two notes on one line, both dots in the column\'s half of the gutter, clear of the paper beside it', async ({ page: p }) => {
+test("a phone: two notes on one line, both dots in the column's half of the gutter, clear of the paper beside it", async ({
+  page: p,
+}) => {
   await open(p);
-  const menu = p.locator('.chip-pop'), sheet = p.locator('.sheet');
-  for (const [from, to, text] of [[0, 1, 'One.'], [2, 3, 'Two.']] as const) {
+  const menu = p.locator('.chip-pop'),
+    sheet = p.locator('.sheet');
+  for (const [from, to, text] of [
+    [0, 1, 'One.'],
+    [2, 3, 'Two.'],
+  ] as const) {
     await select(p, 4, from, to);
     await menu.getByRole('button', { name: 'Note' }).tap();
     await sheet.getByRole('textbox', { name: 'Your note' }).fill(text);
@@ -403,14 +625,22 @@ test('a phone: two notes on one line, both dots in the column\'s half of the gut
   await expect(dots).toHaveCount(2);
   const { fade, boxes } = await p.evaluate(() => ({
     fade: document.querySelector('.curtain.r')!.getBoundingClientRect().left,
-    boxes: [...document.querySelectorAll('.col .nd')].map(d => { const b = d.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; }),
+    boxes: [...document.querySelectorAll('.col .nd')].map(d => {
+      const b = d.getBoundingClientRect();
+      return { left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+    }),
   }));
   for (const b of boxes) expect(b.right, JSON.stringify({ fade, boxes })).toBeLessThanOrEqual(fade);
   // (apart: each is its own to press)
   const [a, b] = boxes;
-  expect(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, JSON.stringify(boxes)).toBe(true);
+  expect(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, JSON.stringify(boxes)).toBe(
+    true,
+  );
   // and each opens its own note
-  for (const [i, text] of [[0, 'One.'], [1, 'Two.']] as const) {
+  for (const [i, text] of [
+    [0, 'One.'],
+    [1, 'Two.'],
+  ] as const) {
     await dots.nth(i).tap();
     await expect(p.getByText(text, { exact: true })).toBeVisible();
     await p.keyboard.press('Escape');

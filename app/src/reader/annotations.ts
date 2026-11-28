@@ -8,7 +8,12 @@ import { readingOrder, shareOf, type KeyIndex } from '../core/book';
  *  keys in the chip (5 to 8). */
 export const REACTIONS = ['loved', 'confused', 'slow', 'typo'] as const;
 export type Reaction = (typeof REACTIONS)[number];
-export const REACTION_LABEL: Record<Reaction, string> = { loved: 'Loved this', confused: 'Confused here', slow: 'Slow here', typo: 'A typo' };
+export const REACTION_LABEL: Record<Reaction, string> = {
+  loved: 'Loved this',
+  confused: 'Confused here',
+  slow: 'Slow here',
+  typo: 'A typo',
+};
 export const isReaction = (r: unknown): r is Reaction => REACTIONS.includes(r as Reaction);
 
 /** A highlight (optionally with a note) over part of one block. Offsets are UTF-16 into
@@ -45,7 +50,10 @@ export class Annotations {
   /** Annotations per block key, in order. */
   private byKey = new Map<string, Annotation[]>();
 
-  constructor(private book: BookData, private keyIndex: KeyIndex) {
+  constructor(
+    private book: BookData,
+    private keyIndex: KeyIndex,
+  ) {
     this.list = kv.get<Annotation[]>('ann.' + book.id, []);
     this.index();
   }
@@ -59,16 +67,36 @@ export class Annotations {
    *  engine (moved, reworded, or not found: crates/engine/src/anchor.rs). Only those go
    *  to the engine, so an unchanged book costs nothing. */
   async place(core: Core) {
-    const off = this.list.filter(a => { const b = this.block(a.key); return !b || b.t.slice(a.s, a.e) !== a.quote; });
+    const off = this.list.filter(a => {
+      const b = this.block(a.key);
+      return !b || b.t.slice(a.s, a.e) !== a.quote;
+    });
     if (!off.length) return;
-    const placed = await core.place(this.book.id, off.map(a => ({ key: a.key, s: a.s, e: a.e, quote: a.quote, prefix: a.prefix, suffix: a.suffix, pos: a.pos })));
+    const placed = await core.place(
+      this.book.id,
+      off.map(a => ({ key: a.key, s: a.s, e: a.e, quote: a.quote, prefix: a.prefix, suffix: a.suffix, pos: a.pos })),
+    );
     off.forEach((a, i) => {
       const p = placed[i];
-      if (!p || p.how === 'lost') { a.lost = true; return; }
+      if (!p || p.how === 'lost') {
+        a.lost = true;
+        return;
+      }
       const b = this.block(p.key);
-      if (!b) { a.lost = true; return; }
+      if (!b) {
+        a.lost = true;
+        return;
+      }
       if (p.how === 'changed' && !a.was) a.was = a.quote;
-      Object.assign(a, { key: p.key, s: p.s, e: p.e, quote: b.t.slice(p.s, p.e), prefix: b.t.slice(Math.max(0, p.s - CTX), p.s), suffix: b.t.slice(p.e, p.e + CTX), lost: false });
+      Object.assign(a, {
+        key: p.key,
+        s: p.s,
+        e: p.e,
+        quote: b.t.slice(p.s, p.e),
+        prefix: b.t.slice(Math.max(0, p.s - CTX), p.s),
+        suffix: b.t.slice(p.e, p.e + CTX),
+        lost: false,
+      });
     });
     this.save();
   }
@@ -89,7 +117,9 @@ export class Annotations {
     this.index();
   }
 
-  of(key: string): Annotation[] | undefined { return this.byKey.get(key); }
+  of(key: string): Annotation[] | undefined {
+    return this.byKey.get(key);
+  }
 
   /** Adds annotations not here yet (by id), as they came: `place` then finds their
    *  words. One here already takes the other's note and colour if that was edited later
@@ -101,7 +131,10 @@ export class Annotations {
     let updated = 0;
     for (const a of add) {
       const mine = have.get(a.id);
-      if (!mine) { fresh.push(a); continue; }
+      if (!mine) {
+        fresh.push(a);
+        continue;
+      }
       if ((a.updated || 0) > (mine.updated || 0) && (a.note !== mine.note || a.color !== mine.color)) {
         Object.assign(mine, { note: a.note, color: a.color, updated: a.updated });
         updated++;
@@ -125,13 +158,26 @@ export class Annotations {
     if (e <= s) return null;
     // a new highlight absorbs any it overlaps in the same block
     const over = (this.byKey.get(key) || []).filter(a => a.s < e && a.e > s);
-    for (const o of over) { s = Math.min(s, o.s); e = Math.max(e, o.e); if (!note && o.note) note = o.note; }
+    for (const o of over) {
+      s = Math.min(s, o.s);
+      e = Math.max(e, o.e);
+      if (!note && o.note) note = o.note;
+    }
     this.list = this.list.filter(a => !over.includes(a));
     const now = Date.now();
     const a: Annotation = {
-      id: now.toString(36) + Math.random().toString(36).slice(2, 6), key, s, e,
-      quote: b.t.slice(s, e), prefix: b.t.slice(Math.max(0, s - CTX), s), suffix: b.t.slice(e, e + CTX),
-      color, note, created: now, updated: now, pos: shareOf(this.book, this.keyIndex, key),
+      id: now.toString(36) + Math.random().toString(36).slice(2, 6),
+      key,
+      s,
+      e,
+      quote: b.t.slice(s, e),
+      prefix: b.t.slice(Math.max(0, s - CTX), s),
+      suffix: b.t.slice(e, e + CTX),
+      color,
+      note,
+      created: now,
+      updated: now,
+      pos: shareOf(this.book, this.keyIndex, key),
     };
     this.list.push(a);
     this.save();
@@ -152,7 +198,10 @@ export class Annotations {
 
   /** Reading order: section, block, offset. */
   ordered(): Annotation[] {
-    const pos = (a: Annotation) => { const h = this.keyIndex.get(a.key); return h ? readingOrder(h[0], h[1], a.s) : Infinity; };
+    const pos = (a: Annotation) => {
+      const h = this.keyIndex.get(a.key);
+      return h ? readingOrder(h[0], h[1], a.s) : Infinity;
+    };
     return [...this.list].sort((a, b) => pos(a) - pos(b));
   }
 }

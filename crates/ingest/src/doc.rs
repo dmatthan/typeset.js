@@ -30,7 +30,12 @@ pub(crate) struct Doc {
 /// dinkus character, alone.
 pub(crate) fn is_break(t: &str) -> bool {
     let t = t.trim();
-    !t.is_empty() && t.chars().count() <= 12 && t.chars().all(|c| c.is_whitespace() || matches!(c, '*' | '#' | '~' | '⁂' | '•' | '·' | '◆' | '❦' | '§' | '+' | '-' | '_' | '='))
+    !t.is_empty()
+        && t.chars().count() <= 12
+        && t.chars().all(|c| {
+            c.is_whitespace()
+                || matches!(c, '*' | '#' | '~' | '⁂' | '•' | '·' | '◆' | '❦' | '§' | '+' | '-' | '_' | '=')
+        })
 }
 
 fn block(b: TextBuilder, kind: Kind, key: u64) -> Block {
@@ -52,25 +57,28 @@ fn block(b: TextBuilder, kind: Kind, key: u64) -> Block {
 
 pub(crate) fn assemble(source: &[u8], name: &str, mut doc: Doc) -> Result<crate::Book, Error> {
     // the title: a heading of level 0, or a single highest heading before any text
-    let levels: Vec<u8> = doc.paras.iter().filter_map(|p| if let Para::Heading(l, _) = p { Some(*l) } else { None }).collect();
+    let levels: Vec<u8> =
+        doc.paras.iter().filter_map(|p| if let Para::Heading(l, _) = p { Some(*l) } else { None }).collect();
     let top = levels.iter().copied().filter(|&l| l > 0).min();
     let first_text = doc.paras.iter().position(|p| !matches!(p, Para::Heading(..)));
     let mut title_at = doc.paras.iter().position(|p| matches!(p, Para::Heading(0, _)));
     if title_at.is_none()
-        && let Some(t) = top {
-            let n = levels.iter().filter(|&&l| l == t).count();
-            let at = doc.paras.iter().position(|p| matches!(p, Para::Heading(l, _) if *l == t));
-            if n == 1 && levels.iter().any(|&l| l > t) && at.is_some_and(|a| first_text.is_none_or(|f| a < f)) {
-                title_at = at;
-            }
+        && let Some(t) = top
+    {
+        let n = levels.iter().filter(|&&l| l == t).count();
+        let at = doc.paras.iter().position(|p| matches!(p, Para::Heading(l, _) if *l == t));
+        if n == 1 && levels.iter().any(|&l| l > t) && at.is_some_and(|a| first_text.is_none_or(|f| a < f)) {
+            title_at = at;
         }
+    }
     if let Some(i) = title_at
-        && let Para::Heading(_, b) = doc.paras.remove(i) {
-            let (t, _) = b.finish();
-            if doc.meta.title.trim().is_empty() {
-                doc.meta.title = t;
-            }
+        && let Para::Heading(_, b) = doc.paras.remove(i)
+    {
+        let (t, _) = b.finish();
+        if doc.meta.title.trim().is_empty() {
+            doc.meta.title = t;
         }
+    }
     if doc.meta.title.trim().is_empty() {
         let stem = name.rsplit(['/', '\\']).next().unwrap_or(name);
         let stem = stem.rsplit_once('.').map(|x| x.0).unwrap_or(stem);
@@ -103,17 +111,34 @@ pub(crate) fn assemble(source: &[u8], name: &str, mut doc: Doc) -> Result<crate:
     let mut sections: Vec<Section> = Vec::new();
     for p in doc.paras {
         if let Para::Heading(l, b) = &p
-            && Some(*l) == chap {
-                let (t, _) = b.clone().finish();
-                let h = heads::parse(&t);
-                let n = sections.iter().filter(|s| s.kind == SectionKind::Chapter).count() + 1;
-                let (label, title) = if h.label.is_empty() { (String::new(), heads::tidy(&t)) } else { (h.label, h.title) };
-                sections.push(Section { kind: SectionKind::Chapter, part: String::new(), label, num: if h.num.is_empty() { n.to_string() } else { h.num }, title, blocks: Vec::new(), head: None });
-                continue;
-            }
+            && Some(*l) == chap
+        {
+            let (t, _) = b.clone().finish();
+            let h = heads::parse(&t);
+            let n = sections.iter().filter(|s| s.kind == SectionKind::Chapter).count() + 1;
+            let (label, title) = if h.label.is_empty() { (String::new(), heads::tidy(&t)) } else { (h.label, h.title) };
+            sections.push(Section {
+                kind: SectionKind::Chapter,
+                part: String::new(),
+                label,
+                num: if h.num.is_empty() { n.to_string() } else { h.num },
+                title,
+                blocks: Vec::new(),
+                head: None,
+            });
+            continue;
+        }
         if sections.is_empty() {
             // text before the first chapter: an opening section of its own
-            sections.push(Section { kind: if chap.is_some() { SectionKind::Front } else { SectionKind::Chapter }, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: Vec::new(), head: None });
+            sections.push(Section {
+                kind: if chap.is_some() { SectionKind::Front } else { SectionKind::Chapter },
+                part: String::new(),
+                label: String::new(),
+                num: "1".into(),
+                title: String::new(),
+                blocks: Vec::new(),
+                head: None,
+            });
         }
         let blk = match p {
             Para::Heading(_, b) => block(b, Kind::H, key()),
@@ -150,9 +175,10 @@ pub(crate) fn assemble(source: &[u8], name: &str, mut doc: Doc) -> Result<crate:
     }
     for s in &mut sections {
         if s.kind == SectionKind::Chapter
-            && let Some(b) = s.blocks.iter_mut().find(|b| b.kind == Kind::P) {
-                typeset_model::apply_lead_in(b);
-            }
+            && let Some(b) = s.blocks.iter_mut().find(|b| b.kind == Kind::P)
+        {
+            typeset_model::apply_lead_in(b);
+        }
     }
     let notes = doc
         .notes

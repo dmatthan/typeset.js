@@ -15,12 +15,31 @@ pub(super) struct RawSection {
 /// appendices and the like stay chapters: they are read.
 pub(super) fn matter_of(e: &ElementRef) -> bool {
     const APPARATUS: &[&str] = &[
-        "imprint", "colophon", "copyright-page", "titlepage", "halftitlepage", "seriespage", "dedication", "epigraph",
-        "endnotes", "footnotes", "rearnotes", "loi", "lot", "index", "credits", "contributors", "other-credits", "errata", "acknowledgments", "toc",
+        "imprint",
+        "colophon",
+        "copyright-page",
+        "titlepage",
+        "halftitlepage",
+        "seriespage",
+        "dedication",
+        "epigraph",
+        "endnotes",
+        "footnotes",
+        "rearnotes",
+        "loi",
+        "lot",
+        "index",
+        "credits",
+        "contributors",
+        "other-credits",
+        "errata",
+        "acknowledgments",
+        "toc",
     ];
     let t = e.attr("epub:type").unwrap_or("");
     let r = e.attr("role").unwrap_or("");
-    t.split_whitespace().any(|w| APPARATUS.contains(&w)) || r.split_whitespace().any(|w| w.strip_prefix("doc-").is_some_and(|w| APPARATUS.contains(&w)))
+    t.split_whitespace().any(|w| APPARATUS.contains(&w))
+        || r.split_whitespace().any(|w| w.strip_prefix("doc-").is_some_and(|w| APPARATUS.contains(&w)))
 }
 
 pub(super) struct RawBlock {
@@ -100,10 +119,13 @@ pub(super) fn notelike(e: &ElementRef) -> bool {
     let check = |e: &ElementRef| {
         let t = e.attr("epub:type").unwrap_or("");
         let r = e.attr("role").unwrap_or("");
-        t.contains("note") || r.contains("footnote") || r.contains("endnote") || e.value().classes().any(|c| {
-            let c = c.to_ascii_lowercase();
-            c.contains("footnote") || c.contains("endnote") || c == "foot" || c == "note"
-        })
+        t.contains("note")
+            || r.contains("footnote")
+            || r.contains("endnote")
+            || e.value().classes().any(|c| {
+                let c = c.to_ascii_lowercase();
+                c.contains("footnote") || c.contains("endnote") || c == "foot" || c == "note"
+            })
     };
     if check(e) {
         return true;
@@ -146,10 +168,37 @@ pub(super) const SKIP: &[&str] = &[
     "script", "style", "head", "title", "svg", "math", "video", "audio", "iframe", "object", "picture", "canvas", "nav",
 ];
 pub(super) const BLOCK: &[&str] = &[
-    "p", "div", "section", "article", "blockquote", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "pre", "figcaption",
-    "header", "footer", "main", "dl", "dt", "dd", "hr", "center", "address", "body", "hgroup", "table",
+    "p",
+    "div",
+    "section",
+    "article",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "pre",
+    "figcaption",
+    "header",
+    "footer",
+    "main",
+    "dl",
+    "dt",
+    "dd",
+    "hr",
+    "center",
+    "address",
+    "body",
+    "hgroup",
+    "table",
 ];
-pub(super) const SKIP_CLASSES: &[&str] = &["pg-boilerplate", "pagenum", "pageno", "page-number", "footnotes", "x-ebookmaker-cover"];
+pub(super) const SKIP_CLASSES: &[&str] =
+    &["pg-boilerplate", "pagenum", "pageno", "page-number", "footnotes", "x-ebookmaker-cover"];
 
 pub(super) fn has_class(e: &ElementRef, list: &[&str]) -> bool {
     e.value().classes().any(|c| list.iter().any(|l| c.eq_ignore_ascii_case(l)))
@@ -197,7 +246,11 @@ impl Extractor {
         if !links.is_empty() {
             self.raw_links.insert(key, links);
         }
-        self.sections.last_mut().unwrap().blocks.push(RawBlock { block: Block::new(key, kind, text, runs), head: None });
+        self.sections
+            .last_mut()
+            .unwrap()
+            .blocks
+            .push(RawBlock { block: Block::new(key, kind, text, runs), head: None });
         Some(key)
     }
 
@@ -249,9 +302,10 @@ impl Extractor {
 
     pub(super) fn check_target(&mut self, e: &ElementRef) {
         if let Some(id) = e.value().id()
-            && let Some(label) = self.targets.remove(id) {
-                self.start_section(Some(label), matter_of(e));
-            }
+            && let Some(label) = self.targets.remove(id)
+        {
+            self.start_section(Some(label), matter_of(e));
+        }
     }
 
     pub(super) fn walk(&mut self, el: ElementRef, ctx: Ctx) {
@@ -267,7 +321,11 @@ impl Extractor {
                 Node::Element(_) => {
                     let e = ElementRef::wrap(child).unwrap();
                     let name = e.value().name().to_ascii_lowercase();
-                    if e.attr("id") == Some("pg-header") || e.attr("id") == Some("pg-footer") || has_class(&e, SKIP_CLASSES) || css::hidden(&e) {
+                    if e.attr("id") == Some("pg-header")
+                        || e.attr("id") == Some("pg-footer")
+                        || has_class(&e, SKIP_CLASSES)
+                        || css::hidden(&e)
+                    {
                         continue;
                     }
                     // a footnote kept out of the flow (EPUB 3): kept as a note
@@ -286,7 +344,10 @@ impl Extractor {
                         continue;
                     }
                     // what the press cannot set from text: drawn as the publisher made it
-                    if (name == "table" && rich::is_diagram_table(&e)) || (name == "svg" && rich::is_figure_svg(&e)) || name == "math" {
+                    if (name == "table" && rich::is_diagram_table(&e))
+                        || (name == "svg" && rich::is_figure_svg(&e))
+                        || name == "math"
+                    {
                         self.flush_para(ctx);
                         self.rich(e);
                         continue;
@@ -349,7 +410,10 @@ impl Extractor {
             // its width and place as the book gives them; none, the reader's own break
             let p = css::of(&e);
             if self.push(Kind::Break, TextBuilder::new()).is_some() && p.border.unwrap_or(true) {
-                let rule = typeset_model::Rule { width: p.width.unwrap_or(1.0).clamp(0.05, 1.0), align: u8::from(p.centred.unwrap_or(true)) };
+                let rule = typeset_model::Rule {
+                    width: p.width.unwrap_or(1.0).clamp(0.05, 1.0),
+                    align: u8::from(p.centred.unwrap_or(true)),
+                };
                 self.sections.last_mut().unwrap().blocks.last_mut().unwrap().block.rule = Some(rule);
             }
             return;
@@ -357,7 +421,14 @@ impl Extractor {
         if name.strip_prefix('h').and_then(|d| d.parse::<u8>().ok()).is_some() || (ctx.hgroup && name == "p") {
             // (what the elements around it say flows into it, as a browser's would: a
             // group's small capitals into its subtitle)
-            let inherited = e.ancestors().filter_map(ElementRef::wrap).take_while(|a| a.value().name() != "body").collect::<Vec<_>>().iter().rev().fold(0, |st, a| css::apply(st, css::of(a)));
+            let inherited = e
+                .ancestors()
+                .filter_map(ElementRef::wrap)
+                .take_while(|a| a.value().name() != "body")
+                .collect::<Vec<_>>()
+                .iter()
+                .rev()
+                .fold(0, |st, a| css::apply(st, css::of(a)));
             let mut b = TextBuilder::new();
             self.collect(e, &mut b, inherited);
             if self.push(Kind::H, b).is_some() {
@@ -397,7 +468,8 @@ impl Extractor {
             BLOCK.contains(&n.as_str()) || is_verse(&c) || contains_target(&c, &self.targets)
         });
         if has_block_child {
-            let c = Ctx { quote: ctx.quote || name == "blockquote", li: ctx.li, hgroup: ctx.hgroup || name == "hgroup" };
+            let c =
+                Ctx { quote: ctx.quote || name == "blockquote", li: ctx.li, hgroup: ctx.hgroup || name == "hgroup" };
             self.walk(e, c);
             self.flush_para(c);
             return;
@@ -410,11 +482,15 @@ impl Extractor {
             Kind::Li
         } else if ctx.quote || name == "blockquote" {
             Kind::Q
-        } else if align == Some(1) || (align.is_none() && e.value().classes().any(|c| c.contains("center") || c.contains("centre"))) {
+        } else if align == Some(1)
+            || (align.is_none() && e.value().classes().any(|c| c.contains("center") || c.contains("centre")))
+        {
             Kind::Center
         } else if align == Some(2) {
             Kind::Attrib
-        } else if align.is_none() && e.value().classes().any(|c| c.contains("right") || c.contains("signature") || c.contains("sign")) {
+        } else if align.is_none()
+            && e.value().classes().any(|c| c.contains("right") || c.contains("signature") || c.contains("sign"))
+        {
             Kind::Sign
         } else {
             Kind::P
@@ -425,17 +501,27 @@ impl Extractor {
         // the bottom one of the block before)
         let p = css::of(&e);
         if pushed && kind == Kind::P {
-            let indent = std::iter::once(e).chain(e.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).indent).unwrap_or(0.0);
+            let indent = std::iter::once(e)
+                .chain(e.ancestors().filter_map(ElementRef::wrap))
+                .find_map(|a| css::of(&a).indent)
+                .unwrap_or(0.0);
             let above = p.margin_top.unwrap_or(1.0).max(self.below);
             let block = &mut self.sections.last_mut().unwrap().blocks.last_mut().unwrap().block;
             // set ragged where the book sets it at the start apart from a justified text (its
             // body's, the text's own: which a theme decides)
-            let aligned = |from: ElementRef| std::iter::once(from).chain(from.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).align);
+            let aligned = |from: ElementRef| {
+                std::iter::once(from)
+                    .chain(from.ancestors().filter_map(ElementRef::wrap))
+                    .find_map(|a| css::of(&a).align)
+            };
             let body = e.ancestors().filter_map(ElementRef::wrap).find(|a| a.value().name() == "body");
             let ragged = aligned(e) == Some(3) && body.is_some_and(|b| aligned(b) == Some(0));
             block.set = Some(typeset_model::Setting { indent, above, ragged });
             // (line-height inherited too, from as far as the root)
-            let leading = std::iter::once(e).chain(e.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).leading).unwrap_or(0.0);
+            let leading = std::iter::once(e)
+                .chain(e.ancestors().filter_map(ElementRef::wrap))
+                .find_map(|a| css::of(&a).leading)
+                .unwrap_or(0.0);
             *self.leadings.entry((leading * 100.0).round() as u32).or_default() += block.text.len();
         }
         if pushed {
@@ -454,9 +540,17 @@ impl Extractor {
 fn head_metrics(e: &ElementRef) -> HeadMetrics {
     // the browser's: size and margins, h1 to h6
     const UA: [(f32, f32); 6] = [(2.0, 0.67), (1.5, 0.83), (1.17, 1.0), (1.0, 1.33), (0.83, 1.67), (0.67, 2.33)];
-    let ua = |el: &ElementRef| el.value().name().strip_prefix('h').and_then(|d| d.parse::<usize>().ok()).filter(|d| (1..=6).contains(d)).map(|d| UA[d - 1]);
+    let ua = |el: &ElementRef| {
+        el.value()
+            .name()
+            .strip_prefix('h')
+            .and_then(|d| d.parse::<usize>().ok())
+            .filter(|d| (1..=6).contains(d))
+            .map(|d| UA[d - 1])
+    };
     let mut chain = vec![*e];
-    while let Some(p) = chain.last().unwrap().parent().and_then(ElementRef::wrap).filter(|p| p.value().name() != "body") {
+    while let Some(p) = chain.last().unwrap().parent().and_then(ElementRef::wrap).filter(|p| p.value().name() != "body")
+    {
         chain.push(p);
     }
     // each one's size in the text's em, from the body down
@@ -469,7 +563,10 @@ fn head_metrics(e: &ElementRef) -> HeadMetrics {
     // (an element opens its parent only as its first, and closes it only as its last)
     let opens = |i: usize| i == 0 || !chain[i - 1].prev_siblings().any(|s| ElementRef::wrap(s).is_some());
     let closes = |i: usize| i == 0 || !chain[i - 1].next_siblings().any(|s| ElementRef::wrap(s).is_some());
-    let above = (0..chain.len()).take_while(|&i| opens(i)).map(|i| css::of(&chain[i]).padding_top.unwrap_or(0.0) * sizes[i]).sum();
+    let above = (0..chain.len())
+        .take_while(|&i| opens(i))
+        .map(|i| css::of(&chain[i]).padding_top.unwrap_or(0.0) * sizes[i])
+        .sum();
     let (mut margin, mut padding) = (0f32, 0f32);
     for i in (0..chain.len()).take_while(|&i| closes(i)) {
         let p = css::of(&chain[i]);
@@ -478,7 +575,11 @@ fn head_metrics(e: &ElementRef) -> HeadMetrics {
     }
     // (text-align inherited, from as far as the root; the start where nothing says, or
     // justified, which a heading's line cannot be)
-    let align = std::iter::once(*e).chain(e.ancestors().filter_map(ElementRef::wrap)).find_map(|a| css::of(&a).align).filter(|a| matches!(a, 1 | 2)).unwrap_or(0);
+    let align = std::iter::once(*e)
+        .chain(e.ancestors().filter_map(ElementRef::wrap))
+        .find_map(|a| css::of(&a).align)
+        .filter(|a| matches!(a, 1 | 2))
+        .unwrap_or(0);
     HeadMetrics { size: sizes[0], above, below: margin + padding, align }
 }
 
@@ -486,7 +587,8 @@ pub(super) fn contains_target(e: &ElementRef, targets: &HashMap<String, String>)
     if targets.is_empty() {
         return false;
     }
-    e.value().id().is_some_and(|id| targets.contains_key(id)) || e.descendent_elements().any(|d| d.value().id().is_some_and(|id| targets.contains_key(id)))
+    e.value().id().is_some_and(|id| targets.contains_key(id))
+        || e.descendent_elements().any(|d| d.value().id().is_some_and(|id| targets.contains_key(id)))
 }
 
 pub(super) fn push_slice(b: &mut TextBuilder, text: &str, runs: &[typeset_model::Run], from: usize, to: usize) {
@@ -569,7 +671,13 @@ pub(super) fn inline(e: ElementRef, b: &mut TextBuilder, st: u8, cx: &mut Inl) {
                             let (f, frag) = split_href(h);
                             let file = if f.is_empty() { cx.path.to_string() } else { resolve(cx.path, f) };
                             let own = c.value().id().map(|i| format!("{}#{}", cx.path, i)).unwrap_or_default();
-                            format!("{}|{}{}|{}", is_noteref(&c) as u8, file, frag.map(|f| format!("#{f}")).unwrap_or_default(), own)
+                            format!(
+                                "{}|{}{}|{}",
+                                is_noteref(&c) as u8,
+                                file,
+                                frag.map(|f| format!("#{f}")).unwrap_or_default(),
+                                own
+                            )
                         }
                     })
                 } else {

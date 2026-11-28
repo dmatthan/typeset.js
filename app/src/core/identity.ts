@@ -11,10 +11,18 @@ function newId(): string {
   return [...b].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-export interface Me { id: string; name: string }
+export interface Me {
+  id: string;
+  name: string;
+}
 export function me(): Me {
   let m = kv.get<Me | null>('me', null);
-  if (!m) { m = { id: newId(), name: '' }; kv.set('me', m); }
+  if (!m) {
+    m = { id: newId(), name: '' };
+    kv.set('me', m);
+  }
   return m;
 }
-export function setName(name: string) { kv.set('me', { ...me(), name: name.trim().replace(/\s+/g, ' ').slice(0, 60) }); }
+export function setName(name: string) {
+  kv.set('me', { ...me(), name: name.trim().replace(/\s+/g, ' ').slice(0, 60) });
+}

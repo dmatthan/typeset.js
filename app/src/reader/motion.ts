@@ -37,9 +37,13 @@ const WHEEL_LEAD = 16;
 const INTENT = 0.12;
 /** Cruise: starting and top speed in columns per second, ramp time, and how quickly the
  *  speed follows its target (a first-order lag, so the hand never feels a jolt). */
-const CRUISE_V0 = 1.6, CRUISE_VMAX = 3.2, CRUISE_RAMP_S = 3, CRUISE_LAG_S = 0.2;
+const CRUISE_V0 = 1.6,
+  CRUISE_VMAX = 3.2,
+  CRUISE_RAMP_S = 3,
+  CRUISE_LAG_S = 0.2;
 /** After the first ramp, a long hold keeps gathering speed toward this, for long trips. */
-const CRUISE_VFAR = 9, CRUISE_FAR_S = 6;
+const CRUISE_VFAR = 9,
+  CRUISE_FAR_S = 6;
 /** A cruise is worked out at this many steps a second: between two, the eye cannot tell a
  *  straight line from the curve, at any frame rate. */
 const CRUISE_HZ = 240;
@@ -61,10 +65,20 @@ const frameNow = () => (document.timeline?.currentTime as number | null) ?? perf
 
 class Quintic {
   private c: number[];
-  constructor(p0: number, v0: number, a0: number, public p1: number, public T: number) {
-    const h = p1 - p0, T2 = T * T, T3 = T2 * T;
+  constructor(
+    p0: number,
+    v0: number,
+    a0: number,
+    public p1: number,
+    public T: number,
+  ) {
+    const h = p1 - p0,
+      T2 = T * T,
+      T3 = T2 * T;
     this.c = [
-      p0, v0, a0 / 2,
+      p0,
+      v0,
+      a0 / 2,
       (20 * h - 12 * v0 * T - 3 * a0 * T2) / (2 * T3),
       (-30 * h + 16 * v0 * T + 3 * a0 * T2) / (2 * T3 * T),
       (12 * h - 6 * v0 * T - a0 * T2) / (2 * T3 * T2),
@@ -86,51 +100,78 @@ class Quintic {
  *  feels a jolt. Once the speed has settled it is a straight line; it stops at an end of
  *  the book. */
 class Cruise {
-  private ps: number[]; private vs: number[]; private as: number[];
+  private ps: number[];
+  private vs: number[];
+  private as: number[];
   /** When the sheet reaches an end of the book, seconds in. */
   end = Infinity;
 
-  constructor(p0: number, v0: number, private dir: number, private scale: number, private lo: number, private hi: number) {
-    this.ps = [p0]; this.vs = [v0]; this.as = [this.accel(0, v0)];
+  constructor(
+    p0: number,
+    v0: number,
+    private dir: number,
+    private scale: number,
+    private lo: number,
+    private hi: number,
+  ) {
+    this.ps = [p0];
+    this.vs = [v0];
+    this.as = [this.accel(0, v0)];
   }
 
   private accel(t: number, v: number) {
-    const ramp = Math.min(1, t / CRUISE_RAMP_S), far = Math.min(1, Math.max(0, t - CRUISE_RAMP_S) / CRUISE_FAR_S);
-    const vt = this.dir * this.scale * (CRUISE_V0 + (CRUISE_VMAX - CRUISE_V0) * ramp * ramp * (3 - 2 * ramp) + (CRUISE_VFAR - CRUISE_VMAX) * far * far);
+    const ramp = Math.min(1, t / CRUISE_RAMP_S),
+      far = Math.min(1, Math.max(0, t - CRUISE_RAMP_S) / CRUISE_FAR_S);
+    const vt =
+      this.dir *
+      this.scale *
+      (CRUISE_V0 + (CRUISE_VMAX - CRUISE_V0) * ramp * ramp * (3 - 2 * ramp) + (CRUISE_VFAR - CRUISE_VMAX) * far * far);
     return (vt - v) / CRUISE_LAG_S;
   }
 
   /** The curved part, worked out once: to the end of the book, or until the speed has
    *  settled, when the straight line from there finds the end. */
   private work() {
-    const h = 1 / CRUISE_HZ, n = Math.ceil(CRUISE_SETTLED_S * CRUISE_HZ);
+    const h = 1 / CRUISE_HZ,
+      n = Math.ceil(CRUISE_SETTLED_S * CRUISE_HZ);
     for (let i = 0; i < n; i++) {
-      const v = this.vs[i] + this.as[i] * h, p = this.ps[i] + v * h;
+      const v = this.vs[i] + this.as[i] * h,
+        p = this.ps[i] + v * h;
       if (p <= this.lo || p >= this.hi) {
-        this.ps.push(Math.max(this.lo, Math.min(this.hi, p))); this.vs.push(0); this.as.push(0);
+        this.ps.push(Math.max(this.lo, Math.min(this.hi, p)));
+        this.vs.push(0);
+        this.as.push(0);
         this.end = (i + 1) * h;
         return;
       }
-      this.ps.push(p); this.vs.push(v); this.as.push(this.accel((i + 1) * h, v));
+      this.ps.push(p);
+      this.vs.push(v);
+      this.as.push(this.accel((i + 1) * h, v));
     }
-    const p = this.ps[n], v = this.vs[n];
+    const p = this.ps[n],
+      v = this.vs[n];
     this.end = this.settled + Math.max(0, ((v > 0 ? this.hi : this.lo) - p) / v);
   }
 
   /** When the curved part ends, seconds in. */
-  private get settled() { return (this.ps.length - 1) / CRUISE_HZ; }
+  private get settled() {
+    return (this.ps.length - 1) / CRUISE_HZ;
+  }
 
   /** Position, speed and acceleration `t` seconds in. */
   at(t: number): [number, number, number] {
     if (this.end === Infinity) this.work();
     t = Math.min(Math.max(0, t), this.end);
-    const last = this.ps.length - 1, v = this.vs[last];
+    const last = this.ps.length - 1,
+      v = this.vs[last];
     if (t >= this.settled) {
       // the straight line (an end reached in the curve is where it stands)
       if (!v) return [this.ps[last], 0, 0];
       return t >= this.end ? [v > 0 ? this.hi : this.lo, 0, 0] : [this.ps[last] + v * (t - this.settled), v, 0];
     }
-    const x = t * CRUISE_HZ, i = Math.min(Math.floor(x), last - 1), f = x - i;
+    const x = t * CRUISE_HZ,
+      i = Math.min(Math.floor(x), last - 1),
+      f = x - i;
     const mix = (a: number[]) => a[i] + (a[i + 1] - a[i]) * f;
     return [mix(this.ps), mix(this.vs), mix(this.as)];
   }
@@ -162,7 +203,9 @@ export interface MotionHost {
 }
 
 export class Motion {
-  p = 0; v = 0; a = 0;
+  p = 0;
+  v = 0;
+  a = 0;
   mode: Mode = 'rest';
   private traj: Quintic | null = null;
   private cruising: Cruise | null = null;
@@ -170,13 +213,17 @@ export class Motion {
   private t0 = 0;
   private raf = 0;
   private cruiseDir = 0;
-  private samples: [number, number][] = [];   // direct: (time, position)
+  private samples: [number, number][] = []; // direct: (time, position)
 
   constructor(private host: MotionHost) {}
 
-  get moving() { return this.mode !== 'rest'; }
+  get moving() {
+    return this.mode !== 'rest';
+  }
   /** Where the sheet will come to rest if nothing else happens. */
-  get target() { return this.mode === 'traj' && this.traj ? this.traj.p1 : this.mode === 'rest' ? this.p : NaN; }
+  get target() {
+    return this.mode === 'traj' && this.traj ? this.traj.p1 : this.mode === 'rest' ? this.p : NaN;
+  }
 
   /** Mid-move, the state at this frame's time: the compositor draws the move between the
    *  loop's frames, so a new move starts from where it is, not from the last frame seen. */
@@ -186,12 +233,19 @@ export class Motion {
     else if (this.mode === 'cruise' && this.cruising) [this.p, this.v, this.a] = this.cruising.at(t);
   }
 
-  private clamp(x: number) { return Math.max(this.host.min(), Math.min(this.host.max(), x)); }
+  private clamp(x: number) {
+    return Math.max(this.host.min(), Math.min(this.host.max(), x));
+  }
 
   /** Puts the sheet at k at once. */
   jump(k: number) {
     this.stopLoop();
-    this.p = this.clamp(k); this.v = 0; this.a = 0; this.mode = 'rest'; this.traj = null; this.cruising = null;
+    this.p = this.clamp(k);
+    this.v = 0;
+    this.a = 0;
+    this.mode = 'rest';
+    this.traj = null;
+    this.cruising = null;
     this.host.frame(this.p, 0);
   }
 
@@ -205,15 +259,23 @@ export class Motion {
       // of the way (a drag let go) is carried the rest briefly, not snapped: the motion
       // is the hand's own, and a jump there reads as a jolt
       const midway = Math.abs(this.p - Math.round(this.p)) > 0.02 || this.mode === 'direct';
-      if (!midway || Math.abs(h) > 1.5) { this.jump(target); this.host.rest(target); return; }
+      if (!midway || Math.abs(h) > 1.5) {
+        this.jump(target);
+        this.host.rest(target);
+        return;
+      }
       T = Math.min(0.16, 0.07 + 0.09 * Math.abs(h));
       kick = false;
     }
     if (T == null) T = TAP_S + TAP_EXTRA_S * Math.max(0, Math.abs(h) - 1);
-    if (Math.abs(h) < 1e-4 && Math.abs(this.v) < 1e-3) { this.jump(target); this.host.rest(target); return; }
+    if (Math.abs(h) < 1e-4 && Math.abs(this.v) < 1e-3) {
+      this.jump(target);
+      this.host.rest(target);
+      return;
+    }
     // from standstill, start with some velocity: the sheet answers on the first frame
-    const v0 = this.mode === 'rest' && kick ? Math.sign(h) * TAP_KICK * Math.abs(h) / T : this.v;
-    const traj = this.traj = new Quintic(this.p, v0, this.mode === 'rest' ? 0 : this.a, target, T);
+    const v0 = this.mode === 'rest' && kick ? (Math.sign(h) * TAP_KICK * Math.abs(h)) / T : this.v;
+    const traj = (this.traj = new Quintic(this.p, v0, this.mode === 'rest' ? 0 : this.a, target, T));
     this.t0 = frameNow();
     this.mode = 'traj';
     this.cruising = null;
@@ -263,7 +325,8 @@ export class Motion {
     if (this.mode !== 'cruise') return;
     this.sync();
     // brake firmly onto the very next column the sheet can stop at
-    const d = this.cruiseDir, v = Math.abs(this.v);
+    const d = this.cruiseDir,
+      v = Math.abs(this.v);
     const stop = (v * v) / (2 * BRAKE);
     const ahead = this.p + d * Math.max(0.04, stop);
     const target = this.clamp(d > 0 ? Math.ceil(ahead) : Math.floor(ahead));
@@ -274,10 +337,12 @@ export class Motion {
   /** Smoothly lands on `target` from the current velocity (no overshoot, no jolt). */
   private landOn(target: number) {
     target = this.clamp(target);
-    const h = Math.abs(target - this.p), v = Math.abs(this.v);
-    const T = v > 0.05 && Math.sign(target - this.p) === Math.sign(this.v)
-      ? Math.max(0.3, Math.min(1.0, (1.7 * h) / v))
-      : Math.max(0.35, Math.min(0.8, 0.45 + 0.25 * h));
+    const h = Math.abs(target - this.p),
+      v = Math.abs(this.v);
+    const T =
+      v > 0.05 && Math.sign(target - this.p) === Math.sign(this.v)
+        ? Math.max(0.3, Math.min(1.0, (1.7 * h) / v))
+        : Math.max(0.35, Math.min(0.8, 0.45 + 0.25 * h));
     this.toward(target, T);
   }
 
@@ -297,7 +362,8 @@ export class Motion {
   /** Moves by `dc` columns, with resistance past the ends. */
   directBy(dc: number) {
     if (this.mode !== 'direct') this.directStart();
-    const lo = this.host.min(), hi = this.host.max();
+    const lo = this.host.min(),
+      hi = this.host.max();
     // rubber band: past an end the sheet follows the hand less and less, never further than
     // the band's reach; the hand's own place (the band undone) is what moves, so pulling
     // back retraces the same curve
@@ -314,8 +380,12 @@ export class Motion {
   }
   /** How far past an end the sheet shows for the hand `x` columns past it (to 0.6 at most),
    *  and back. */
-  private band(x: number) { return 0.6 * (1 - 1 / (x * 0.9 + 1)); }
-  private unband(e: number) { return (1 / (1 - Math.min(e, 0.599999) / 0.6) - 1) / 0.9; }
+  private band(x: number) {
+    return 0.6 * (1 - 1 / (x * 0.9 + 1));
+  }
+  private unband(e: number) {
+    return (1 / (1 - Math.min(e, 0.599999) / 0.6) - 1) / 0.9;
+  }
 
   /** Fingers lifted: glide to a boundary in the direction of travel. `flicked` means the
    *  system's momentum began, which says the hand threw the sheet: it goes on to the next
@@ -334,7 +404,13 @@ export class Motion {
     const moved = this.p - this.directFrom;
     let target: number;
     if (Math.abs(v) > 0.6) target = v > 0 ? Math.ceil(this.p + 0.02) : Math.floor(this.p - 0.02);
-    else if (Math.abs(moved) >= INTENT && Math.abs(moved) < 1 && Math.abs(v) > 0.05 && Math.sign(v) === Math.sign(moved)) target = moved > 0 ? Math.ceil(this.p) : Math.floor(this.p);
+    else if (
+      Math.abs(moved) >= INTENT &&
+      Math.abs(moved) < 1 &&
+      Math.abs(v) > 0.05 &&
+      Math.sign(v) === Math.sign(moved)
+    )
+      target = moved > 0 ? Math.ceil(this.p) : Math.floor(this.p);
     else target = Math.round(proj);
     target = Math.max(Math.floor(this.p), Math.min(Math.ceil(this.p), target));
     this.landOn(target);
@@ -351,16 +427,24 @@ export class Motion {
         this.host.frame(this.p, this.v, true);
         if (t >= this.traj.T) {
           const k = this.traj.p1;
-          this.mode = 'rest'; this.traj = null; this.v = 0; this.a = 0; this.p = k;
+          this.mode = 'rest';
+          this.traj = null;
+          this.v = 0;
+          this.a = 0;
+          this.p = k;
           this.host.rest(k);
           return;
         }
       } else if (this.mode === 'cruise' && this.cruising) {
-        const c = this.cruising, t = Math.max(0, (now - this.t0) / 1000);
+        const c = this.cruising,
+          t = Math.max(0, (now - this.t0) / 1000);
         [this.p, this.v, this.a] = c.at(t);
         if (t >= c.end) {
           // an end of the book: settle on its column
-          this.mode = 'rest'; this.cruising = null; this.v = 0; this.a = 0;
+          this.mode = 'rest';
+          this.cruising = null;
+          this.v = 0;
+          this.a = 0;
           this.host.frame(this.p, 0);
           this.toward(Math.round(this.p), 0.3);
           return;

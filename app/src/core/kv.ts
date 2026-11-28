@@ -9,16 +9,30 @@ const mem = new Map<string, string>();
 const dirty = new Map<string, string | null>();
 let flushT = 0;
 
-interface Backend { load(): Promise<[string, string][]>; put(changes: [string, string | null][]): Promise<void> }
+interface Backend {
+  load(): Promise<[string, string][]>;
+  put(changes: [string, string | null][]): Promise<void>;
+}
 
 const local: Backend = {
   async load() {
     const out: [string, string][] = [];
-    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i)!; if (k.startsWith(P)) out.push([k.slice(P.length), localStorage.getItem(k)!]); } } catch { /* storage unavailable */ }
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)!;
+        if (k.startsWith(P)) out.push([k.slice(P.length), localStorage.getItem(k)!]);
+      }
+    } catch {
+      /* storage unavailable */
+    }
     return out;
   },
   async put(changes) {
-    try { for (const [k, v] of changes) v == null ? localStorage.removeItem(P + k) : localStorage.setItem(P + k, v); } catch { /* storage unavailable */ }
+    try {
+      for (const [k, v] of changes) v == null ? localStorage.removeItem(P + k) : localStorage.setItem(P + k, v);
+    } catch {
+      /* storage unavailable */
+    }
   },
 };
 
@@ -34,7 +48,12 @@ const sqlite: Backend = {
 };
 
 /** Nothing kept: a book on someone else's page that was not asked to remember. */
-const memory: Backend = { async load() { return []; }, async put() {} };
+const memory: Backend = {
+  async load() {
+    return [];
+  },
+  async put() {},
+};
 
 let backend: Backend = local;
 
@@ -44,8 +63,12 @@ export async function initKV(opts: { memory?: boolean } = {}) {
   for (const [k, v] of rows) mem.set(k, v);
   // a tab closing or going to the background keeps what was changed in its last moments
   // (localStorage writes at once; the desktop also flushes before it quits)
-  addEventListener('pagehide', () => { flushKV(); });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushKV(); });
+  addEventListener('pagehide', () => {
+    flushKV();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushKV();
+  });
 }
 
 export function flushKV(): Promise<void> {
@@ -53,7 +76,9 @@ export function flushKV(): Promise<void> {
   if (!dirty.size) return Promise.resolve();
   const changes = [...dirty.entries()];
   dirty.clear();
-  return backend.put(changes).catch(() => { for (const [k, v] of changes) if (!dirty.has(k)) dirty.set(k, v); });
+  return backend.put(changes).catch(() => {
+    for (const [k, v] of changes) if (!dirty.has(k)) dirty.set(k, v);
+  });
 }
 
 function touch(k: string, v: string | null) {
@@ -66,7 +91,11 @@ export const kv = {
   get<T>(k: string, d: T): T {
     const v = mem.get(k);
     if (v == null) return d;
-    try { return JSON.parse(v) as T; } catch { return d; }
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return d;
+    }
   },
   set(k: string, v: unknown): boolean {
     const s = JSON.stringify(v);

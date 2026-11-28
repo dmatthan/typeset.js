@@ -10,7 +10,10 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
     let mut part = String::new();
     // a book of pictures (a comic, a picture book, fixed pages): most of its sections are
     // a picture with a few words or none, and those are its pages, not title pages
-    let few = |rs: &RawSection| rs.blocks.iter().filter(|b| b.block.kind != Kind::H).map(|b| typeset_model::words(&b.block.text)).sum::<usize>() < 15;
+    let few = |rs: &RawSection| {
+        rs.blocks.iter().filter(|b| b.block.kind != Kind::H).map(|b| typeset_model::words(&b.block.text)).sum::<usize>()
+            < 15
+    };
     let pictured = raw.iter().filter(|rs| few(rs) && rs.blocks.iter().any(|b| b.block.kind == Kind::Image)).count();
     let pictures = pictured > raw.iter().filter(|rs| !few(rs)).count();
     for rs in raw {
@@ -21,7 +24,8 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
         // (and kept as the book wrote them, the chapter's head: `Section::head`)
         let mut head: Option<Head> = None;
         if rs.matter {
-            heads_text.extend(blocks.iter().take_while(|b| b.block.kind == Kind::H).map(|b| b.block.text.replace('\n', " ")));
+            heads_text
+                .extend(blocks.iter().take_while(|b| b.block.kind == Kind::H).map(|b| b.block.text.replace('\n', " ")));
         } else {
             while blocks.first().is_some_and(|b| b.block.kind == Kind::H) {
                 let rb = blocks.remove(0);
@@ -33,7 +37,8 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
                 h.lines.push(HeadLine { block: rb.block, size: m.size, align: m.align });
             }
         }
-        let prose_words: usize = blocks.iter().filter(|b| b.block.kind != Kind::H).map(|b| typeset_model::words(&b.block.text)).sum();
+        let prose_words: usize =
+            blocks.iter().filter(|b| b.block.kind != Kind::H).map(|b| typeset_model::words(&b.block.text)).sum();
         let label_src = rs.toc_label.clone().unwrap_or_else(|| heads_text.first().cloned().unwrap_or_default());
         let lt = norm(&label_src);
         // a section named after the book (or its author) is its title page, unless it is
@@ -56,7 +61,9 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
         let picture = pictures && blocks.iter().any(|b| b.block.kind == Kind::Image);
         if prose_words < 15 && !picture {
             // a part heading ("Book I. Miss Brooke") or a title page: carry the part on
-            if !h.label.is_empty() && blocks.iter().all(|b| b.block.kind == Kind::H || typeset_model::words(&b.block.text) < 8) {
+            if !h.label.is_empty()
+                && blocks.iter().all(|b| b.block.kind == Kind::H || typeset_model::words(&b.block.text) < 8)
+            {
                 part = if h.title.is_empty() { h.label.clone() } else { format!("{} · {}", h.label, h.title) };
             }
             continue;
@@ -78,23 +85,34 @@ pub(super) fn shape_sections(raw: Vec<RawSection>, meta: &Meta) -> Vec<Section> 
         let title_page = !nt.is_empty() && lt.starts_with(&nt) && !whole;
         let front = title_page || rs.matter || matches!(lt.as_str(), "dedication" | "epigraph" | "frontispiece");
         if title_page {
-            while blocks.first().is_some_and(|b| norm(&b.text).starts_with(&nt) || (!na.is_empty() && norm(&b.text) == na)) {
+            while blocks
+                .first()
+                .is_some_and(|b| norm(&b.text).starts_with(&nt) || (!na.is_empty() && norm(&b.text) == na))
+            {
                 blocks.remove(0);
             }
             if blocks.iter().map(|b| typeset_model::words(&b.text)).sum::<usize>() < 15 {
                 continue;
             }
             let ded = blocks.first().is_some_and(|b| b.text.starts_with("To ") || b.text.starts_with("TO "));
-            h = heads::Head { label: String::new(), num: String::new(), title: if ded { "Dedication".into() } else { "Front matter".into() } };
+            h = heads::Head {
+                label: String::new(),
+                num: String::new(),
+                title: if ded { "Dedication".into() } else { "Front matter".into() },
+            };
         }
         // (no opening in small capitals the book did not ask for: a book's own is in its text
         // and styles; the reader's house opening is for Word and Markdown)
         // a page of pictures with no name of its own goes on from the one before
-        if picture && h.label.is_empty() && h.title.is_empty() && rs.toc_label.is_none()
-            && let Some(last) = out.last_mut() {
-                last.blocks.extend(blocks);
-                continue;
-            }
+        if picture
+            && h.label.is_empty()
+            && h.title.is_empty()
+            && rs.toc_label.is_none()
+            && let Some(last) = out.last_mut()
+        {
+            last.blocks.extend(blocks);
+            continue;
+        }
         let n = out.len() + 1;
         out.push(Section {
             kind: if front { SectionKind::Front } else { SectionKind::Chapter },

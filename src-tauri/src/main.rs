@@ -8,11 +8,11 @@ mod files;
 mod fonts;
 mod store;
 
+use fonts::{BUNDLED, SysFile};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 use store::{LibEntry, Store};
 use tauri::ipc::{Request, Response};
-use fonts::{BUNDLED, SysFile};
 use tauri::{Manager, State};
 use typeset_engine::{Engine, Request as LayoutRequest, percent_decode};
 
@@ -20,11 +20,21 @@ static SAMPLE: &[u8] = include_bytes!("../../assets/sample.epub");
 
 /// Hyphenation patterns for every language offered (the web build fetches only a book's).
 static PATTERNS: &[(&str, &[u8])] = &[
-    ("en", include_bytes!("../../assets/hyph/en.bin")), ("de", include_bytes!("../../assets/hyph/de.bin")), ("fr", include_bytes!("../../assets/hyph/fr.bin")),
-    ("es", include_bytes!("../../assets/hyph/es.bin")), ("it", include_bytes!("../../assets/hyph/it.bin")), ("pt", include_bytes!("../../assets/hyph/pt.bin")),
-    ("nl", include_bytes!("../../assets/hyph/nl.bin")), ("sv", include_bytes!("../../assets/hyph/sv.bin")), ("da", include_bytes!("../../assets/hyph/da.bin")),
-    ("no", include_bytes!("../../assets/hyph/no.bin")), ("fi", include_bytes!("../../assets/hyph/fi.bin")), ("pl", include_bytes!("../../assets/hyph/pl.bin")),
-    ("cs", include_bytes!("../../assets/hyph/cs.bin")), ("ru", include_bytes!("../../assets/hyph/ru.bin")), ("la", include_bytes!("../../assets/hyph/la.bin")),
+    ("en", include_bytes!("../../assets/hyph/en.bin")),
+    ("de", include_bytes!("../../assets/hyph/de.bin")),
+    ("fr", include_bytes!("../../assets/hyph/fr.bin")),
+    ("es", include_bytes!("../../assets/hyph/es.bin")),
+    ("it", include_bytes!("../../assets/hyph/it.bin")),
+    ("pt", include_bytes!("../../assets/hyph/pt.bin")),
+    ("nl", include_bytes!("../../assets/hyph/nl.bin")),
+    ("sv", include_bytes!("../../assets/hyph/sv.bin")),
+    ("da", include_bytes!("../../assets/hyph/da.bin")),
+    ("no", include_bytes!("../../assets/hyph/no.bin")),
+    ("fi", include_bytes!("../../assets/hyph/fi.bin")),
+    ("pl", include_bytes!("../../assets/hyph/pl.bin")),
+    ("cs", include_bytes!("../../assets/hyph/cs.bin")),
+    ("ru", include_bytes!("../../assets/hyph/ru.bin")),
+    ("la", include_bytes!("../../assets/hyph/la.bin")),
 ];
 
 struct App {
@@ -167,7 +177,9 @@ async fn search_library(query: String, app: State<'_, App>) -> Res<String> {
             Some(h) => h,
             None => {
                 let model = app.store.held().model(&id).map_err(|e| e.to_string())?;
-                model.and_then(|m| typeset_engine::Book::restore(&m).ok()).and_then(|b| in_book(&b, Some(&blocks), &query, 3))
+                model
+                    .and_then(|m| typeset_engine::Book::restore(&m).ok())
+                    .and_then(|b| in_book(&b, Some(&blocks), &query, 3))
             }
         };
         out.extend(hits);
@@ -179,7 +191,8 @@ fn ensure(app: &App, id: &str) -> Res<()> {
     if app.engine.held().has(id) {
         return Ok(());
     }
-    let model = app.store.held().model(id).map_err(|e| e.to_string())?.ok_or("This book is no longer in the library.")?;
+    let model =
+        app.store.held().model(id).map_err(|e| e.to_string())?.ok_or("This book is no longer in the library.")?;
     app.engine.held().restore(&model)?;
     Ok(())
 }
@@ -206,7 +219,14 @@ async fn source_bytes(id: String, app: State<'_, App>) -> Res<Response> {
 #[tauri::command]
 async fn reimport(id: String, app: State<'_, App>) -> Res<LibEntry> {
     let (name, bytes) = app.store.held().source(&id).map_err(|e| e.to_string())?.ok_or("its file was not kept")?;
-    let old = app.store.held().library().map_err(|e| e.to_string())?.into_iter().find(|e| e.id == id).ok_or("no such book")?;
+    let old = app
+        .store
+        .held()
+        .library()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|e| e.id == id)
+        .ok_or("no such book")?;
     guarded(|| add_as(&app, &bytes, &name, old.sample, Some(&old)))
 }
 
@@ -247,7 +267,11 @@ async fn font_needs(id: String, family: String, app: State<'_, App>) -> Res<Stri
 
 /// Places notes on a book (see `typeset_engine::anchor`).
 #[tauri::command]
-async fn place_notes(id: String, anchors: Vec<typeset_engine::anchor::Anchor>, app: State<'_, App>) -> Res<Vec<typeset_engine::anchor::Placed>> {
+async fn place_notes(
+    id: String,
+    anchors: Vec<typeset_engine::anchor::Anchor>,
+    app: State<'_, App>,
+) -> Res<Vec<typeset_engine::anchor::Placed>> {
     guarded(|| {
         ensure(&app, &id)?;
         app.engine.held().place(&id, &anchors).ok_or_else(|| "missing book".into())
@@ -327,7 +351,6 @@ fn quit_now(app: tauri::AppHandle) {
     app.exit(0);
 }
 
-
 fn main() {
     #[cfg(target_os = "linux")]
     desktop::webkit_workarounds();
@@ -351,7 +374,14 @@ fn main() {
                 }
             }
             let indexer = Mutex::new(start_indexer(dir.clone()));
-            let state = App { engine: Mutex::new(engine), store: Mutex::new(store), indexer, sysfonts: Mutex::new(None), loaded: Mutex::new(Default::default()), picked: Mutex::new(None) };
+            let state = App {
+                engine: Mutex::new(engine),
+                store: Mutex::new(store),
+                indexer,
+                sysfonts: Mutex::new(None),
+                loaded: Mutex::new(Default::default()),
+                picked: Mutex::new(None),
+            };
             desktop::watch_desktop(app.handle().clone());
             // the sample book on first run
             if state.store.held().library().unwrap_or_default().is_empty() {
@@ -370,18 +400,52 @@ fn main() {
                 let (book, idx) = path.split_once('/').unwrap_or(("", ""));
                 let found = idx.parse::<u32>().ok().and_then(|i| state.store.held().image(book, i).ok().flatten());
                 let res = match found {
-                    Some((mime, bytes)) => tauri::http::Response::builder().header("Content-Type", mime).header("Cache-Control", "max-age=31536000, immutable").body(bytes),
+                    Some((mime, bytes)) => tauri::http::Response::builder()
+                        .header("Content-Type", mime)
+                        .header("Cache-Control", "max-age=31536000, immutable")
+                        .body(bytes),
                     None => tauri::http::Response::builder().status(404).body(Vec::new()),
                 };
                 responder.respond(res.unwrap());
             });
         })
         .invoke_handler(tauri::generate_handler![
-            import_bytes, open_book, layout, find, search_library, place_notes, font_needs, probe, library, remove_book, reimport, source_name, source_bytes,
-            state_load, state_put, cover, set_cover, set_image_sizes, image_bytes, quit_now,
-            files::pick_book, files::picked_bytes, files::save_text, files::save_bytes, files::epub_of, files::annotate_docx,
-            fonts::system_families, fonts::load_family, fonts::font_file, desktop::desktop_palette, desktop::open_url,
-            dev::selftest_mode, dev::selftest_arg, dev::dev_corpus, dev::dev_zoom, dev::dev_log,
+            import_bytes,
+            open_book,
+            layout,
+            find,
+            search_library,
+            place_notes,
+            font_needs,
+            probe,
+            library,
+            remove_book,
+            reimport,
+            source_name,
+            source_bytes,
+            state_load,
+            state_put,
+            cover,
+            set_cover,
+            set_image_sizes,
+            image_bytes,
+            quit_now,
+            files::pick_book,
+            files::picked_bytes,
+            files::save_text,
+            files::save_bytes,
+            files::epub_of,
+            files::annotate_docx,
+            fonts::system_families,
+            fonts::load_family,
+            fonts::font_file,
+            desktop::desktop_palette,
+            desktop::open_url,
+            dev::selftest_mode,
+            dev::selftest_arg,
+            dev::dev_corpus,
+            dev::dev_zoom,
+            dev::dev_log,
         ])
         .on_window_event(|window, event| {
             // closing goes through the frontend, which saves and releases its GL context
@@ -414,7 +478,10 @@ mod tests {
             panic!("a fault made on purpose")
         });
         let e = r.unwrap_err();
-        assert!(e.starts_with("The reader hit a bug of its own (a fault made on purpose, main.rs:") && e.ends_with(")."), "{e}");
+        assert!(
+            e.starts_with("The reader hit a bug of its own (a fault made on purpose, main.rs:") && e.ends_with(")."),
+            "{e}"
+        );
         assert_eq!(*m.held(), 1);
         assert_eq!(guarded(|| Ok(2)), Ok(2));
     }

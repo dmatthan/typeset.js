@@ -16,7 +16,7 @@
 //! paragraphs' text has (a theme may follow it, as Apple Books' Original does).
 mod common;
 use common::epub_full;
-use typeset_model::{style, Book, Section};
+use typeset_model::{Book, Section, style};
 
 fn book(name: &str) -> Book {
     let p = format!("{}/../../bench/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
@@ -49,7 +49,10 @@ fn a_gutenberg_head_keeps_its_lines_its_capitals_its_size_and_the_space_around_i
     // `h2 { font-size: 150%; margin: 2em 0 1em }` in a `div.chapter { margin-top: 4em }`,
     // and `h2 { padding-top: 1em }` from another sheet, each in its own em (the heading's
     // 1.5 of the text's): above, the padding alone; below, its margin
-    assert_eq!(head(chapter(&b, "The Two Poets of Saffron Park")), (vec![("CHAPTER I.\nTHE TWO POETS OF SAFFRON PARK", 1.5)], 1.5, 1.5));
+    assert_eq!(
+        head(chapter(&b, "The Two Poets of Saffron Park")),
+        (vec![("CHAPTER I.\nTHE TWO POETS OF SAFFRON PARK", 1.5)], 1.5, 1.5)
+    );
 }
 
 #[test]
@@ -84,7 +87,11 @@ fn gutenberg_indents_every_paragraph_the_first_too_with_a_quarter_em_between() {
     // space above the head's bottom margin, met, which the head's rows already hold)
     assert_eq!((set(s, 0), set(s, 1)), (Some((1.0, 1.5)), Some((1.0, 0.25))));
     // and it opens as the book wrote it, not in small capitals
-    assert!(!s.blocks[0].runs.iter().any(|r| r.start == 0 && r.style & style::SMALLCAPS != 0), "{:?}", s.blocks[0].runs);
+    assert!(
+        !s.blocks[0].runs.iter().any(|r| r.start == 0 && r.style & style::SMALLCAPS != 0),
+        "{:?}",
+        s.blocks[0].runs
+    );
 }
 
 #[test]
@@ -108,7 +115,8 @@ fn word_and_markdown_have_neither_heads_nor_settings_and_open_in_small_capitals(
 
 #[test]
 fn the_leading_most_of_the_text_is_set_in_is_the_books_own() {
-    let leading = |css: &str, body: &str| typeset_ingest::any(&epub_full("T", "One", body, Some(css)), "x.epub").unwrap().leading;
+    let leading =
+        |css: &str, body: &str| typeset_ingest::any(&epub_full("T", "One", body, Some(css)), "x.epub").unwrap().leading;
     // as the body says it, as a paragraph does (a percentage, pixels at a browser's 16), as
     // the `font` shorthand does
     assert_eq!(leading("body { line-height: 1.5 }", ""), Some(1.5));
@@ -116,7 +124,10 @@ fn the_leading_most_of_the_text_is_set_in_is_the_books_own() {
     assert_eq!(leading("p { line-height: 24px }", ""), Some(1.5));
     assert_eq!(leading("body { font: 100%/1.4 Georgia, serif }", ""), Some(1.4));
     // the most text's: a short paragraph of its own says less
-    assert_eq!(leading("body { line-height: 1.4 } .x { line-height: 2 }", "<p class=\"x\">A line apart.</p>"), Some(1.4));
+    assert_eq!(
+        leading("body { line-height: 1.4 } .x { line-height: 2 }", "<p class=\"x\">A line apart.</p>"),
+        Some(1.4)
+    );
     // none where the book says none, or the browser's own
     assert_eq!(leading("p { text-indent: 1em }", ""), None);
     assert_eq!(leading("body { line-height: normal }", ""), None);
@@ -127,10 +138,13 @@ fn the_leading_most_of_the_text_is_set_in_is_the_books_own() {
 #[test]
 fn a_head_keeps_its_alignment_as_the_book_sets_it_left_where_it_says_none() {
     // each line's: 0 at the start (the browser's own), 1 centred, 2 at the end
-    let align = |b: &Book, title: &str| chapter(b, title).head.as_ref().unwrap().lines.iter().map(|l| l.align).collect::<Vec<_>>();
+    let align = |b: &Book, title: &str| {
+        chapter(b, title).head.as_ref().unwrap().lines.iter().map(|l| l.align).collect::<Vec<_>>()
+    };
     // a small press's `h1 { text-align: left }`
     let small = book("original.epub");
-    let s = small.sections.iter().find(|s| s.head.as_ref().is_some_and(|h| h.lines[0].block.text == "Chapter 1")).unwrap();
+    let s =
+        small.sections.iter().find(|s| s.head.as_ref().is_some_and(|h| h.lines[0].block.text == "Chapter 1")).unwrap();
     assert_eq!(s.head.as_ref().unwrap().lines.iter().map(|l| l.align).collect::<Vec<_>>(), vec![0]);
     // Gutenberg's centred h2; Standard Ebooks' centred hgroup, both its lines
     assert_eq!(align(&book("thursday.epub"), "The Two Poets of Saffron Park"), vec![1]);
@@ -156,15 +170,32 @@ fn a_paragraph_the_book_sets_apart_from_its_justified_body_is_set_ragged() {
 fn a_rule_is_drawn_as_the_book_draws_it_and_a_break_with_none_is_the_readers() {
     use typeset_model::Kind;
     // every break's rule in a book: (width, where), none for one it draws no line for
-    let rules = |b: &Book| b.sections.iter().flat_map(|s| s.blocks.iter()).filter(|x| x.kind == Kind::Break).map(|x| x.rule.map(|rule| (r(rule.width), rule.align))).collect::<Vec<_>>();
+    let rules = |b: &Book| {
+        b.sections
+            .iter()
+            .flat_map(|s| s.blocks.iter())
+            .filter(|x| x.kind == Kind::Break)
+            .map(|x| x.rule.map(|rule| (r(rule.width), rule.align)))
+            .collect::<Vec<_>>()
+    };
     // a small press's `hr.rule { border-top: 1px solid; width: 30%; margin: 0.8em 0 }`: a
     // third at the start
     assert!(rules(&book("original.epub")).iter().all(|r| *r == Some((0.3, 0))), "{:?}", rules(&book("original.epub")));
     // Gutenberg's `hr { width: 80% }` (the browser's border, centred)
     assert!(rules(&book("thursday.epub")).contains(&Some((0.8, 1))));
-    let hr = |css: &str| rules(&typeset_ingest::any(&epub_full("T", "One", "<p>Before.</p><hr/><p>After.</p>", Some(css)), "x.epub").unwrap());
+    let hr = |css: &str| {
+        rules(
+            &typeset_ingest::any(&epub_full("T", "One", "<p>Before.</p><hr/><p>After.</p>", Some(css)), "x.epub")
+                .unwrap(),
+        )
+    };
     // Standard Ebooks', as they write it: a quarter, centred
-    assert_eq!(hr("hr { border: none; border-top: 1px solid; height: 0; margin-top: 1.5em; margin-right: auto; margin-bottom: 1.5em; margin-left: auto; width: 25%; }"), vec![Some((0.25, 1))]);
+    assert_eq!(
+        hr(
+            "hr { border: none; border-top: 1px solid; height: 0; margin-top: 1.5em; margin-right: auto; margin-bottom: 1.5em; margin-left: auto; width: 25%; }"
+        ),
+        vec![Some((0.25, 1))]
+    );
     // `border: 0` with nothing else: no line, so the reader's own break
     assert_eq!(hr("hr { border: 0 }"), vec![None]);
 }

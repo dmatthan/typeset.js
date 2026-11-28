@@ -17,7 +17,12 @@
 /** One wheel event, as far as this needs it: its delta along its main axis in px, the
  *  delta's unit as the event gave it (0 px, 1 lines, 2 pages), the engine's older
  *  `wheelDelta` along the same axis (0 where it gives none), and its time in ms. */
-export interface WheelInput { delta: number; mode: number; legacy: number; t: number }
+export interface WheelInput {
+  delta: number;
+  mode: number;
+  legacy: number;
+  t: number;
+}
 
 /** Without events this long, ms, a gesture is over. */
 const QUIET = 200;
@@ -26,14 +31,22 @@ const SWIPE = 40;
 /** After a turn the swipe runs on, rising to its peak, then its momentum falls: once it has
  *  fallen below `FALLEN` of its peak, a push rising `AGAIN` times above the least it fell to
  *  (and `AGAIN_MIN` px at least) is the fingers again, a new swipe. */
-const FALLEN = 0.6, AGAIN = 2.2, AGAIN_MIN = 6;
+const FALLEN = 0.6,
+  AGAIN = 2.2,
+  AGAIN_MIN = 6;
 
 interface Gesture {
-  mouse: boolean; t0: number; last: number;
+  mouse: boolean;
+  t0: number;
+  last: number;
   /** A mouse's: notches turned so far, its notch `q`. A trackpad's: px since its swipe began. */
-  acc: number; q: number;
+  acc: number;
+  q: number;
   /** A trackpad's, once turned: which way, the most and (since then) the least of its speed. */
-  turned: boolean; dir: number; peak: number; low: number;
+  turned: boolean;
+  dir: number;
+  peak: number;
+  low: number;
   log: [number, number][];
 }
 
@@ -53,7 +66,10 @@ function isMouse(e: WheelInput, known: number): boolean {
 }
 
 /** Whether an event is still a wheel's: its notch, or several at once (a fast spin). */
-const notchy = (v: number, q: number) => { const n = Math.abs(v) / q; return n >= 0.99 && Math.abs(n - Math.round(n)) < 0.01; };
+const notchy = (v: number, q: number) => {
+  const n = Math.abs(v) / q;
+  return n >= 0.99 && Math.abs(n - Math.round(n)) < 0.01;
+};
 
 export class Wheel {
   private g: Gesture | null = null;
@@ -62,24 +78,32 @@ export class Wheel {
   /** Recent gestures, kept for diagnosis (a real device's events, to tune by). */
   readonly log: { kind: string; events: [number, number][] }[] = [];
 
-  constructor(private turn: (d: 1 | -1) => void, private kept: (log: Wheel['log']) => void = () => {}) {}
+  constructor(
+    private turn: (d: 1 | -1) => void,
+    private kept: (log: Wheel['log']) => void = () => {},
+  ) {}
 
   feed(e: WheelInput) {
     const v = e.delta;
     if (!v) return;
     let g = this.g;
-    if (g && e.t - g.last > QUIET) { this.keep(g); g = null; }
+    if (g && e.t - g.last > QUIET) {
+      this.keep(g);
+      g = null;
+    }
     if (!g) g = this.g = this.begin(e);
     if (g.log.length < 60) g.log.push([Math.round(e.t - g.t0), +v.toFixed(2)]);
     g.last = e.t;
     // a "mouse" whose events stop looking like a wheel's is a trackpad, whose page has turned
-    if (g.mouse && e.mode === 0 && !notchy(v, g.q)) Object.assign(g, { mouse: false, turned: true, dir: Math.sign(v), peak: Math.abs(v), low: Math.abs(v) });
+    if (g.mouse && e.mode === 0 && !notchy(v, g.q))
+      Object.assign(g, { mouse: false, turned: true, dir: Math.sign(v), peak: Math.abs(v), low: Math.abs(v) });
     if (g.mouse) this.notches(g, v);
     else this.swipe(g, v);
   }
 
   private begin(e: WheelInput): Gesture {
-    const mouse = isMouse(e, this.notch), q = Math.abs(e.delta);
+    const mouse = isMouse(e, this.notch),
+      q = Math.abs(e.delta);
     if (mouse) this.notch = q;
     return { mouse, t0: e.t, last: e.t, acc: 0, q, turned: false, dir: 0, peak: 0, low: Infinity, log: [] };
   }
@@ -100,7 +124,10 @@ export class Wheel {
   private swipe(g: Gesture, v: number) {
     const m = Math.abs(v);
     if (g.turned) {
-      if (m > g.peak) { g.peak = g.low = m; return; }
+      if (m > g.peak) {
+        g.peak = g.low = m;
+        return;
+      }
       g.low = Math.min(g.low, m);
       const again = g.low <= g.peak * FALLEN && m >= g.low * AGAIN && m >= AGAIN_MIN && Math.sign(v) === g.dir;
       if (!again) return;

@@ -29,9 +29,17 @@ fn gutenberg_footnotes_with_return_links() {
     assert!(n.text.starts_with("A considerable portion"), "{}", n.text);
     assert!(!n.text.contains("return") && !n.text.starts_with('['));
     // a marker is set as a superscript
-    let blk = b.sections.iter().flat_map(|s| &s.blocks).find(|b| b.links.iter().any(|l| matches!(l.to, Target::Note(0)))).unwrap();
+    let blk = b
+        .sections
+        .iter()
+        .flat_map(|s| &s.blocks)
+        .find(|b| b.links.iter().any(|l| matches!(l.to, Target::Note(0))))
+        .unwrap();
     let l = blk.links.iter().find(|l| matches!(l.to, Target::Note(0))).unwrap();
-    assert!(blk.spans().any(|(s, e, st)| s <= l.start as usize && e >= l.end as usize && st & typeset_model::style::SUP != 0));
+    assert!(
+        blk.spans()
+            .any(|(s, e, st)| s <= l.start as usize && e >= l.end as usize && st & typeset_model::style::SUP != 0)
+    );
 }
 
 #[test]
@@ -57,7 +65,12 @@ fn saved_books_round_trip_with_their_notes_and_links() {
 #[test]
 fn tables_keep_rows_cells_and_breaks_within_cells() {
     let Some(b) = book("artofwar.epub") else { return };
-    let t = b.sections.iter().flat_map(|s| &s.blocks).find(|b| b.kind == typeset_model::Kind::Table).expect("the chronology table");
+    let t = b
+        .sections
+        .iter()
+        .flat_map(|s| &s.blocks)
+        .find(|b| b.kind == typeset_model::Kind::Table)
+        .expect("the chronology table");
     let shape = t.table.as_ref().unwrap();
     assert_eq!(shape.cols, 2);
     // the first row is <th>BC</th><td></td>: not all header cells, but its th is bold
@@ -73,7 +86,8 @@ fn tables_keep_rows_cells_and_breaks_within_cells() {
 #[test]
 fn preformatted_text_keeps_its_lines_and_columns() {
     let Some(b) = book("beagle.epub") else { return };
-    let pre: Vec<&typeset_model::Block> = b.sections.iter().flat_map(|s| &s.blocks).filter(|b| b.kind == typeset_model::Kind::Pre).collect();
+    let pre: Vec<&typeset_model::Block> =
+        b.sections.iter().flat_map(|s| &s.blocks).filter(|b| b.kind == typeset_model::Kind::Pre).collect();
     assert_eq!(pre.len(), 3);
     for p in &pre {
         assert!(p.text.lines().count() > 1 && !p.text.starts_with('\n') && !p.text.contains('\t'), "{:?}", p.text);

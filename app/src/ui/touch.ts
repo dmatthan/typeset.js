@@ -15,15 +15,23 @@ export function touchUI(): boolean {
 /** Marks the page as touch-driven (main.ts calls this first thing). */
 export function watchTouch() {
   const html = document.documentElement;
-  const mark = () => { ui.touch = true; html.classList.add('touchui'); };
-  if (matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches)) mark();
+  const mark = () => {
+    ui.touch = true;
+    html.classList.add('touchui');
+  };
+  if (
+    matchMedia('(pointer: coarse)').matches ||
+    (navigator.maxTouchPoints > 0 && !matchMedia('(pointer: fine)').matches)
+  )
+    mark();
   addEventListener('touchstart', mark, { once: true, passive: true });
 }
 
 /** Safari zooms the page on a pinch whatever `touch-action` says on some elements (its own
  *  gesture events come first): the page never zooms (tokens.css). */
 export function noPageZoom() {
-  for (const t of ['gesturestart', 'gesturechange'] as const) document.addEventListener(t, e => e.preventDefault(), { passive: false });
+  for (const t of ['gesturestart', 'gesturechange'] as const)
+    document.addEventListener(t, e => e.preventDefault(), { passive: false });
 }
 
 /** What a phone's keyboard covers: iOS leaves a fixed page its full height and lays the
@@ -35,7 +43,8 @@ export function followKeyboard() {
   if (!vv) return;
   const html = document.documentElement;
   const set = () => {
-    const top = Math.max(0, vv.offsetTop), kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+    const top = Math.max(0, vv.offsetTop),
+      kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
     html.style.setProperty('--vv-top', `${top}px`);
     html.style.setProperty('--kb', `${kb}px`);
   };

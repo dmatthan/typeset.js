@@ -7,8 +7,8 @@
 //! and endnotes become the book's notes. Tracked deletions are left out and insertions
 //! kept; comments and field codes are skipped.
 
-use crate::doc::{Doc, Para, assemble};
 use crate::Error;
+use crate::doc::{Doc, Para, assemble};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 use std::collections::HashMap;
@@ -65,7 +65,11 @@ fn local(name: &[u8]) -> &[u8] {
 }
 
 fn attr(e: &BytesStart, key: &[u8]) -> Option<String> {
-    e.attributes().flatten().find(|a| local(a.key.as_ref()) == key).and_then(|a| a.unescape_value().ok()).map(|v| v.into_owned())
+    e.attributes()
+        .flatten()
+        .find(|a| local(a.key.as_ref()) == key)
+        .and_then(|a| a.unescape_value().ok())
+        .map(|v| v.into_owned())
 }
 
 /// A toggle property (`<w:i/>`, `<w:i w:val="0"/>`).
@@ -104,7 +108,17 @@ fn styles(xml: &str) -> (HashMap<String, Style>, String) {
                                 b"i" => s.i = Some(toggle(&e)),
                                 b"b" => s.b = Some(toggle(&e)),
                                 b"smallCaps" => s.sc = Some(toggle(&e)),
-                                b"vertAlign" => s.va = attr(&e, b"val").map(|v| if v == "superscript" { 1 } else if v == "subscript" { 2 } else { 0 }),
+                                b"vertAlign" => {
+                                    s.va = attr(&e, b"val").map(|v| {
+                                        if v == "superscript" {
+                                            1
+                                        } else if v == "subscript" {
+                                            2
+                                        } else {
+                                            0
+                                        }
+                                    })
+                                }
                                 _ => {}
                             }
                         }
@@ -243,7 +257,17 @@ impl Walk<'_> {
                         b"i" | b"iCs" if in_rpr && n == b"i" => direct.i = Some(toggle(e)),
                         b"b" if in_rpr => direct.b = Some(toggle(e)),
                         b"smallCaps" if in_rpr => direct.sc = Some(toggle(e)),
-                        b"vertAlign" if in_rpr => direct.va = attr(e, b"val").map(|v| if v == "superscript" { 1 } else if v == "subscript" { 2 } else { 0 }),
+                        b"vertAlign" if in_rpr => {
+                            direct.va = attr(e, b"val").map(|v| {
+                                if v == "superscript" {
+                                    1
+                                } else if v == "subscript" {
+                                    2
+                                } else {
+                                    0
+                                }
+                            })
+                        }
                         b"del" | b"moveFrom" if !empty => deleted += 1,
                         b"fldChar" => match attr(e, b"fldCharType").as_deref() {
                             Some("begin") => field_code = true,
@@ -253,12 +277,16 @@ impl Walk<'_> {
                         b"t" if !empty => in_text = true,
                         b"tab" if !in_ppr => self.push(&mut b, " ", &pstyle, &rstyle, direct, deleted, field_code),
                         b"br" | b"cr" => {
-                            if !matches!(attr(e, b"type").as_deref(), Some("page") | Some("column")) && deleted == 0
-                                && let Some(b) = b.as_mut() {
-                                    b.newline();
-                                }
+                            if !matches!(attr(e, b"type").as_deref(), Some("page") | Some("column"))
+                                && deleted == 0
+                                && let Some(b) = b.as_mut()
+                            {
+                                b.newline();
+                            }
                         }
-                        b"noBreakHyphen" => self.push(&mut b, "\u{2011}", &pstyle, &rstyle, direct, deleted, field_code),
+                        b"noBreakHyphen" => {
+                            self.push(&mut b, "\u{2011}", &pstyle, &rstyle, direct, deleted, field_code)
+                        }
                         b"footnoteReference" | b"endnoteReference" if deleted == 0 => {
                             if let Some(id) = attr(e, b"id") {
                                 let i = self.note_index(n == b"endnoteReference", id);
@@ -320,7 +348,16 @@ impl Walk<'_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn push(&self, b: &mut Option<TextBuilder>, s: &str, pstyle: &Option<String>, rstyle: &Option<String>, direct: RunProps, deleted: usize, field_code: bool) {
+    fn push(
+        &self,
+        b: &mut Option<TextBuilder>,
+        s: &str,
+        pstyle: &Option<String>,
+        rstyle: &Option<String>,
+        direct: RunProps,
+        deleted: usize,
+        field_code: bool,
+    ) {
         if deleted > 0 || field_code || s.is_empty() {
             return;
         }
@@ -332,13 +369,19 @@ impl Walk<'_> {
 }
 
 pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
-    let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| Error::Unreadable("it is not a Word document"))?;
+    let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes))
+        .map_err(|_| Error::Unreadable("it is not a Word document"))?;
     let body = read(&mut z, "word/document.xml").ok_or(Error::Unreadable("it is not a Word document"))?;
     let (styles, lang) = read(&mut z, "word/styles.xml").map(|x| styles(&x)).unwrap_or_default();
     let mut refs: Vec<(bool, String)> = Vec::new();
-    let paras = Walk { styles: &styles, refs: &mut refs }.paragraphs(&body, false).into_iter().map(|(_, p)| p).collect::<Vec<_>>();
+    let paras = Walk { styles: &styles, refs: &mut refs }
+        .paragraphs(&body, false)
+        .into_iter()
+        .map(|(_, p)| p)
+        .collect::<Vec<_>>();
     // the notes, in the order the text refers to them
-    let mut notes: Vec<(String, TextBuilder)> = (0..refs.len()).map(|i| ((i + 1).to_string(), TextBuilder::new())).collect();
+    let mut notes: Vec<(String, TextBuilder)> =
+        (0..refs.len()).map(|i| ((i + 1).to_string(), TextBuilder::new())).collect();
     for (endnote, part) in [(false, "word/footnotes.xml"), (true, "word/endnotes.xml")] {
         let Some(xml) = read(&mut z, part) else { continue };
         let mut sink = Vec::new();
@@ -356,7 +399,17 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             }
             let (t, r, _) = tb.finish_with_links();
             // the note's own marker (the footnoteRef's superscript number) is not part of it
-            nb.append(t.trim_start(), &r.iter().map(|x| typeset_model::Run { start: x.start.saturating_sub((t.len() - t.trim_start().len()) as u32), end: x.end.saturating_sub((t.len() - t.trim_start().len()) as u32), style: x.style }).collect::<Vec<_>>(), &[]);
+            nb.append(
+                t.trim_start(),
+                &r.iter()
+                    .map(|x| typeset_model::Run {
+                        start: x.start.saturating_sub((t.len() - t.trim_start().len()) as u32),
+                        end: x.end.saturating_sub((t.len() - t.trim_start().len()) as u32),
+                        style: x.style,
+                    })
+                    .collect::<Vec<_>>(),
+                &[],
+            );
         }
     }
     let mut meta = Meta { lang: lang.split('-').next().unwrap_or("").to_string(), ..Meta::default() };

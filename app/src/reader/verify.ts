@@ -17,8 +17,20 @@ const MAX_WS_EM = 0.12;
 /** Letters may close up by up to this many em each. */
 const MAX_LS_EM = 0.025;
 
-export const fitStats = { columns: 0, lines: 0, fixed: 0, subpx: 0, squeezed: 0, maxPx: 0, shrunk: 0, samples: [] as string[] };
-export function resetFitStats() { Object.assign(fitStats, { columns: 0, lines: 0, fixed: 0, subpx: 0, squeezed: 0, maxPx: 0, shrunk: 0, samples: [] }); counted.clear(); }
+export const fitStats = {
+  columns: 0,
+  lines: 0,
+  fixed: 0,
+  subpx: 0,
+  squeezed: 0,
+  maxPx: 0,
+  shrunk: 0,
+  samples: [] as string[],
+};
+export function resetFitStats() {
+  Object.assign(fitStats, { columns: 0, lines: 0, fixed: 0, subpx: 0, squeezed: 0, maxPx: 0, shrunk: 0, samples: [] });
+  counted.clear();
+}
 /** Lines already counted: a column rebuilt is not a new miss. */
 const counted = new Set<string>();
 
@@ -47,7 +59,9 @@ export function fitColumn(col: HTMLElement, fs: number) {
   // display type (chapter heads, title pages, leaves) wraps on its own, but a single word
   // can still be wider than the column: it is set smaller until its text lies within the
   // column's edges (rare: the read below runs only for display type, once per column)
-  const disp = col.querySelectorAll<HTMLElement>('.chead .title, .chead .label, .chead .part, .leaf .tl-title, .leaf .tl-sub, .leaf .rc-title, .leaf .el-text, .leaf .co-finis, .leaf .co-title');
+  const disp = col.querySelectorAll<HTMLElement>(
+    '.chead .title, .chead .label, .chead .part, .leaf .tl-title, .leaf .tl-sub, .leaf .rc-title, .leaf .el-text, .leaf .co-finis, .leaf .co-title',
+  );
   if (disp.length) {
     const box = col.getBoundingClientRect();
     const outside = (el: HTMLElement) => {
@@ -72,11 +86,17 @@ export function fitColumn(col: HTMLElement, fs: number) {
     const id = `${col.dataset.k}/${ln.dataset.b}/${ln.dataset.s}`;
     const fresh = !counted.has(id);
     counted.add(id);
-    if (fresh) { if (d0 < 0.25) fitStats.subpx++; else fitStats.fixed++; }
+    if (fresh) {
+      if (d0 < 0.25) fitStats.subpx++;
+      else fitStats.fixed++;
+    }
     fitStats.maxPx = Math.max(fitStats.maxPx, +d0.toFixed(2));
     // a few of the lines the model missed, for diagnosis
     const text = ln.textContent || '';
-    if (fresh && d0 >= 0.25 && fitStats.samples.length < 12) fitStats.samples.push(`${d0.toFixed(2)}px w=${ln.clientWidth} fit=${ln.style.getPropertyValue("--fit") || 0} spaces=${(text.match(/[ \u00a0]/g) || []).length} ${ln.className}: ${ln.innerHTML.slice(0, 160)}`);
+    if (fresh && d0 >= 0.25 && fitStats.samples.length < 12)
+      fitStats.samples.push(
+        `${d0.toFixed(2)}px w=${ln.clientWidth} fit=${ln.style.getPropertyValue('--fit') || 0} spaces=${(text.match(/[ \u00a0]/g) || []).length} ${ln.className}: ${ln.innerHTML.slice(0, 160)}`,
+      );
     const spaces = (text.match(/[ \u00a0]/g) || []).length;
     const chars = [...text].length;
     let left = d;
@@ -98,7 +118,8 @@ export function fitColumn(col: HTMLElement, fs: number) {
   for (const ln of tight) {
     const r = document.createRange();
     r.selectNodeContents(ln);
-    const natural = r.getBoundingClientRect().width, w = parseFloat(ln.style.width) || ln.clientWidth;
+    const natural = r.getBoundingClientRect().width,
+      w = parseFloat(ln.style.width) || ln.clientWidth;
     if (natural <= w - 0.5) continue;
     fitStats.squeezed++;
     ln.style.transformOrigin = '0 0';

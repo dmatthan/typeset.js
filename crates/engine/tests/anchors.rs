@@ -3,7 +3,7 @@
 //! place, so everything after an edit gets a new key), and notes made on the first draft
 //! are placed on the second. The revision knows where each note belongs; a note put on
 //! the wrong words is the failure that matters.
-use typeset_engine::anchor::{pos_of, Anchor, Anchorer, How};
+use typeset_engine::anchor::{Anchor, Anchorer, How, pos_of};
 use typeset_model::Book;
 
 fn book(name: &str) -> Option<Book> {
@@ -48,8 +48,13 @@ fn revise(v1: &Book, seed: u64) -> (Book, Vec<Vec<(Fate, u64)>>, Vec<Vec<std::co
     // track blocks through the edits by an id of their own
     let mut ids: Vec<Vec<Option<(usize, usize)>>> = Vec::new();
     let mut fate: Vec<Vec<Fate>> = v1.sections.iter().map(|s| vec![Fate::Kept; s.blocks.len()]).collect();
-    let mut touched: Vec<Vec<std::collections::HashSet<usize>>> = v1.sections.iter().map(|s| vec![Default::default(); s.blocks.len()]).collect();
-    let filler = ["The rain came down over the town and nobody spoke of it again.", "He waited by the window for a long time, saying nothing at all.", "Later, much later, she would remember the smell of the river."];
+    let mut touched: Vec<Vec<std::collections::HashSet<usize>>> =
+        v1.sections.iter().map(|s| vec![Default::default(); s.blocks.len()]).collect();
+    let filler = [
+        "The rain came down over the town and nobody spoke of it again.",
+        "He waited by the window for a long time, saying nothing at all.",
+        "Later, much later, she would remember the smell of the river.",
+    ];
     for (si, sec) in v2.sections.iter_mut().enumerate() {
         let mut out: Vec<(Option<(usize, usize)>, typeset_model::Block)> = Vec::new();
         let mut moved: Vec<(usize, (Option<(usize, usize)>, typeset_model::Block))> = Vec::new();
@@ -160,7 +165,20 @@ fn notes(v1: &Book) -> Vec<(usize, usize, Anchor, std::ops::Range<usize>)> {
             let ps = t[..bs].char_indices().rev().nth(31).map(|(i, _)| i).unwrap_or(0);
             let pe = t[be..].char_indices().nth(32).map(|(i, _)| be + i).unwrap_or(t.len());
             let span = words[w0].2..words[w0 + k - 1].2 + 1;
-            out.push((si, bi, Anchor { key: format!("{:016x}", blk.key), s: u16(bs), e: u16(be), quote: t[bs..be].to_string(), prefix: t[ps..bs].to_string(), suffix: t[be..pe].to_string(), pos: pos_of(v1, blk.key) }, span));
+            out.push((
+                si,
+                bi,
+                Anchor {
+                    key: format!("{:016x}", blk.key),
+                    s: u16(bs),
+                    e: u16(be),
+                    quote: t[bs..be].to_string(),
+                    prefix: t[ps..bs].to_string(),
+                    suffix: t[be..pe].to_string(),
+                    pos: pos_of(v1, blk.key),
+                },
+                span,
+            ));
         }
     }
     out
@@ -181,9 +199,14 @@ fn run(name: &str, seed: u64) -> Option<[usize; 10]> {
         let at = format!("{key:016x}");
         match fate {
             Fate::Kept => {
-                if p.key == at && p.s == an.s && p.e == an.e { c[0] += 1 } else {
+                if p.key == at && p.s == an.s && p.e == an.e {
+                    c[0] += 1
+                } else {
                     c[1] += 1;
-                    eprintln!("kept but placed {:?} at {} {}..{} (want {at} {}..{}): {:?}", p.how, p.key, p.s, p.e, an.s, an.e, an.quote);
+                    eprintln!(
+                        "kept but placed {:?} at {} {}..{} (want {at} {}..{}): {:?}",
+                        p.how, p.key, p.s, p.e, an.s, an.e, an.quote
+                    );
                 }
             }
             Fate::Reworded => {
@@ -192,31 +215,67 @@ fn run(name: &str, seed: u64) -> Option<[usize; 10]> {
                 // its words untouched (only around it), or most of three or more left
                 let should = hit == 0 || (n >= 3 && (n - hit) * 10 >= n * 6);
                 if !should {
-                    if p.how == How::Lost || p.key == at { c[9] += 1 } else { c[4] += 1; eprintln!("destroyed, misplaced {:?}: {:?}", p.how, an.quote); }
+                    if p.how == How::Lost || p.key == at {
+                        c[9] += 1
+                    } else {
+                        c[4] += 1;
+                        eprintln!("destroyed, misplaced {:?}: {:?}", p.how, an.quote);
+                    }
                 } else if p.how == How::Lost {
                     c[3] += 1;
                     if std::env::var("SHOW_LOST").is_ok() {
-                        let now = v2.sections.iter().flat_map(|s| &s.blocks).find(|b| b.key == key).map(|b| b.text.clone()).unwrap_or_default();
-                        eprintln!("LOST {:?} ({hit} of {n} touched) pre {:?} suf {:?} | now: {:?}", an.quote, an.prefix, an.suffix, now);
+                        let now = v2
+                            .sections
+                            .iter()
+                            .flat_map(|s| &s.blocks)
+                            .find(|b| b.key == key)
+                            .map(|b| b.text.clone())
+                            .unwrap_or_default();
+                        eprintln!(
+                            "LOST {:?} ({hit} of {n} touched) pre {:?} suf {:?} | now: {:?}",
+                            an.quote, an.prefix, an.suffix, now
+                        );
                     }
-                } else if p.key == at { c[2] += 1 } else {
+                } else if p.key == at {
+                    c[2] += 1
+                } else {
                     c[4] += 1;
                     eprintln!("reworded, misplaced {:?}: {:?}", p.how, an.quote);
                 }
             }
             Fate::Deleted => {
-                if p.how == How::Lost { c[5] += 1 } else {
+                if p.how == How::Lost {
+                    c[5] += 1
+                } else {
                     c[6] += 1;
-                    let now = v2.sections.iter().flat_map(|s| &s.blocks).find(|b| format!("{:016x}", b.key) == p.key).map(|b| b.text.clone()).unwrap_or_default();
+                    let now = v2
+                        .sections
+                        .iter()
+                        .flat_map(|s| &s.blocks)
+                        .find(|b| format!("{:016x}", b.key) == p.key)
+                        .map(|b| b.text.clone())
+                        .unwrap_or_default();
                     let u: Vec<u16> = now.encode_utf16().collect();
-                    eprintln!("deleted, placed {:?}: {:?} pre {:?} suf {:?} -> {:?}", p.how, an.quote, an.prefix, an.suffix, String::from_utf16_lossy(&u[(p.s as usize).saturating_sub(30)..(p.e as usize + 30).min(u.len())]));
+                    eprintln!(
+                        "deleted, placed {:?}: {:?} pre {:?} suf {:?} -> {:?}",
+                        p.how,
+                        an.quote,
+                        an.prefix,
+                        an.suffix,
+                        String::from_utf16_lossy(
+                            &u[(p.s as usize).saturating_sub(30)..(p.e as usize + 30).min(u.len())]
+                        )
+                    );
                 }
             }
         }
     }
     c[7] = t.elapsed().as_millis() as usize;
     c[8] = anchors.len();
-    println!("{name}: {} notes; kept {} right, {} wrong; reworded {} carried, {} lost, {} misplaced, {} with their words gone; deleted {} lost, {} placed; {} ms", c[8], c[0], c[1], c[2], c[3], c[4], c[9], c[5], c[6], c[7]);
+    println!(
+        "{name}: {} notes; kept {} right, {} wrong; reworded {} carried, {} lost, {} misplaced, {} with their words gone; deleted {} lost, {} placed; {} ms",
+        c[8], c[0], c[1], c[2], c[3], c[4], c[9], c[5], c[6], c[7]
+    );
     Some(c)
 }
 
@@ -249,14 +308,13 @@ fn notes_follow_paragraphs_split_joined_and_chapters_reordered() {
             let mut out: Vec<typeset_model::Block> = Vec::new();
             let mut join_next = false;
             for (bi, blk) in sec.blocks.iter().enumerate() {
-                if join_next
-                    && let Some(last) = out.last_mut() {
-                        last.text = format!("{} {}", last.text, blk.text);
-                        last.runs.clear();
-                        last.links.clear();
-                        join_next = false;
-                        continue;
-                    }
+                if join_next && let Some(last) = out.last_mut() {
+                    last.text = format!("{} {}", last.text, blk.text);
+                    last.runs.clear();
+                    last.links.clear();
+                    join_next = false;
+                    continue;
+                }
                 // every seventh paragraph split after its first full stop
                 let cut = blk.text.find(". ").filter(|_| (bi + si) % 7 == 3);
                 if let Some(c) = cut {
@@ -297,9 +355,15 @@ fn notes_follow_paragraphs_split_joined_and_chapters_reordered() {
             let got = String::from_utf16_lossy(&u[p.s as usize..p.e as usize]);
             let gw: Vec<&str> = got.split_whitespace().collect();
             let own = gw.iter().filter(|w| an.quote.split_whitespace().any(|q| q == **w)).count();
-            if got == an.quote || (gw.len() >= 3 && own * 10 >= gw.len() * 6) { right += 1 } else {
+            if got == an.quote || (gw.len() >= 3 && own * 10 >= gw.len() * 6) {
+                right += 1
+            } else {
                 wrong += 1;
-                eprintln!("{name}: {:?} placed on {:?}", an.quote, String::from_utf16_lossy(&u[p.s as usize..p.e as usize]));
+                eprintln!(
+                    "{name}: {:?} placed on {:?}",
+                    an.quote,
+                    String::from_utf16_lossy(&u[p.s as usize..p.e as usize])
+                );
             }
         }
         println!("{name}: {} notes; {right} on their words, {wrong} on others, {lost} lost", anchors.len());
@@ -329,7 +393,18 @@ fn a_short_note_on_common_words_finds_its_own_occurrence() {
                 let u16 = |b: usize| t[..b].encode_utf16().count() as u32;
                 let ps = t[..bs].char_indices().rev().nth(31).map(|(i, _)| i).unwrap_or(0);
                 let pe = t[be..].char_indices().nth(32).map(|(i, _)| be + i).unwrap_or(t.len());
-                found.push((blk.key, Anchor { key: format!("{:016x}", blk.key), s: u16(bs), e: u16(be), quote: phrase.into(), prefix: t[ps..bs].into(), suffix: t[be..pe].into(), pos: pos_of(&v1, blk.key) }));
+                found.push((
+                    blk.key,
+                    Anchor {
+                        key: format!("{:016x}", blk.key),
+                        s: u16(bs),
+                        e: u16(be),
+                        quote: phrase.into(),
+                        prefix: t[ps..bs].into(),
+                        suffix: t[be..pe].into(),
+                        pos: pos_of(&v1, blk.key),
+                    },
+                ));
                 from = be;
             }
         }
@@ -350,12 +425,27 @@ fn a_short_note_on_common_words_finds_its_own_occurrence() {
     for (old, an) in &found {
         let p = a.place(an);
         // the same paragraph, now one later in its chapter
-        let (si, bi) = v1.sections.iter().enumerate().find_map(|(si, s)| s.blocks.iter().position(|b| b.key == *old).map(|bi| (si, bi))).unwrap();
+        let (si, bi) = v1
+            .sections
+            .iter()
+            .enumerate()
+            .find_map(|(si, s)| s.blocks.iter().position(|b| b.key == *old).map(|bi| (si, bi)))
+            .unwrap();
         let want = format!("{:016x}", v2.sections[si].blocks[bi + 1].key);
         if p.key != want || (p.s, p.e) != (an.s, an.e) {
             wrong += 1;
             let at = |k: &str| v2.sections.iter().flat_map(|s| &s.blocks).position(|b| format!("{:016x}", b.key) == k);
-            eprintln!("misplaced {:?}: pre {:?} suf {:?} pos {:?} -> block #{:?} (want #{:?}) {}..{}", p.how, an.prefix, an.suffix, an.pos, at(&p.key), at(&want), p.s, p.e);
+            eprintln!(
+                "misplaced {:?}: pre {:?} suf {:?} pos {:?} -> block #{:?} (want #{:?}) {}..{}",
+                p.how,
+                an.prefix,
+                an.suffix,
+                an.pos,
+                at(&p.key),
+                at(&want),
+                p.s,
+                p.e
+            );
         }
     }
     assert_eq!(wrong, 0, "{wrong} of {} notes on \"{phrase}\" landed on another occurrence", found.len());

@@ -6,7 +6,23 @@ import { kv } from '../core/kv';
  *  one stands (shelves), when it was opened, whether to send progress; readers' feedback
  *  and what the writer decided about it; a book that came by link, and its welcome; a
  *  book shared (its link is withdrawn before: ui/library.ts). */
-const KEPT = ['pos.', 'far.', 'seen.', 'marks.', 'bm.', 'ann.', 'nb.', 'state.', 'opened.', 'progress.', 'fb.', 'fbst.', 'joined.', 'welcomed.', 'share.'];
+const KEPT = [
+  'pos.',
+  'far.',
+  'seen.',
+  'marks.',
+  'bm.',
+  'ann.',
+  'nb.',
+  'state.',
+  'opened.',
+  'progress.',
+  'fb.',
+  'fbst.',
+  'joined.',
+  'welcomed.',
+  'share.',
+];
 
 /** Forgets what is kept about a book gone from the library (the remove sheet says so:
  *  "your place, highlights and notes for this book are removed too"). */

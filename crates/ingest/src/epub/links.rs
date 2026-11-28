@@ -63,7 +63,8 @@ pub(super) fn resolve_links(sections: &mut [Section], ex: &mut Extractor) -> Vec
                 // the block within a few after the target that links back to this reference
                 let back_at = start.and_then(|st| {
                     let from = back.get(own).filter(|_| !own.is_empty())?;
-                    (st..(st + 8).min(order.len())).find(|&i| from.contains(&sections[order[i].0].blocks[order[i].1].key))
+                    (st..(st + 8).min(order.len()))
+                        .find(|&i| from.contains(&sections[order[i].0].blocks[order[i].1].key))
                 });
                 let marked = ex.ids.get(target).is_some_and(|i| i.notelike);
                 if let Some(st) = start.filter(|_| explicit || (short(label) && (back_at.is_some() || marked))) {
@@ -122,7 +123,10 @@ pub(super) fn note_text(sections: &[Section], blocks: &[(usize, usize)], label: 
     let mut h = head;
     for strip in [lab, "(return)", "return", "Return", "↩︎", "↩", ".", ")", "]", ":"] {
         h = h.trim_start();
-        if !strip.is_empty() && h.starts_with(strip) && (strip != lab || h[strip.len()..].starts_with([' ', '.', ')', ']', '\n', '('])) {
+        if !strip.is_empty()
+            && h.starts_with(strip)
+            && (strip != lab || h[strip.len()..].starts_with([' ', '.', ')', ']', '\n', '(']))
+        {
             h = &h[strip.len()..];
         }
     }
@@ -146,7 +150,8 @@ pub(super) fn note_text(sections: &[Section], blocks: &[(usize, usize)], label: 
         runs = runs
             .into_iter()
             .filter_map(|r| {
-                let (s, e) = (r.start.saturating_sub(cut as u32), r.end.saturating_sub(cut as u32).min(text.len() as u32));
+                let (s, e) =
+                    (r.start.saturating_sub(cut as u32), r.end.saturating_sub(cut as u32).min(text.len() as u32));
                 (e > s).then_some(typeset_model::Run { start: s, end: e, style: r.style })
             })
             .collect();

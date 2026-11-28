@@ -5,9 +5,12 @@ import type { BookData, Core, FamilyLoad, LayoutParams, LibEntry } from './types
 
 export function tauriCore(): Core {
   return {
-    importFile: (bytes, name) => invoke<LibEntry>('import_bytes', bytes, { headers: { 'x-name': encodeURIComponent(name) } }),
+    importFile: (bytes, name) =>
+      invoke<LibEntry>('import_bytes', bytes, { headers: { 'x-name': encodeURIComponent(name) } }),
     pick: async () => {
-      const p = await invoke<({ kind: 'book' } & LibEntry) | { kind: 'notes'; text: string } | { kind: 'backup' } | null>('pick_book');
+      const p = await invoke<
+        ({ kind: 'book' } & LibEntry) | { kind: 'notes'; text: string } | { kind: 'backup' } | null
+      >('pick_book');
       if (!p) return null;
       if (p.kind === 'notes') return p;
       if (p.kind === 'backup') return { kind: 'backup', file: new Blob([await invoke<ArrayBuffer>('picked_bytes')]) };
@@ -30,20 +33,29 @@ export function tauriCore(): Core {
       return name ? { name, bytes: new Uint8Array(await invoke<ArrayBuffer>('source_bytes', { id })) } : null;
     },
     imageBytes: (id, idx) => invoke<ArrayBuffer>('image_bytes', { id, idx }),
-    epubOf: async (bytes, name, from, to) => new Uint8Array(await invoke<ArrayBuffer>('epub_of', bytes, { headers: { 'x-name': encodeURIComponent(name), 'x-from': String(from), 'x-to': String(to) } })),
+    epubOf: async (bytes, name, from, to) =>
+      new Uint8Array(
+        await invoke<ArrayBuffer>('epub_of', bytes, {
+          headers: { 'x-name': encodeURIComponent(name), 'x-from': String(from), 'x-to': String(to) },
+        }),
+      ),
     // (one body each way: a u32 length, that much JSON, then the Word file)
     annotateDocx: async (docx, notes) => {
       const json = new TextEncoder().encode(JSON.stringify(notes));
       const body = new Uint8Array(4 + json.length + docx.length);
       new DataView(body.buffer).setUint32(0, json.length);
-      body.set(json, 4); body.set(docx, 4 + json.length);
+      body.set(json, 4);
+      body.set(docx, 4 + json.length);
       const out = new Uint8Array(await invoke<ArrayBuffer>('annotate_docx', body));
       const n = new DataView(out.buffer, out.byteOffset).getUint32(0);
       return { bytes: out.slice(4 + n), ...JSON.parse(new TextDecoder().decode(out.slice(4, 4 + n))) };
     },
     setCover: (id, bytes) => invoke<void>('set_cover', new Uint8Array(bytes), { headers: { 'x-id': id } }),
     // served by the shell's volimg: scheme (Windows' webview reaches custom schemes as http://<scheme>.localhost)
-    imageURL: (id, idx) => (navigator.userAgent.includes('Windows') ? `http://volimg.localhost/${id}/${idx}` : `volimg://localhost/${id}/${idx}`),
+    imageURL: (id, idx) =>
+      navigator.userAgent.includes('Windows')
+        ? `http://volimg.localhost/${id}/${idx}`
+        : `volimg://localhost/${id}/${idx}`,
     probe: (p, texts) => invoke<number[]>('probe', { p, texts }),
     loadFamily: name => invoke<FamilyLoad>('load_family', { name }),
     fontFile: (name, index) => invoke<ArrayBuffer>('font_file', { name, index }),

@@ -17,8 +17,24 @@
   /* clipped, never scrolled: shadows of things at the window's edge reach past it, and a
      frame that merely hides its overflow can still be scrolled (focus moving to a control
      did, and on a phone the whole page shifted by a shadow's width) */
-  .app { position: relative; height: 100%; overflow: clip; }
+  .app {
+    position: relative;
+    height: 100%;
+    overflow: clip;
+  }
   /* waiting, in the middle: after a beat (a quick open shows nothing), fading in */
-  .busy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 600 var(--t-m)/1 var(--f-ui); color: var(--ink-3); animation: wait var(--calm) ease-out .4s both; }
-  @keyframes wait { from { opacity: 0; } }
+  .busy {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font: 600 var(--t-m) / 1 var(--f-ui);
+    color: var(--ink-3);
+    animation: wait var(--calm) ease-out 0.4s both;
+  }
+  @keyframes wait {
+    from {
+      opacity: 0;
+    }
+  }
 </style>

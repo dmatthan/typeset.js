@@ -46,6 +46,20 @@ trailers.
 Examples: `fix(press): break web addresses after slashes`,
 `refactor(reader): move bookmarks into their own module`.
 
+## Formatting
+
+Rust is formatted by rustfmt and the TypeScript, JavaScript, Svelte and CSS by Prettier,
+configured in `rustfmt.toml` and `.prettierrc.json`; an editor that formats on save with
+either gives the same result. The checks fail on unformatted code.
+
+```sh
+cargo fmt --all
+npm --prefix app run format
+```
+
+Commits that only reformat are listed in `.git-blame-ignore-revs`, which GitHub's blame
+skips; locally, `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
 ## Checks
 
 ```sh
@@ -55,7 +69,7 @@ npm --prefix app test      # the browser tests alone
 cargo test                 # the crates alone
 ```
 
-What the checks enforce: layers that import one way, files under 800 lines, functions
+What the checks enforce: formatting, layers that import one way, files under 800 lines, functions
 under 30 branches, every module opening with what it is, no copied or unused code, no
 type error, no clippy warning, the package's download size. A failing check is fixed,
 not skipped: never commit with `--no-verify`.

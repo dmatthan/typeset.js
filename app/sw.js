@@ -13,31 +13,60 @@ const SHELL = __SHELL__;
 // the app's page: / (the desktop app, a local preview) or /read (volumen.page, whose / is
 // the site's own page); an address with no network falls back to it
 const START = '__START__';
-const APP = 'app-' + VERSION, FILES = 'files-' + VERSION;
+const APP = 'app-' + VERSION,
+  FILES = 'files-' + VERSION;
 
 // what nearly every visit needs: the interface face, the default book face (the last
 // fallback of every theme), English patterns, the sample book
-const COMMON = ['/fonts/Literata.ttf', '/fonts/Literata-Italic.ttf', '/hyph/en.bin', '/sample.epub', '/ui/shadow-16.png', '/ui/shadow-12.png', '/ui/shadow-cover.png'];
+const COMMON = [
+  '/fonts/Literata.ttf',
+  '/fonts/Literata-Italic.ttf',
+  '/hyph/en.bin',
+  '/sample.epub',
+  '/ui/shadow-16.png',
+  '/ui/shadow-12.png',
+  '/ui/shadow-cover.png',
+];
 
 self.addEventListener('install', e => {
-  e.waitUntil(Promise.all([caches.open(APP).then(c => c.addAll(SHELL)), caches.open(FILES).then(c => c.addAll(COMMON).catch(() => {}))]));
+  e.waitUntil(
+    Promise.all([
+      caches.open(APP).then(c => c.addAll(SHELL)),
+      caches.open(FILES).then(c => c.addAll(COMMON).catch(() => {})),
+    ]),
+  );
 });
 
 // the page names what it fetched before this worker was in charge (the first visit's
 // fonts and patterns), so a book opened then opens offline too
 self.addEventListener('message', e => {
-  const urls = (e.data?.keep ?? []).map(u => new URL(u, location.origin)).filter(u => u.origin === location.origin && kept(u.pathname));
-  e.waitUntil(caches.open(FILES).then(async c => { for (const u of urls) if (!(await c.match(u.pathname))) await c.add(u.pathname).catch(() => {}); }));
+  const urls = (e.data?.keep ?? [])
+    .map(u => new URL(u, location.origin))
+    .filter(u => u.origin === location.origin && kept(u.pathname));
+  e.waitUntil(
+    caches.open(FILES).then(async c => {
+      for (const u of urls) if (!(await c.match(u.pathname))) await c.add(u.pathname).catch(() => {});
+    }),
+  );
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== APP && k !== FILES) await caches.delete(k);
-    await self.clients.claim();
-  })());
+  e.waitUntil(
+    (async () => {
+      for (const k of await caches.keys()) if (k !== APP && k !== FILES) await caches.delete(k);
+      await self.clients.claim();
+    })(),
+  );
 });
 
-const kept = p => p.startsWith('/assets/') || p.startsWith('/fonts/') || p.startsWith('/hyph/') || p.startsWith('/app/') || p.startsWith('/ui/') || p === '/sample.epub' || p.endsWith('.wasm');
+const kept = p =>
+  p.startsWith('/assets/') ||
+  p.startsWith('/fonts/') ||
+  p.startsWith('/hyph/') ||
+  p.startsWith('/app/') ||
+  p.startsWith('/ui/') ||
+  p === '/sample.epub' ||
+  p.endsWith('.wasm');
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -45,18 +74,22 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(async () => (await caches.match(req)) || (await caches.match(START)) || Response.error()));
+    e.respondWith(
+      fetch(req).catch(async () => (await caches.match(req)) || (await caches.match(START)) || Response.error()),
+    );
     return;
   }
   if (!kept(url.pathname)) return;
-  e.respondWith((async () => {
-    const hit = await caches.match(req, { ignoreVary: true });
-    if (hit) return hit;
-    const res = await fetch(req);
-    if (res.ok && res.type === 'basic') {
-      const copy = res.clone();
-      caches.open(url.pathname.startsWith('/assets/') ? APP : FILES).then(c => c.put(req, copy));
-    }
-    return res;
-  })());
+  e.respondWith(
+    (async () => {
+      const hit = await caches.match(req, { ignoreVary: true });
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok && res.type === 'basic') {
+        const copy = res.clone();
+        caches.open(url.pathname.startsWith('/assets/') ? APP : FILES).then(c => c.put(req, copy));
+      }
+      return res;
+    })(),
+  );
 });

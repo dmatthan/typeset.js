@@ -12,10 +12,19 @@ import type { Core } from './types';
 import { me } from './identity';
 import type { NotesFile } from '../reader/feedback';
 
-export interface ServiceConfig { v: 1; turnstile: string | null; writer: { name: string } | null }
+export interface ServiceConfig {
+  v: 1;
+  turnstile: string | null;
+  writer: { name: string } | null;
+}
 
 export class ServiceError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 let cfg: Promise<ServiceConfig | null> | null = null;
@@ -31,54 +40,89 @@ export function service(fresh = false): Promise<ServiceConfig | null> {
   return cfg;
 }
 
-async function call<T = unknown>(method: string, path: string, body?: Uint8Array | object, headers: Record<string, string> = {}, keepalive = false): Promise<T> {
+async function call<T = unknown>(
+  method: string,
+  path: string,
+  body?: Uint8Array | object,
+  headers: Record<string, string> = {},
+  keepalive = false,
+): Promise<T> {
   const h: Record<string, string> = { 'x-typeset': '1', ...headers };
   let b: BodyInit | undefined;
-  if (body instanceof Uint8Array) { b = body as BlobPart as BodyInit; h['content-type'] = 'application/octet-stream'; }
-  else if (body) { b = JSON.stringify(body); h['content-type'] = 'application/json'; }
+  if (body instanceof Uint8Array) {
+    b = body as BlobPart as BodyInit;
+    h['content-type'] = 'application/octet-stream';
+  } else if (body) {
+    b = JSON.stringify(body);
+    h['content-type'] = 'application/json';
+  }
   let r: Response;
-  try { r = await fetch(path, { method, headers: h, body: b, credentials: 'same-origin', keepalive }); }
-  catch { throw new ServiceError(0, 'The service could not be reached: are you online?'); }
+  try {
+    r = await fetch(path, { method, headers: h, body: b, credentials: 'same-origin', keepalive });
+  } catch {
+    throw new ServiceError(0, 'The service could not be reached: are you online?');
+  }
   if (!r.ok) {
-    const e = await r.json().catch(() => null) as { error?: string } | null;
-    throw new ServiceError(r.status, e?.error ?? (r.status === 429 ? 'Too many requests just now: wait a minute and try again.' : `The service did not answer (${r.status}).`));
+    const e = (await r.json().catch(() => null)) as { error?: string } | null;
+    throw new ServiceError(
+      r.status,
+      e?.error ??
+        (r.status === 429
+          ? 'Too many requests just now: wait a minute and try again.'
+          : `The service did not answer (${r.status}).`),
+    );
   }
   return (r.headers.get('content-type')?.includes('json') ? r.json() : r.arrayBuffer()) as Promise<T>;
 }
 
 /* ---------- passkeys (WebAuthn), with the JSON the server speaks ---------- */
 
-
 type PKC = typeof PublicKeyCredential & {
   parseCreationOptionsFromJSON?: (o: unknown) => PublicKeyCredentialCreationOptions;
   parseRequestOptionsFromJSON?: (o: unknown) => PublicKeyCredentialRequestOptions;
 };
 
-export const canPasskey = () => typeof window !== 'undefined' && 'PublicKeyCredential' in window && !!navigator.credentials && window.isSecureContext;
+export const canPasskey = () =>
+  typeof window !== 'undefined' && 'PublicKeyCredential' in window && !!navigator.credentials && window.isSecureContext;
 
 function creationOptions(o: any): PublicKeyCredentialCreationOptions {
   const P = PublicKeyCredential as PKC;
   if (P.parseCreationOptionsFromJSON) return P.parseCreationOptionsFromJSON(o);
   return {
-    ...o, challenge: unb64url(o.challenge), user: { ...o.user, id: unb64url(o.user.id) },
+    ...o,
+    challenge: unb64url(o.challenge),
+    user: { ...o.user, id: unb64url(o.user.id) },
     excludeCredentials: (o.excludeCredentials ?? []).map((c: any) => ({ ...c, id: unb64url(c.id) })),
   };
 }
 function requestOptions(o: any): PublicKeyCredentialRequestOptions {
   const P = PublicKeyCredential as PKC;
   if (P.parseRequestOptionsFromJSON) return P.parseRequestOptionsFromJSON(o);
-  return { ...o, challenge: unb64url(o.challenge), allowCredentials: (o.allowCredentials ?? []).map((c: any) => ({ ...c, id: unb64url(c.id) })) };
+  return {
+    ...o,
+    challenge: unb64url(o.challenge),
+    allowCredentials: (o.allowCredentials ?? []).map((c: any) => ({ ...c, id: unb64url(c.id) })),
+  };
 }
 /** The credential as the server reads it, without the passkey's PRF secret: that never
  *  leaves the device (it seals the writer's vault, below). */
 function credentialJSON(c: PublicKeyCredential): object {
   const out = credentialJSONWithAll(c) as { clientExtensionResults?: Record<string, unknown> };
-  if (out.clientExtensionResults) { const { prf: _, ...rest } = out.clientExtensionResults; out.clientExtensionResults = rest; }
+  if (out.clientExtensionResults) {
+    const { prf: _, ...rest } = out.clientExtensionResults;
+    out.clientExtensionResults = rest;
+  }
   return out;
 }
 function credentialJSONWithAll(c: PublicKeyCredential): object {
   const j = (c as PublicKeyCredential & { toJSON?: () => object }).toJSON;
-  if (typeof j === 'function') { try { return structuredClone(j.call(c)); } catch { /* below */ } }
+  if (typeof j === 'function') {
+    try {
+      return structuredClone(j.call(c));
+    } catch {
+      /* below */
+    }
+  }
   const response: Record<string, unknown> = { clientDataJSON: b64url(c.response.clientDataJSON) };
   if ('attestationObject' in c.response) {
     const r = c.response as AuthenticatorAttestationResponse;
@@ -90,33 +134,59 @@ function credentialJSONWithAll(c: PublicKeyCredential): object {
     response.signature = b64url(r.signature);
     if (r.userHandle) response.userHandle = b64url(r.userHandle);
   }
-  return { id: c.id, rawId: b64url(c.rawId), type: c.type, response, clientExtensionResults: { ...c.getClientExtensionResults() }, authenticatorAttachment: c.authenticatorAttachment ?? undefined };
+  return {
+    id: c.id,
+    rawId: b64url(c.rawId),
+    type: c.type,
+    response,
+    clientExtensionResults: { ...c.getClientExtensionResults() },
+    authenticatorAttachment: c.authenticatorAttachment ?? undefined,
+  };
 }
 
 const cancelled = (e: unknown) => (e as Error)?.name === 'NotAllowedError' || (e as Error)?.name === 'AbortError';
 
 /** Makes a passkey with an invitation, and signs in. Null if the person cancelled. */
 export async function register(invite: string, name: string, turnstile: string): Promise<{ name: string } | null> {
-  const { cid, options } = await call<{ cid: string; options: unknown }>('POST', '/api/auth/register/begin', { invite, name, turnstile });
+  const { cid, options } = await call<{ cid: string; options: unknown }>('POST', '/api/auth/register/begin', {
+    invite,
+    name,
+    turnstile,
+  });
   let c: PublicKeyCredential | null;
-  try { c = await navigator.credentials.create({ publicKey: withPrf(creationOptions(options)) }) as PublicKeyCredential | null; }
-  catch (e) { if (cancelled(e)) return null; throw e; }
+  try {
+    c = (await navigator.credentials.create({
+      publicKey: withPrf(creationOptions(options)),
+    })) as PublicKeyCredential | null;
+  } catch (e) {
+    if (cancelled(e)) return null;
+    throw e;
+  }
   if (!c) return null;
   const r = await call<{ name: string }>('POST', '/api/auth/register/finish', { cid, response: credentialJSON(c) });
   await service(true);
   // the vault's key: given at once by some passkeys, by others only when next used
   const prf = prfOf(c);
   if (prf) await keepVaultKey(prf);
-  else if ((c.getClientExtensionResults() as { prf?: { enabled?: boolean } }).prf?.enabled) await unlockVault().catch(() => {});
+  else if ((c.getClientExtensionResults() as { prf?: { enabled?: boolean } }).prf?.enabled)
+    await unlockVault().catch(() => {});
   return r;
 }
 
 /** Signs in with a passkey made here before. Null if the person cancelled. */
 export async function signIn(turnstile: string): Promise<{ name: string } | null> {
-  const { cid, options } = await call<{ cid: string; options: unknown }>('POST', '/api/auth/login/begin', { turnstile });
+  const { cid, options } = await call<{ cid: string; options: unknown }>('POST', '/api/auth/login/begin', {
+    turnstile,
+  });
   let c: PublicKeyCredential | null;
-  try { c = await navigator.credentials.get({ publicKey: withPrf(requestOptions(options)) }) as PublicKeyCredential | null; }
-  catch (e) { if (cancelled(e)) return null; throw e; }
+  try {
+    c = (await navigator.credentials.get({
+      publicKey: withPrf(requestOptions(options)),
+    })) as PublicKeyCredential | null;
+  } catch (e) {
+    if (cancelled(e)) return null;
+    throw e;
+  }
   if (!c) return null;
   const r = await call<{ name: string }>('POST', '/api/auth/login/finish', { cid, response: credentialJSON(c) });
   await service(true);
@@ -149,7 +219,10 @@ const PRF_SALT = new TextEncoder().encode('typeset vault 1');
 const VAULT = new TextEncoder().encode('TSV1');
 
 function withPrf<T extends PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions>(o: T): T {
-  return { ...o, extensions: { ...(o.extensions ?? {}), prf: { eval: { first: PRF_SALT } } } as AuthenticationExtensionsClientInputs };
+  return {
+    ...o,
+    extensions: { ...(o.extensions ?? {}), prf: { eval: { first: PRF_SALT } } } as AuthenticationExtensionsClientInputs,
+  };
 }
 function prfOf(c: PublicKeyCredential): ArrayBuffer | null {
   const r = (c.getClientExtensionResults() as { prf?: { results?: { first?: ArrayBuffer } } }).prf?.results?.first;
@@ -157,7 +230,16 @@ function prfOf(c: PublicKeyCredential): ArrayBuffer | null {
 }
 async function keepVaultKey(prf: ArrayBuffer) {
   const base = await crypto.subtle.importKey('raw', prf, 'HKDF', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new TextEncoder().encode('typeset/1'), info: new TextEncoder().encode('vault') }, base, 256);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new TextEncoder().encode('typeset/1'),
+      info: new TextEncoder().encode('vault'),
+    },
+    base,
+    256,
+  );
   kv.set('vault.key', b64url(bits));
 }
 const vaultKey = async () => {
@@ -172,8 +254,18 @@ export const hasVault = () => !!kv.get<string | null>('vault.key', null);
 export async function unlockVault(): Promise<boolean> {
   let c: PublicKeyCredential | null = null;
   try {
-    c = await navigator.credentials.get({ publicKey: withPrf({ challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname, userVerification: 'required', timeout: 120_000 }) }) as PublicKeyCredential | null;
-  } catch (e) { if (cancelled(e)) return false; throw e; }
+    c = (await navigator.credentials.get({
+      publicKey: withPrf({
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rpId: location.hostname,
+        userVerification: 'required',
+        timeout: 120_000,
+      }),
+    })) as PublicKeyCredential | null;
+  } catch (e) {
+    if (cancelled(e)) return false;
+    throw e;
+  }
   const prf = c && prfOf(c);
   if (!prf) return false;
   await keepVaultKey(prf);
@@ -190,12 +282,21 @@ export async function syncShares(core: Core): Promise<number> {
   let remote: Record<string, Shared> = {};
   if (held.length > VAULT.length + 12 && VAULT.every((m, i) => held[i] === m)) {
     try {
-      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: held.slice(VAULT.length, VAULT.length + 12) }, key, held.slice(VAULT.length + 12));
+      const plain = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: held.slice(VAULT.length, VAULT.length + 12) },
+        key,
+        held.slice(VAULT.length + 12),
+      );
       remote = JSON.parse(new TextDecoder().decode(plain)).shares ?? {};
-    } catch { /* sealed by another passkey: this one starts its own */ }
+    } catch {
+      /* sealed by another passkey: this one starts its own */
+    }
   }
   const local: Record<string, Shared> = {};
-  for (const k of kv.keys('share.')) { const v = kv.get<Shared | null>(k, null); if (v) local[k.slice('share.'.length)] = v; }
+  for (const k of kv.keys('share.')) {
+    const v = kv.get<Shared | null>(k, null);
+    if (v) local[k.slice('share.'.length)] = v;
+  }
   const live = new Set((await myShares()).books.map(b => b.id));
   const merged: Record<string, Shared> = {};
   for (const [book, s] of Object.entries({ ...remote, ...local })) {
@@ -208,13 +309,24 @@ export async function syncShares(core: Core): Promise<number> {
     if (!local[book]) kv.set('share.' + book, s);
     if (have.has(book)) continue;
     const f = await unseal(await fetchSealed(s.id), s.key);
-    if (typeof f !== 'string') { await core.importFile(f.bytes, f.name); added++; }
+    if (typeof f !== 'string') {
+      await core.importFile(f.bytes, f.name);
+      added++;
+    }
   }
   if (JSON.stringify(merged) !== JSON.stringify(remote)) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify({ v: 1, shares: merged }))));
+    const ct = new Uint8Array(
+      await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        new TextEncoder().encode(JSON.stringify({ v: 1, shares: merged })),
+      ),
+    );
     const out = new Uint8Array(VAULT.length + 12 + ct.length);
-    out.set(VAULT, 0); out.set(iv, VAULT.length); out.set(ct, VAULT.length + 12);
+    out.set(VAULT, 0);
+    out.set(iv, VAULT.length);
+    out.set(ct, VAULT.length + 12);
     await call('PUT', '/api/vault', out);
   }
   return added;
@@ -223,14 +335,21 @@ export async function syncShares(core: Core): Promise<number> {
 /* ---------- Turnstile: that a person is asking ---------- */
 
 let tsLoad: Promise<void> | null = null;
-declare global { interface Window { turnstile?: any } }
+declare global {
+  interface Window {
+    turnstile?: any;
+  }
+}
 function loadTurnstile(): Promise<void> {
   tsLoad ??= new Promise((ok, fail) => {
     const s = document.createElement('script');
     s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
     s.async = true;
     s.onload = () => ok();
-    s.onerror = () => { tsLoad = null; fail(new ServiceError(0, 'The check that you are a person could not load: are you online?')); };
+    s.onerror = () => {
+      tsLoad = null;
+      fail(new ServiceError(0, 'The check that you are a person could not load: are you online?'));
+    };
     document.head.appendChild(s);
   });
   return tsLoad;
@@ -243,7 +362,11 @@ export async function personToken(el: HTMLElement, sitekey: string, action: stri
   el.replaceChildren();
   return new Promise((ok, fail) => {
     window.turnstile.render(el, {
-      sitekey, action, appearance: 'interaction-only', theme: 'auto', 'refresh-expired': 'manual',
+      sitekey,
+      action,
+      appearance: 'interaction-only',
+      theme: 'auto',
+      'refresh-expired': 'manual',
       callback: (t: string) => ok(t),
       'error-callback': () => fail(new ServiceError(0, 'The check that you are a person did not pass: try again.')),
     });
@@ -254,10 +377,22 @@ export async function personToken(el: HTMLElement, sitekey: string, action: stri
 
 /** What the writer keeps about a book they shared (kv `share.<book>`): its id at the
  *  service and its link's key (which the service never sees). */
-export interface Shared { id: string; key: string; expires: number; /** the draft (book) the link carries now */ book?: string; version?: number }
+export interface Shared {
+  id: string;
+  key: string;
+  expires: number;
+  /** the draft (book) the link carries now */ book?: string;
+  version?: number;
+}
 export const sharedOf = (bookId: string) => kv.get<Shared | null>('share.' + bookId, null);
 
-export interface MyShares { name: string; used: number; maxBytes: number; maxBooks: number; books: { id: string; size: number; created: number; expires: number; readers: number; updated: number | null }[] }
+export interface MyShares {
+  name: string;
+  used: number;
+  maxBytes: number;
+  maxBooks: number;
+  books: { id: string; size: number; created: number; expires: number; readers: number; updated: number | null }[];
+}
 export const myShares = () => call<MyShares>('GET', '/api/shares');
 
 /** Seals the book's file and puts it at the service; the link comes back. */
@@ -292,7 +427,9 @@ export async function renew(bookId: string): Promise<number> {
 export async function withdraw(bookId: string) {
   const s = sharedOf(bookId);
   if (!s) return;
-  await call('DELETE', `/api/shares/${s.id}`).catch(e => { if (!(e instanceof ServiceError && e.status === 404)) throw e; });
+  await call('DELETE', `/api/shares/${s.id}`).catch(e => {
+    if (!(e instanceof ServiceError && e.status === 404)) throw e;
+  });
   kv.set('share.' + bookId, null);
 }
 
@@ -328,7 +465,15 @@ export async function fetchNotes(): Promise<{ book: string; text: string }[]> {
 /** What a reader keeps about a book they were sent by link (kv `joined.<book>`), to send
  *  their notes back to it: the link's id and key; after a first send, the service's
  *  pass for later ones, what was sent (a digest), and whether to send by themselves. */
-export interface Joined { id: string; key: string; sent?: number; pass?: string; digest?: string; auto?: boolean; /** the draft's version read */ version?: number }
+export interface Joined {
+  id: string;
+  key: string;
+  sent?: number;
+  pass?: string;
+  digest?: string;
+  auto?: boolean;
+  /** the draft's version read */ version?: number;
+}
 export const joinedOf = (bookId: string) => kv.get<Joined | null>('joined.' + bookId, null);
 
 /** A newer draft at the link this book came by, if there is one (its version). */
@@ -361,12 +506,23 @@ export async function sendNotes(bookId: string, file: NotesFile, turnstile?: str
   const { token } = await postToken(j.key);
   const proof: Record<string, string> = turnstile ? { 'x-turnstile': turnstile } : { 'x-pass': j.pass! };
   try {
-    const r = await call<{ sent: number; pass?: string }>('PUT', `/api/books/${j.id}/notes/${await readerId(me().id, j.id)}`, sealed,
-      { authorization: `Post ${token}`, ...proof }, keepalive && sealed.length < 60_000);
-    kv.set('joined.' + bookId, { ...j, sent: Date.now(), pass: r.pass ?? j.pass, digest: digestOf(file) } satisfies Joined);
+    const r = await call<{ sent: number; pass?: string }>(
+      'PUT',
+      `/api/books/${j.id}/notes/${await readerId(me().id, j.id)}`,
+      sealed,
+      { authorization: `Post ${token}`, ...proof },
+      keepalive && sealed.length < 60_000,
+    );
+    kv.set('joined.' + bookId, {
+      ...j,
+      sent: Date.now(),
+      pass: r.pass ?? j.pass,
+      digest: digestOf(file),
+    } satisfies Joined);
   } catch (e) {
     // a pass no longer good (the book withdrawn or renewed away): the next send asks again
-    if (!turnstile && e instanceof ServiceError && e.status === 403) kv.set('joined.' + bookId, { ...j, pass: undefined });
+    if (!turnstile && e instanceof ServiceError && e.status === 403)
+      kv.set('joined.' + bookId, { ...j, pass: undefined });
     throw e;
   }
 }
@@ -375,9 +531,16 @@ export async function sendNotes(bookId: string, file: NotesFile, turnstile?: str
  *  the background): only after a first send, only if they changed, never asking. */
 const sending = new Map<string, string>();
 export function sendQuietly(bookId: string, file: NotesFile) {
-  const j = joinedOf(bookId), d = digestOf(file);
+  const j = joinedOf(bookId),
+    d = digestOf(file);
   // (leaving the book and the page hiding come together: one send for the same notes)
   if (!j?.pass || j.auto === false || j.digest === d || sending.get(bookId) === d) return;
   sending.set(bookId, d);
-  sendNotes(bookId, file, undefined, true).catch(() => { /* tried again next time */ }).finally(() => { if (sending.get(bookId) === d) sending.delete(bookId); });
+  sendNotes(bookId, file, undefined, true)
+    .catch(() => {
+      /* tried again next time */
+    })
+    .finally(() => {
+      if (sending.get(bookId) === d) sending.delete(bookId);
+    });
 }

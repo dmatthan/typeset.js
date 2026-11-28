@@ -20,7 +20,11 @@ export function versions() {
   // (tauri.conf.json's version may be a path to a package.json, read from its folder)
   const desktop = conf.endsWith('.json') ? JSON.parse(read(join('src-tauri', conf))).version : conf;
   const crate = /^version\s*=\s*"([^"]+)"/m.exec(read('src-tauri/Cargo.toml'))?.[1];
-  return { 'packages/typeset.js/package.json': pkg, 'src-tauri/tauri.conf.json': desktop, 'src-tauri/Cargo.toml': crate };
+  return {
+    'packages/typeset.js/package.json': pkg,
+    'src-tauri/tauri.conf.json': desktop,
+    'src-tauri/Cargo.toml': crate,
+  };
 }
 
 /** What is wrong with releasing `tag` as `version`, or null. */
@@ -32,11 +36,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const found = versions();
   const all = [...new Set(Object.values(found))];
   if (all.length !== 1) {
-    console.error(`The manifests disagree:\n${Object.entries(found).map(([f, v]) => `  ${f}: ${v}`).join('\n')}`);
+    console.error(
+      `The manifests disagree:\n${Object.entries(found)
+        .map(([f, v]) => `  ${f}: ${v}`)
+        .join('\n')}`,
+    );
     process.exit(1);
   }
   const tag = process.argv[process.argv.indexOf('--tag') + 1];
   const problem = process.argv.includes('--tag') ? tagProblem(tag, all[0]) : null;
-  if (problem) { console.error(`${problem}.`); process.exit(1); }
+  if (problem) {
+    console.error(`${problem}.`);
+    process.exit(1);
+  }
   console.log(all[0]);
 }

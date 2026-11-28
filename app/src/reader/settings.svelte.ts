@@ -38,7 +38,9 @@ export const settings: Settings = $state({ ...DEFAULTS, ...Object.fromEntries(st
 
 export function save() {
   const diff: Partial<Settings> = {};
-  for (const k of Object.keys(DEFAULTS) as (keyof Settings)[]) if (settings[k] !== DEFAULTS[k]) (diff as any)[k] = settings[k];
+  for (const k of Object.keys(DEFAULTS) as (keyof Settings)[])
+    if (settings[k] !== DEFAULTS[k]) (diff as any)[k] = settings[k];
   kv.set('settings', diff);
 }
-export const reduceMotion = () => settings.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+export const reduceMotion = () =>
+  settings.motion === 'reduce' || matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -8,29 +8,51 @@
   import type { Core } from '../core/types';
 
   let { core }: { core: Core } = $props();
-  let name = $state(''), busy = $state(false), why = $state('');
+  let name = $state(''),
+    busy = $state(false),
+    why = $state('');
   let check: HTMLElement | undefined = $state();
 
-  function close() { ui.sheet = null; ui.invite = ''; }
+  function close() {
+    ui.sheet = null;
+    ui.invite = '';
+  }
 
   async function accept() {
     if (busy || !name.trim()) return;
-    busy = true; why = '';
+    busy = true;
+    why = '';
     try {
       const c = await service();
-      if (!c) { why = 'Sharing works on the app as served from the web, not here.'; return; }
-      if (!c.turnstile) { why = 'The service is not set up yet: try again later.'; return; }
+      if (!c) {
+        why = 'Sharing works on the app as served from the web, not here.';
+        return;
+      }
+      if (!c.turnstile) {
+        why = 'The service is not set up yet: try again later.';
+        return;
+      }
       const token = await personToken(check!, c.turnstile, 'register');
       const r = await register(ui.invite, name, token);
-      if (!r) { why = 'No passkey was made. Try again when you are ready.'; return; }
+      if (!r) {
+        why = 'No passkey was made. Try again when you are ready.';
+        return;
+      }
       // (a passkey added for a new device: the shares from the others come here)
       const added = await syncShares(core).catch(() => 0);
       if (added) ui.libVersion++;
-      toast(added ? `Welcome back, ${r.name}. ${added} shared book${added === 1 ? '' : 's'} from your other devices added.` : `Welcome, ${r.name}. Share a book from its card in the library: “Share as a link…”.`, 6400);
+      toast(
+        added
+          ? `Welcome back, ${r.name}. ${added} shared book${added === 1 ? '' : 's'} from your other devices added.`
+          : `Welcome, ${r.name}. Share a book from its card in the library: “Share as a link…”.`,
+        6400,
+      );
       close();
     } catch (e) {
       why = (e as Error).message;
-    } finally { busy = false; }
+    } finally {
+      busy = false;
+    }
   }
 </script>
 
@@ -45,7 +67,19 @@
   {:else}
     <label class="svc-name">
       <span>Your name, as your readers will know you</span>
-      <input type="text" bind:value={name} placeholder="Your name" maxlength="60" data-autofocus onkeydown={e => { if (e.key === 'Enter') { e.preventDefault(); accept(); } }} />
+      <input
+        type="text"
+        bind:value={name}
+        placeholder="Your name"
+        maxlength="60"
+        data-autofocus
+        onkeydown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            accept();
+          }
+        }}
+      />
     </label>
     <p class="where">You’ll sign in with a passkey: Face ID, a fingerprint or your PIN.</p>
     <div class="svc-check" bind:this={check}></div>
@@ -53,7 +87,8 @@
   {/if}
   <div class="acts two">
     <button class="btn" onclick={close}>Not now</button>
-    <button class="btn primary" disabled={busy || !name.trim() || !canPasskey()} onclick={accept}>{busy ? 'Making the passkey…' : 'Make my passkey'}</button>
+    <button class="btn primary" disabled={busy || !name.trim() || !canPasskey()} onclick={accept}
+      >{busy ? 'Making the passkey…' : 'Make my passkey'}</button
+    >
   </div>
 </Sheet>
-

@@ -19,7 +19,14 @@ fn note_on(text: &str, words: &str, author: &str, said: &str) -> Comment {
     let i = text.find(words).unwrap_or_else(|| panic!("{words:?} not in {text:?}"));
     let before: String = text[..i].chars().rev().take(32).collect::<Vec<_>>().into_iter().rev().collect();
     let after: String = text[i + words.len()..].chars().take(32).collect();
-    Comment { quote: words.into(), prefix: before, suffix: after, author: author.into(), text: said.into(), date: "2026-10-15T12:00:00Z".into() }
+    Comment {
+        quote: words.into(),
+        prefix: before,
+        suffix: after,
+        author: author.into(),
+        text: said.into(),
+        date: "2026-10-15T12:00:00Z".into(),
+    }
 }
 
 #[test]
@@ -32,20 +39,42 @@ fn notes_become_word_comments_on_their_words() {
     let wa: String = a.chars().take(24).collect();
     let mid = b.split_whitespace().skip(3).take(4).collect::<Vec<_>>().join(" ");
     let notes = vec![
-        note_on(a, a.split("forty years").next().unwrap().split_whitespace().last().map(|w| &a[a.find(w).unwrap()..a.find("forty years").unwrap() + 11]).unwrap(), "Ann", "The number matters here"),
+        note_on(
+            a,
+            a.split("forty years")
+                .next()
+                .unwrap()
+                .split_whitespace()
+                .last()
+                .map(|w| &a[a.find(w).unwrap()..a.find("forty years").unwrap() + 11])
+                .unwrap(),
+            "Ann",
+            "The number matters here",
+        ),
         note_on(a, &wa, "Tomas", "A strong opening\nwith a second line"),
         note_on(b, &mid, "Ines & co <3>", "Marked"),
-        Comment { quote: "words that are nowhere in this book".into(), author: "Ann".into(), text: "lost".into(), ..Default::default() },
+        Comment {
+            quote: "words that are nowhere in this book".into(),
+            author: "Ann".into(),
+            text: "lost".into(),
+            ..Default::default()
+        },
     ];
     let out = annotate(&src, &notes).unwrap();
     assert_eq!(out.placed, 3);
     // (TYPESET_DUMP=dir: the annotated file, to open in Word or LibreOffice)
-    if let Ok(d) = std::env::var("TYPESET_DUMP") { std::fs::write(format!("{d}/annotated.docx"), &out.bytes).unwrap(); }
+    if let Ok(d) = std::env::var("TYPESET_DUMP") {
+        std::fs::write(format!("{d}/annotated.docx"), &out.bytes).unwrap();
+    }
     assert_eq!(out.unplaced, vec![3]);
 
     // the comments, by their readers, escaped
     let comments = part(&out.bytes, "word/comments.xml");
-    assert!(comments.contains("w:author=\"Ann\"") && comments.contains("w:author=\"Tomas\"") && comments.contains("w:author=\"Ines &amp; co &lt;3&gt;\""));
+    assert!(
+        comments.contains("w:author=\"Ann\"")
+            && comments.contains("w:author=\"Tomas\"")
+            && comments.contains("w:author=\"Ines &amp; co &lt;3&gt;\"")
+    );
     assert!(comments.contains(">A strong opening</w:t>") && comments.contains(">with a second line</w:t>"));
     let doc = part(&out.bytes, "word/document.xml");
     for id in 0..3 {
@@ -57,7 +86,9 @@ fn notes_become_word_comments_on_their_words() {
 
     // the text is exactly as it was: the same book read from the annotated file
     let again = typeset_ingest::docx(&out.bytes, "manuscript.docx").unwrap();
-    let texts = |b: &typeset_model::Book| b.sections.iter().flat_map(|s| s.blocks.iter().map(|x| (x.text.clone(), x.runs.clone()))).collect::<Vec<_>>();
+    let texts = |b: &typeset_model::Book| {
+        b.sections.iter().flat_map(|s| s.blocks.iter().map(|x| (x.text.clone(), x.runs.clone()))).collect::<Vec<_>>()
+    };
     assert_eq!(texts(&again), texts(&book));
 
     // each comment spans its words: the text between its marks is the quote

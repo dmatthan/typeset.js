@@ -30,6 +30,15 @@ fn main() {
     let f2 = e.find(&id, "the", 5000).unwrap();
     let f3 = e.find(&id, "said dorothea quickly", 5000).unwrap();
     let t_find_warm = t.elapsed() / 2;
-    println!("find: index + first query {t_find_cold:?} ({} hits) | warm query {t_find_warm:?} (\"the\": {}, phrase-less: {} paragraphs)", f1[0], f2[0], f3[0]);
-    println!("import {t_imp:?} | one chapter {t_one:?} ({} B) | rest of book {t_all:?} ({} KB) | json {t_json:?} ({} KB) | model {} KB restore {t_restore:?}", one.len(), all.len() / 1024, json.len() / 1024, saved.len() / 1024);
+    println!(
+        "find: index + first query {t_find_cold:?} ({} hits) | warm query {t_find_warm:?} (\"the\": {}, phrase-less: {} paragraphs)",
+        f1[0], f2[0], f3[0]
+    );
+    println!(
+        "import {t_imp:?} | one chapter {t_one:?} ({} B) | rest of book {t_all:?} ({} KB) | json {t_json:?} ({} KB) | model {} KB restore {t_restore:?}",
+        one.len(),
+        all.len() / 1024,
+        json.len() / 1024,
+        saved.len() / 1024
+    );
 }

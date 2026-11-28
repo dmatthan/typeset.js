@@ -102,12 +102,14 @@ export class Reader {
   private trip: { from: Anchor; to: Anchor } | null = null;
   /** Highlights and find hits for a block, as the renderer draws them (hits first). */
   private marksOf = (key: string) => {
-    const f = this.finder.open ? this.finder.of(key) : undefined, a = this.ann?.of(key);
+    const f = this.finder.open ? this.finder.of(key) : undefined,
+      a = this.ann?.of(key);
     return f && a ? [...f, ...a] : f || a;
   };
 
   constructor(core: Core) {
-    this.core = core; this.images = new BookImages(core, () => this.book);
+    this.core = core;
+    this.images = new BookImages(core, () => this.book);
     ui.rail = kv.get<boolean>('rail', false);
   }
 
@@ -115,7 +117,8 @@ export class Reader {
   mount(stage: HTMLElement, track: HTMLElement) {
     this.stage = stage;
     this.surface = new Surface(track, () => ({
-      strip: this.strip!, M: this.M,
+      strip: this.strip!,
+      M: this.M,
       column: k => this.columnHTML(k),
       isLeaf: k => this.strip!.itemAt(k)?.type !== 'sect',
     }));
@@ -125,16 +128,26 @@ export class Reader {
       spread: () => this.M?.N ?? 1,
       reduced: reduceMotion,
       frame: (p, v, glided) => this.frame(p, v, glided),
-      glide: (at, times, t0) => { if (this.strip) this.surface.glide(at, times, t0); },
+      glide: (at, times, t0) => {
+        if (this.strip) this.surface.glide(at, times, t0);
+      },
       rest: k => this.rest(k),
     });
     this.input = new ReaderInput(this);
-    window.addEventListener('pagehide', () => { this.flush(); flushKV(); });
+    window.addEventListener('pagehide', () => {
+      this.flush();
+      flushKV();
+    });
     // (a phone switching apps hides the page without leaving it)
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.flush(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.flush();
+    });
     new ResizeObserver(() => {
       if (!this.book) return;
-      if (this.opening) { this.resizedWhileOpening = true; return; }
+      if (this.opening) {
+        this.resizedWhileOpening = true;
+        return;
+      }
       // (the page as it is, kept in the middle of the window until it rests, then set again)
       this.recentre();
       clearTimeout(this.resizeT);
@@ -145,14 +158,22 @@ export class Reader {
     this.appearance.prewarm();
   }
 
-
   /** Takes notes files while a book is open (intake.ts): those for it are placed on it at
    *  once, others kept for their books. */
   async receiveNotes(input: string | string[]): Promise<string> {
     const texts = Array.isArray(input) ? input : [input];
     if (!this.book || !this.fb || !this.strip || !this.ann) return 'Open the book the notes are for first.';
-    const { said, changed } = await takeNotes(this.core, texts, await this.core.library(), { book: this.book, ann: this.ann, marks: this.marks, fb: this.fb });
-    if (changed) { this.bookmarks.load(this.book.id); this.redraw(); this.marking.digestSoon(); }
+    const { said, changed } = await takeNotes(this.core, texts, await this.core.library(), {
+      book: this.book,
+      ann: this.ann,
+      marks: this.marks,
+      fb: this.fb,
+    });
+    if (changed) {
+      this.bookmarks.load(this.book.id);
+      this.redraw();
+      this.marking.digestSoon();
+    }
     return said;
   }
 
@@ -172,8 +193,9 @@ export class Reader {
   }
 
   /** Redraws the columns in view (marks, hits) without moving anything. */
-  repaint() { if (this.strip) this.surface.reset(this.cur); }
-
+  repaint() {
+    if (this.strip) this.surface.reset(this.cur);
+  }
 
   /** Brings column k into view: a short way on a calm curve; a long way with a quick
    *  fade, as the surface cannot build a hundred columns in passing. A trip past the
@@ -186,20 +208,39 @@ export class Reader {
     const d = Math.abs(k - this.cur);
     if (!d) return;
     this.trip = trip && d >= this.M.N ? { from: this.strip.anchorAt(this.cur)!, to: this.strip.anchorAt(k)! } : null;
-    if (d <= 6) { this.go(k); return; }
+    if (d <= 6) {
+      this.go(k);
+      return;
+    }
     const t = this.surface.track;
-    if (reduceMotion()) { this.jump(k); return; }
-    t.style.transition = 'opacity .11s ease-in'; t.style.opacity = '0';
+    if (reduceMotion()) {
+      this.jump(k);
+      return;
+    }
+    t.style.transition = 'opacity .11s ease-in';
+    t.style.opacity = '0';
     await new Promise(r => setTimeout(r, 115));
     this.jump(k);
-    requestAnimationFrame(() => { t.style.transition = 'opacity .2s ease-out'; t.style.opacity = '1'; });
+    requestAnimationFrame(() => {
+      t.style.transition = 'opacity .2s ease-out';
+      t.style.opacity = '1';
+    });
   }
 
   private columnHTML(k: number): string {
     const strip = this.strip!;
     const it = strip.itemAt(k);
     if (!it) return '';
-    if (it.type === 'sect') return columnHTML(strip, k, this.M, this.marks, this.marksOf, this.images.src, this.fb?.size ? this.fb : undefined);
+    if (it.type === 'sect')
+      return columnHTML(
+        strip,
+        k,
+        this.M,
+        this.marks,
+        this.marksOf,
+        this.images.src,
+        this.fb?.size ? this.fb : undefined,
+      );
     return leafHTML(strip, it);
   }
 
@@ -210,7 +251,11 @@ export class Reader {
     this.appearance.paint(look);
     const reader = this.stage.parentElement!;
     setVars(reader, geomVars(M));
-    ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone; ui.arrows = M.arrows; ui.railed = this.railed();
+    ui.cols = M.N;
+    ui.colsReduced = M.reduced;
+    ui.phone = M.phone;
+    ui.arrows = M.arrows;
+    ui.railed = this.railed();
     // the notes' rail beside the text: what is about the text (its head, its page) centres on the text
     reader.style.setProperty('--rail', (ui.railed ? this.stage.clientWidth - M.W : 0) + 'px');
   }
@@ -220,7 +265,9 @@ export class Reader {
   private recentre() {
     const M = this.M;
     if (!M || !this.strip) return;
-    const W = this.stage.clientWidth - (ui.railed ? RAIL : 0), cx = Math.round(W / 2), x0 = Math.round(cx - M.focusW / 2);
+    const W = this.stage.clientWidth - (ui.railed ? RAIL : 0),
+      cx = Math.round(W / 2),
+      x0 = Math.round(cx - M.focusW / 2);
     if (x0 === M.x0 && W === M.W) return;
     this.M = { ...M, W, cx, x0 };
     setVars(this.stage.parentElement!, geomVars(this.M));
@@ -288,7 +335,6 @@ export class Reader {
     await this.finder.run();
   }
 
-
   /** The notes' rail is beside the text: asked for, and room for it (never on a phone). */
   railed(): boolean {
     return ui.rail && !!this.stage && this.stage.clientWidth - RAIL >= 640;
@@ -297,14 +343,22 @@ export class Reader {
   /** The geometry for the stage as it is (less the rail, which takes one column's place). */
   measure(size?: number, look = this.appearance.look) {
     const rail = this.railed();
-    return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.appearance.lookGeom(look), insets(), size, rail ? 1 : settings.layout);
+    return metrics(
+      this.stage.clientWidth - (rail ? RAIL : 0),
+      this.stage.clientHeight,
+      this.appearance.lookGeom(look),
+      insets(),
+      size,
+      rail ? 1 : settings.layout,
+    );
   }
 
   /** Lays the book out at `M` in `look`, apart from the page, and puts both on the page in
    *  one frame: around `anchor` (none: where the reader is then), its section first, then
    *  (not awaited) the rest. `fade`: the page as it was fades into the new (hold.ts). */
   private async layoutFrom(anchor: Anchor | null, gen: number, look: Resolved, M: Metrics, fade = false) {
-    const strip = this.strip!, book = this.book!;
+    const strip = this.strip!,
+      book = this.book!;
     if (!this.wholeLaid) this.whole = new Promise(r => (this.wholeLaid = r));
     // (the numbers wait for the whole book's count: Progress.svelte)
     ui.settling = true;
@@ -324,15 +378,27 @@ export class Reader {
     performance.mark('open:first-layout');
     if (gen !== this.gen) return;
     // the page as it is, then (in the same frame) the new: its style and its text together
-    const at = anchor ?? strip.anchorAt(this.cur), old = this.M;
-    if (fade && old) this.hold.take(this.stage, this.surface.track, this.inView(), { ...typeVars(this.appearance.look, old.fs), ...geomVars(old) }, this.lineOf(at));
+    const at = anchor ?? strip.anchorAt(this.cur),
+      old = this.M;
+    if (fade && old)
+      this.hold.take(
+        this.stage,
+        this.surface.track,
+        this.inView(),
+        { ...typeVars(this.appearance.look, old.fs), ...geomVars(old) },
+        this.lineOf(at),
+      );
     this.commit(look, M);
     strip.setEstimate(M.rows, M.colW, M.fs);
     strip.layouts = first;
     this.recompose(at);
     if (fade && old) this.hold.release(this.lineOf(at), M.fs / old.fs);
     // a book's first page, opening, comes in softly over its paper (at the calm pace)
-    else if (this.opening) this.surface.track.animate([{ opacity: 0 }, { opacity: 1 }], { duration: parseFloat(getComputedStyle(this.stage).getPropertyValue('--calm')) * 1000 || 300, easing: 'ease-out' });
+    else if (this.opening)
+      this.surface.track.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: parseFloat(getComputedStyle(this.stage).getPropertyValue('--calm')) * 1000 || 300,
+        easing: 'ease-out',
+      });
     performance.mark('open:shown');
     this.appearance.calibrateNeighbours();
     // the rest, a few chapters a call, nearest first: the engine answers one call at a time,
@@ -360,7 +426,8 @@ export class Reader {
     const keep = this.motion.moving ? null : strip.anchorAt(this.cur);
     strip.layouts = all;
     this.recompose(keep ?? strip.anchorAt(this.cur), true);
-    this.wholeLaid?.(); this.wholeLaid = null;
+    this.wholeLaid?.();
+    this.wholeLaid = null;
     ui.settling = false;
   }
 
@@ -374,22 +441,38 @@ export class Reader {
     ui.layoutVersion++;
   }
 
-  private inView() { return Array.from({ length: this.M.N }, (_, i) => this.surface.columnEl(this.cur + i)); }
+  private inView() {
+    return Array.from({ length: this.M.N }, (_, i) => this.surface.columnEl(this.cur + i));
+  }
   /** Where the line at `a` begins on the page in view. */
   private lineOf(a: Anchor | null | undefined) {
     const h = a && 'key' in a ? this.strip!.keyIndex.get(a.key) : null;
     if (!a || !h || !('key' in a)) return null;
-    const cols = this.inView().filter((c, i): c is HTMLElement => !!c && this.strip!.itemAt(this.cur + i)?.sec === h[0]);
+    const cols = this.inView().filter(
+      (c, i): c is HTMLElement => !!c && this.strip!.itemAt(this.cur + i)?.sec === h[0],
+    );
     return lineStart(this.stage, cols, h[1], a.off);
   }
 
   async relayout() {
     if (!this.book || !this.strip) return;
     const gen = ++this.gen;
-    const old = this.M, look = this.appearance.wanted(), M = this.measure(undefined, look);
+    const old = this.M,
+      look = this.appearance.wanted(),
+      M = this.measure(undefined, look);
     const force = this.forceRelayout;
     this.forceRelayout = false;
-    if (!force && old && M.W === old.W && M.H === old.H && M.fs === old.fs && M.colW === old.colW && M.rows === old.rows && M.N === old.N) return;
+    if (
+      !force &&
+      old &&
+      M.W === old.W &&
+      M.H === old.H &&
+      M.fs === old.fs &&
+      M.colW === old.colW &&
+      M.rows === old.rows &&
+      M.N === old.N
+    )
+      return;
     // same measure and rows: the text need not be set again, only the window moves
     if (!force && old && M.fs === old.fs && M.colW === old.colW && M.rows === old.rows && M.headRows === old.headRows) {
       const at = this.strip.anchorAt(this.cur);
@@ -401,8 +484,10 @@ export class Reader {
   }
   async settingsChanged(kind: 'layout' | 'style') {
     if (!this.strip) return;
-    if (kind === 'layout') { this.forceRelayout = true; await this.relayout(); }
-    else this.surface.reset(this.cur);
+    if (kind === 'layout') {
+      this.forceRelayout = true;
+      await this.relayout();
+    } else this.surface.reset(this.cur);
   }
 
   close() {
@@ -412,14 +497,22 @@ export class Reader {
     this.gen++;
     this.motion.jump(0);
     if (this.finder.open) this.finder.hide();
-    ui.bookNote = null; ui.lightbox = null;
-    this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false; this.bookmarks.clear();
+    ui.bookNote = null;
+    ui.lightbox = null;
+    this.book = null;
+    this.strip = null;
+    this.ann = null;
+    this.fb = null;
+    this.reading = false;
+    this.bookmarks.clear();
     themes.leading = null;
     ui.chip = null;
     this.cursor.end();
-    ui.contents = false; ui.sheet = null;
+    ui.contents = false;
+    ui.sheet = null;
     this.surface.clear();
-    this.hold.drop(); ui.settling = false;
+    this.hold.drop();
+    ui.settling = false;
     this.core.idle?.();
     ui.view = 'library';
     ui.libVersion++;
@@ -438,7 +531,15 @@ export class Reader {
     // sends them back); not while it is still opening: it has not found its place yet,
     // and how far the reader got would read as changed
     if (this.ann && !this.opening) this.onNotes(id, () => this.myNotes());
-    kv.set('state.' + id, { where: it && it.sec >= 0 && it.type !== 'colophon' ? chapName(this.book, Math.min(it.sec, this.book.sections.length - 1)) : it?.type === 'colophon' ? 'At the end' : 'At the beginning', done: it?.type === 'colophon' });
+    kv.set('state.' + id, {
+      where:
+        it && it.sec >= 0 && it.type !== 'colophon'
+          ? chapName(this.book, Math.min(it.sec, this.book.sections.length - 1))
+          : it?.type === 'colophon'
+            ? 'At the end'
+            : 'At the beginning',
+      done: it?.type === 'colophon',
+    });
   }
 
   /** Reading begins: the keys go to the page. */
@@ -449,7 +550,9 @@ export class Reader {
 
   /* ---------- position and movement ---------- */
   headFor(k: number) {
-    const strip = this.strip!, it = strip.itemAt(k), b = strip.book;
+    const strip = this.strip!,
+      it = strip.itemAt(k),
+      b = strip.book;
     if (!it) return '';
     if (it.type === 'title') return b.title;
     if (it.type === 'colophon') return embedOpts.endHref ? 'The end' : 'Finis';
@@ -479,7 +582,8 @@ export class Reader {
     const k = Math.round(p);
     if (k !== this.shownK) {
       this.shownK = k;
-      ui.runhead = this.headFor(k); ui.page = k + 1;
+      ui.runhead = this.headFor(k);
+      ui.page = k + 1;
       // the paper's tint changes only at rest: changing it in motion repainted the whole
       // window (background, curtains) every few frames
     }
@@ -498,7 +602,8 @@ export class Reader {
   goBack() {
     if (!this.strip || !this.trip) return;
     const k = this.strip.resolve(this.trip.from);
-    this.trip = null; this.returnTo = null;
+    this.trip = null;
+    this.returnTo = null;
     this.travelTo(k, false);
   }
 
@@ -508,27 +613,42 @@ export class Reader {
     // (the way back stays while the reader is where the trip ended)
     if (this.trip && strip.resolve(this.trip.to) !== k) this.trip = null;
     this.returnTo = this.trip ? strip.resolve(this.trip.from) : null;
-    ui.runhead = this.headFor(k); ui.page = k + 1; ui.pages = strip.N;
+    ui.runhead = this.headFor(k);
+    ui.page = k + 1;
+    ui.pages = strip.N;
     const focus = this.focusCols();
     this.progress.arrive(focus);
-    clearTimeout(this.saveT); this.saveT = window.setTimeout(() => { if (!this.book) return; kv.set('pos.' + this.book.id, strip.anchorAt(this.cur)); kv.set('far.' + this.book.id, this.progress.furthest); }, 400);
+    clearTimeout(this.saveT);
+    this.saveT = window.setTimeout(() => {
+      if (!this.book) return;
+      kv.set('pos.' + this.book.id, strip.anchorAt(this.cur));
+      kv.set('far.' + this.book.id, this.progress.furthest);
+    }, 400);
     // (by the view's last column: a spread ends with the book's last on its right)
     const last = focus[focus.length - 1] ?? k;
     if (embedded) embedMoved(strip.frac(last), last >= strip.N - 1);
     // controls in leaves are reachable only while their leaf is in focus, and a screen
     // reader hears a leaf only then; the text in view it hears as a document (spoken.ts)
     for (const [c, el] of this.surface.rendered()) {
-      for (const x of el.querySelectorAll<HTMLElement>('textarea, button, a[href]')) x.tabIndex = focus.includes(c) ? 0 : -1;
+      for (const x of el.querySelectorAll<HTMLElement>('textarea, button, a[href]'))
+        x.tabIndex = focus.includes(c) ? 0 : -1;
       if (el.classList.contains('leafcol')) el.setAttribute('aria-hidden', String(!focus.includes(c)));
     }
     const said = this.stage.querySelector('.spoken');
     if (said) said.innerHTML = spokenPage(strip, focus);
-    if (!quiet && document.activeElement?.closest?.('.leaf') && !focus.some(c => this.surface.columnEl(c)?.contains(document.activeElement))) this.stage.focus({ preventScroll: true });
+    if (
+      !quiet &&
+      document.activeElement?.closest?.('.leaf') &&
+      !focus.some(c => this.surface.columnEl(c)?.contains(document.activeElement))
+    )
+      this.stage.focus({ preventScroll: true });
     if (this.cursor.active) this.cursor.move(0);
   }
 
   /** Moves to column k on a calm curve. */
-  go(k: number) { if (this.strip) this.motion.toward(k); }
+  go(k: number) {
+    if (this.strip) this.motion.toward(k);
+  }
 
   /** A turn: the whole set in view (or `n` columns) on or back. */
   step(d: number, n?: number) {
@@ -552,7 +672,10 @@ export class Reader {
   noteCols(): number[] {
     const strip = this.strip;
     if (!strip) return [];
-    const at = [...(this.ann?.list ?? []).filter(a => a.note).map(a => ({ key: a.key, off: a.s })), ...(this.fb?.writtenAt() ?? [])];
+    const at = [
+      ...(this.ann?.list ?? []).filter(a => a.note).map(a => ({ key: a.key, off: a.s })),
+      ...(this.fb?.writtenAt() ?? []),
+    ];
     return at.map(a => strip.resolve(a)).sort((a, b) => a - b);
   }
   /** The notes beside the text: in their rail where there is room for it (the text then
@@ -560,15 +683,24 @@ export class Reader {
    *  columns. */
   toggleNotes() {
     if (this.stage && this.stage.clientWidth - RAIL >= 640) {
-      ui.rail = !ui.rail; kv.set('rail', ui.rail);
-      ui.sideNotes = null; ui.chip = null;
+      ui.rail = !ui.rail;
+      kv.set('rail', ui.rail);
+      ui.sideNotes = null;
+      ui.chip = null;
       this.settingsChanged('layout');
       return;
     }
-    if (ui.sideNotes?.pinned) { ui.sideNotes = null; return; }
+    if (ui.sideNotes?.pinned) {
+      ui.sideNotes = null;
+      return;
+    }
     const ids: string[] = [];
-    for (const k of this.focusCols()) for (const d of this.surface.columnEl(k)?.querySelectorAll<HTMLElement>('.nd') ?? []) ids.push(d.dataset.a!);
-    if (!ids.length) { toast('No notes on this page.'); return; }
+    for (const k of this.focusCols())
+      for (const d of this.surface.columnEl(k)?.querySelectorAll<HTMLElement>('.nd') ?? []) ids.push(d.dataset.a!);
+    if (!ids.length) {
+      toast('No notes on this page.');
+      return;
+    }
     ui.chip = null;
     ui.sideNotes = { ids, pinned: true };
   }

@@ -17,7 +17,9 @@ fn epub(lang: &str, chapters: &[String], extra: &[(&str, &[u8])]) -> Vec<u8> {
     };
     put("mimetype", b"application/epub+zip");
     put("META-INF/container.xml", br#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#);
-    let items: String = (0..chapters.len()).map(|i| format!(r#"<item id="c{i}" href="c{i}.xhtml" media-type="application/xhtml+xml"/>"#)).collect();
+    let items: String = (0..chapters.len())
+        .map(|i| format!(r#"<item id="c{i}" href="c{i}.xhtml" media-type="application/xhtml+xml"/>"#))
+        .collect();
     let refs: String = (0..chapters.len()).map(|i| format!(r#"<itemref idref="c{i}"/>"#)).collect();
     put("OEBPS/content.opf", format!(r#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">t</dc:identifier><dc:title>Book</dc:title><dc:language>{lang}</dc:language></metadata><manifest>{items}<item id="p" href="p.png" media-type="image/png"/></manifest><spine>{refs}</spine></package>"#).as_bytes());
     for (i, c) in chapters.iter().enumerate() {
@@ -53,7 +55,10 @@ fn a_book_of_pictures_keeps_its_pages() {
 #[test]
 fn a_picture_on_a_title_page_is_still_left_out_of_a_book_of_words() {
     let mut ch = vec![r#"<div><img src="p.png" alt=""/></div>"#.to_string()];
-    ch.extend((1..=2).map(|i| format!("<h1>Chapter {i}</h1><p>{}</p>", "Words of a chapter long enough to be one. ".repeat(40))));
+    ch.extend(
+        (1..=2)
+            .map(|i| format!("<h1>Chapter {i}</h1><p>{}</p>", "Words of a chapter long enough to be one. ".repeat(40))),
+    );
     let b = typeset_ingest::epub(&epub("en", &ch, &[])).unwrap();
     assert_eq!(b.sections.len(), 2);
     assert!(b.sections.iter().flat_map(|s| &s.blocks).all(|b| b.kind != Kind::Image));

@@ -21,7 +21,10 @@ export async function openFromLink(core: Core, reader: Reader) {
   const l = linkOf(location.hash);
   if (!l) return;
   history.replaceState(history.state, '', location.pathname + location.search);
-  if (!canSeal()) { toast('A book sent as a link opens only over https.', 6000); return; }
+  if (!canSeal()) {
+    toast('A book sent as a link opens only over https.', 6000);
+    return;
+  }
   toast('Opening the book you were sent…', 15000);
   try {
     let sealed: Uint8Array;
@@ -32,7 +35,10 @@ export async function openFromLink(core: Core, reader: Reader) {
       sealed = new Uint8Array(await r.arrayBuffer());
     }
     const f = await unseal(sealed, l.key);
-    if (typeof f === 'string') { toast(f, 6000); return; }
+    if (typeof f === 'string') {
+      toast(f, 6000);
+      return;
+    }
     const e = await core.importFile(f.bytes, f.name);
     // (a writer opening their own link is not one of its readers)
     const own = !!kv.get('share.' + e.id, null);

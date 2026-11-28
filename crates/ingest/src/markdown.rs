@@ -3,8 +3,8 @@
 //! the web and mail (others are left as their words). Straight quotes and dashes are made
 //! typographic. A front matter block (`---` … `---`) may give `title`, `author` and `lang`.
 
-use crate::doc::{Doc, Para, assemble};
 use crate::Error;
+use crate::doc::{Doc, Para, assemble};
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use typeset_model::{Meta, TextBuilder, style};
 
@@ -81,9 +81,10 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             Event::End(TagEnd::Item) => {
                 item = item.saturating_sub(1);
                 if let Some(b) = cur.take()
-                    && !b.is_empty() {
-                        paras.push(Para::Item(b));
-                    }
+                    && !b.is_empty()
+                {
+                    paras.push(Para::Item(b));
+                }
             }
             Event::Start(Tag::CodeBlock(_)) => code = Some(String::new()),
             Event::End(TagEnd::CodeBlock) => {
@@ -164,7 +165,10 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
 fn front_matter<'a>(src: &'a str, meta: &mut Meta) -> &'a str {
     let Some(rest) = src.strip_prefix("---\n") else { return src };
     let Some(end) = rest.find("\n---") else { return src };
-    let field = |l: &str| l.split_once(':').is_some_and(|(k, _)| !k.is_empty() && k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-'));
+    let field = |l: &str| {
+        l.split_once(':')
+            .is_some_and(|(k, _)| !k.is_empty() && k.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-'))
+    };
     if !rest[..end].lines().all(|l| l.trim().is_empty() || field(l)) {
         return src;
     }

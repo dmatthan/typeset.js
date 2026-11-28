@@ -110,7 +110,11 @@ fn paragraphs(xml: &str) -> Vec<Para> {
             },
             Ok(Event::Empty(e)) => match local(e.name().as_ref()) {
                 b"fldChar" => {
-                    let kind = e.attributes().flatten().find(|a| local(a.key.as_ref()) == b"fldCharType").map(|a| a.value.into_owned());
+                    let kind = e
+                        .attributes()
+                        .flatten()
+                        .find(|a| local(a.key.as_ref()) == b"fldCharType")
+                        .map(|a| a.value.into_owned());
                     match kind.as_deref() {
                         Some(b"begin") => field_code = true,
                         Some(b"separate") | Some(b"end") => field_code = false,
@@ -160,7 +164,14 @@ fn paragraphs(xml: &str) -> Vec<Para> {
                     let from = p.text.len();
                     p.text.extend(s.chars());
                     open_pieces.push(p.pieces.len());
-                    p.pieces.push(Piece { from, to: p.text.len(), content: (before, after), tag: t_tag, run: (run_start, after), rpr: rpr.clone() });
+                    p.pieces.push(Piece {
+                        from,
+                        to: p.text.len(),
+                        content: (before, after),
+                        tag: t_tag,
+                        run: (run_start, after),
+                        rpr: rpr.clone(),
+                    });
                 }
             }
             Ok(Event::GeneralRef(g)) if in_t && deleted == 0 && !field_code => {
@@ -184,7 +195,14 @@ fn paragraphs(xml: &str) -> Vec<Para> {
                         }
                         _ => {
                             open_pieces.push(p.pieces.len());
-                            p.pieces.push(Piece { from, to: p.text.len(), content: (before, after), tag: t_tag, run: (run_start, after), rpr: rpr.clone() });
+                            p.pieces.push(Piece {
+                                from,
+                                to: p.text.len(),
+                                content: (before, after),
+                                tag: t_tag,
+                                run: (run_start, after),
+                                rpr: rpr.clone(),
+                            });
                         }
                     }
                 }
@@ -310,7 +328,10 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
     let existing = read(&mut z, "word/comments.xml");
     // ids after any comments the file has already
     let first_id = existing.as_deref().map_or(0, |x| {
-        x.match_indices("w:id=\"").filter_map(|(i, m)| x[i + m.len()..].split('"').next()?.parse::<i64>().ok()).max().map_or(0, |m| m + 1)
+        x.match_indices("w:id=\"")
+            .filter_map(|(i, m)| x[i + m.len()..].split('"').next()?.parse::<i64>().ok())
+            .max()
+            .map_or(0, |m| m + 1)
     });
 
     let paras = paragraphs(&doc);
@@ -331,7 +352,11 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
         let end = format!("<w:commentRangeEnd w:id=\"{id}\"/><w:r><w:commentReference w:id=\"{id}\"/></w:r>");
         for (ch, mark, is_start) in [(s, start, true), (e, end, false)] {
             // the piece the mark falls in, or at the edge of
-            let k = if is_start { p.pieces.iter().position(|x| x.to > ch) } else { p.pieces.iter().rposition(|x| x.from < ch) };
+            let k = if is_start {
+                p.pieces.iter().position(|x| x.to > ch)
+            } else {
+                p.pieces.iter().rposition(|x| x.from < ch)
+            };
             let Some(k) = k else { continue };
             let x = &p.pieces[k];
             let order = if is_start { 1 } else { 0 };
@@ -367,7 +392,12 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
         let c = &comments[i];
         let initials: String = c.author.split_whitespace().filter_map(|w| w.chars().next()).take(3).collect();
         let date = if c.date.is_empty() { String::new() } else { format!(" w:date=\"{}\"", esc(&c.date)) };
-        body.push_str(&format!("<w:comment w:id=\"{}\" w:author=\"{}\" w:initials=\"{}\"{date}>", first_id + n as i64, esc(&c.author), esc(&initials)));
+        body.push_str(&format!(
+            "<w:comment w:id=\"{}\" w:author=\"{}\" w:initials=\"{}\"{date}>",
+            first_id + n as i64,
+            esc(&c.author),
+            esc(&initials)
+        ));
         for line in c.text.split('\n') {
             body.push_str(&format!("<w:p><w:r><w:t xml:space=\"preserve\">{}</w:t></w:r></w:p>", esc(line)));
         }
@@ -375,7 +405,9 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
     }
     let comments_xml = match &existing {
         Some(x) if x.contains("</w:comments>") => x.replacen("</w:comments>", &format!("{body}</w:comments>"), 1),
-        _ => format!("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:comments xmlns:w=\"{W}\">{body}</w:comments>"),
+        _ => format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:comments xmlns:w=\"{W}\">{body}</w:comments>"
+        ),
     };
     let rels = if rels.contains(REL_COMMENTS) {
         rels
@@ -385,7 +417,11 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
     let types = if types.contains("/word/comments.xml") {
         types
     } else {
-        types.replacen("</Types>", &format!("<Override PartName=\"/word/comments.xml\" ContentType=\"{CT_COMMENTS}\"/></Types>"), 1)
+        types.replacen(
+            "</Types>",
+            &format!("<Override PartName=\"/word/comments.xml\" ContentType=\"{CT_COMMENTS}\"/></Types>"),
+            1,
+        )
     };
 
     // the file again: every part as it was, these four as they are now
@@ -393,7 +429,12 @@ pub fn annotate(docx: &[u8], comments: &[Comment]) -> Result<Annotated, Error> {
     let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
     let mut wrote_comments = false;
     for i in 0..z.len() {
-        let name = z.by_index(i).map_err(|e| Error::Damaged(e.to_string()))?.name().map_err(|e| Error::Damaged(e.to_string()))?.to_string();
+        let name = z
+            .by_index(i)
+            .map_err(|e| Error::Damaged(e.to_string()))?
+            .name()
+            .map_err(|e| Error::Damaged(e.to_string()))?
+            .to_string();
         let replacement = match name.as_str() {
             "word/document.xml" => Some(out.as_str()),
             "word/_rels/document.xml.rels" => Some(rels.as_str()),

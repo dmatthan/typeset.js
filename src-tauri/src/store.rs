@@ -87,20 +87,31 @@ impl Store {
     }
 
     pub fn cover(&self, id: &str) -> rusqlite::Result<Option<Vec<u8>>> {
-        Ok(self.db.query_row("SELECT cover FROM books WHERE id = ?1", [id], |r| r.get::<_, Option<Vec<u8>>>(0)).optional()?.flatten())
+        Ok(self
+            .db
+            .query_row("SELECT cover FROM books WHERE id = ?1", [id], |r| r.get::<_, Option<Vec<u8>>>(0))
+            .optional()?
+            .flatten())
     }
 
     pub fn put_images(&self, id: &str, images: &[(String, Vec<u8>)]) -> rusqlite::Result<()> {
         let tx = self.db.unchecked_transaction()?;
         tx.execute("DELETE FROM images WHERE book = ?1", [id])?;
         for (i, (mime, bytes)) in images.iter().enumerate() {
-            tx.execute("INSERT INTO images (book, idx, mime, bytes) VALUES (?1, ?2, ?3, ?4)", params![id, i as i64, mime, bytes])?;
+            tx.execute(
+                "INSERT INTO images (book, idx, mime, bytes) VALUES (?1, ?2, ?3, ?4)",
+                params![id, i as i64, mime, bytes],
+            )?;
         }
         tx.commit()
     }
 
     pub fn image(&self, id: &str, idx: u32) -> rusqlite::Result<Option<(String, Vec<u8>)>> {
-        self.db.query_row("SELECT mime, bytes FROM images WHERE book = ?1 AND idx = ?2", params![id, idx as i64], |r| Ok((r.get(0)?, r.get(1)?))).optional()
+        self.db
+            .query_row("SELECT mime, bytes FROM images WHERE book = ?1 AND idx = ?2", params![id, idx as i64], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .optional()
     }
 
     pub fn model(&self, id: &str) -> rusqlite::Result<Option<Vec<u8>>> {
@@ -142,12 +153,17 @@ impl Store {
 
     /// A book's file as added (its name tells its kind).
     pub fn put_source(&self, id: &str, name: &str, bytes: &[u8]) -> rusqlite::Result<()> {
-        self.db.execute("INSERT OR REPLACE INTO sources (id, name, bytes) VALUES (?1, ?2, ?3)", params![id, name, bytes])?;
+        self.db.execute(
+            "INSERT OR REPLACE INTO sources (id, name, bytes) VALUES (?1, ?2, ?3)",
+            params![id, name, bytes],
+        )?;
         Ok(())
     }
 
     pub fn source(&self, id: &str) -> rusqlite::Result<Option<(String, Vec<u8>)>> {
-        self.db.query_row("SELECT name, bytes FROM sources WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?))).optional()
+        self.db
+            .query_row("SELECT name, bytes FROM sources WHERE id = ?1", [id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .optional()
     }
 
     /// A book read again: its images go (the new reading brings its own) and it is
@@ -166,7 +182,8 @@ impl Store {
 
     /// Books not yet in the index.
     pub fn unindexed(&self) -> rusqlite::Result<Vec<String>> {
-        let mut st = self.db.prepare("SELECT id FROM books WHERE id NOT IN (SELECT book FROM indexed) ORDER BY added DESC")?;
+        let mut st =
+            self.db.prepare("SELECT id FROM books WHERE id NOT IN (SELECT book FROM indexed) ORDER BY added DESC")?;
         let rows = st.query_map([], |r| r.get(0))?;
         rows.collect()
     }
@@ -191,7 +208,10 @@ impl Store {
 
     pub fn unindex(&self, id: &str) -> rusqlite::Result<()> {
         if let Some(b) = self.book_row(id)? {
-            self.db.execute("DELETE FROM ftext WHERE rowid BETWEEN ?1 AND ?2", params![b << 32, (b << 32) | 0xffff_ffff])?;
+            self.db.execute(
+                "DELETE FROM ftext WHERE rowid BETWEEN ?1 AND ?2",
+                params![b << 32, (b << 32) | 0xffff_ffff],
+            )?;
         }
         self.db.execute("DELETE FROM indexed WHERE book = ?1", [id])?;
         Ok(())

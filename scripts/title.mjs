@@ -6,7 +6,21 @@
 // Exits 1 and names the problem when the title is not in the convention.
 
 export const TYPES = ['feat', 'fix', 'perf', 'refactor', 'test', 'docs', 'build', 'ci', 'chore'];
-export const SCOPES = ['model', 'ingest', 'press', 'engine', 'wasm', 'reader', 'ui', 'package', 'desktop', 'service', 'site', 'deps', 'repo'];
+export const SCOPES = [
+  'model',
+  'ingest',
+  'press',
+  'engine',
+  'wasm',
+  'reader',
+  'ui',
+  'package',
+  'desktop',
+  'service',
+  'site',
+  'deps',
+  'repo',
+];
 const MAX = 72;
 
 /** What is wrong with `title`, or null. */

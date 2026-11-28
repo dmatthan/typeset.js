@@ -10,7 +10,8 @@ test('titles in the convention pass', () => {
     'build(deps): bump zip from 9.0.2 to 9.1.0',
     'feat(reader)!: drop the first notes format',
     'refactor(press): lift `fill_pre` out of set_paras',
-  ]) assert.equal(titleProblem(t), null, t);
+  ])
+    assert.equal(titleProblem(t), null, t);
 });
 
 test('each way a title can be wrong is named', () => {

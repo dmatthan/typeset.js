@@ -10,9 +10,14 @@
     "src/**/*.{ts,svelte}",
     "site/**/*.js"
   ],
+  // used, but not from anything knip reads in this folder
   "ignoreDependencies": [
+    // the desktop build's command (`npx --prefix app tauri build`)
     "@tauri-apps/cli",
-    "jscpd"
+    // the copy check, run from the repository's root (scripts/lint.sh)
+    "jscpd",
+    // Prettier's Svelte plugin, named by path in the repository's .prettierrc.json
+    "prettier-plugin-svelte"
   ],
   "ignoreExportsUsedInFile": true,
   "rules": {

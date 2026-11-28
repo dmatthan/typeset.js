@@ -2,7 +2,7 @@
 //! browser sizes a table's, each cell broken by the same line breaker as the text.
 
 use crate::brk::break_lines;
-use crate::fill::{Para, Params, PLine, flag, spans_with};
+use crate::fill::{PLine, Para, Params, flag, spans_with};
 use crate::hyph::Patterns;
 use crate::shape::Measurer;
 
@@ -11,7 +11,13 @@ use crate::shape::Measurer;
 /// the maxima fit the measure they are used, else the room between minima and maxima is
 /// shared out, else the minima are scaled down and words break. Every cell is set by the
 /// breaker in its column's width, ragged, so a table obeys the same rules as text.
-pub(crate) fn set_table(m: &mut Measurer, b: &typeset_model::Block, bi: u32, p: &Params, lang: Option<&Patterns>) -> Vec<Para> {
+pub(crate) fn set_table(
+    m: &mut Measurer,
+    b: &typeset_model::Block,
+    bi: u32,
+    p: &Params,
+    lang: Option<&Patterns>,
+) -> Vec<Para> {
     let shape = b.table.clone().unwrap_or_default();
     let em = p.typo.size;
     let spans = spans_with(b, 0, p.link_runs);
@@ -50,7 +56,9 @@ pub(crate) fn set_table(m: &mut Measurer, b: &typeset_model::Block, bi: u32, p: 
                 let mut ws = ls;
                 for w in line.split(' ') {
                     let cuts = match lang {
-                        Some(l) if hyph && sp.single_style(ws, ws + w.len()).is_some() => crate::brk::syllable_cuts(w, l),
+                        Some(l) if hyph && sp.single_style(ws, ws + w.len()).is_some() => {
+                            crate::brk::syllable_cuts(w, l)
+                        }
                         _ => Vec::new(),
                     };
                     let mut a = 0;
@@ -169,17 +177,42 @@ pub(crate) fn set_table(m: &mut Measurer, b: &typeset_model::Block, bi: u32, p: 
             // must not come out a hair wider than it
             let end = (c + span).min(n);
             let w = (widths[c..end].iter().sum::<f32>() + gutter * (end - c - 1) as f32).max(em).min(p.measure - x[c]);
-            let cell_spans: Vec<(usize, usize, u8)> = spans.iter().filter(|&&(a, z, _)| z > s && a < e).map(|&(a, z, st)| (a.max(s) - s, z.min(e) - s, st)).collect();
+            let cell_spans: Vec<(usize, usize, u8)> = spans
+                .iter()
+                .filter(|&&(a, z, _)| z > s && a < e)
+                .map(|&(a, z, st)| (a.max(s) - s, z.min(e) - s, st))
+                .collect();
             let sh = crate::brk::Shape { first: w, rest: w, justify: false, hyphenate: w < em * 14.0 };
-            let lines = if e > s { break_lines(m, &b.text[s..e], &cell_spans, &sh, if sh.hyphenate { lang } else { None }) } else { Vec::new() };
+            let lines = if e > s {
+                break_lines(m, &b.text[s..e], &cell_spans, &sh, if sh.hyphenate { lang } else { None })
+            } else {
+                Vec::new()
+            };
             set.push((x[c], w, lines, s));
         }
         let height = set.iter().map(|c| c.2.len()).max().unwrap_or(0).max(1);
-        let mut para = Para { lines: Vec::new(), space_before: 0, space_after: 0, keep_with_next: r < shape.header_rows, whole: true };
+        let mut para = Para {
+            lines: Vec::new(),
+            space_before: 0,
+            space_after: 0,
+            keep_with_next: r < shape.header_rows,
+            whole: true,
+        };
         for line in 0..height {
             let mut grid_row: Vec<PLine> = Vec::new();
             if line == 0 && r > 0 {
-                grid_row.push(PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x: 0.0, avail: table_w, natural: 0.0, spaces: 0, flags: flag::RULE });
+                grid_row.push(PLine {
+                    col: 0,
+                    row: 0,
+                    block: bi,
+                    s: 0,
+                    e: 0,
+                    x: 0.0,
+                    avail: table_w,
+                    natural: 0.0,
+                    spaces: 0,
+                    flags: flag::RULE,
+                });
             }
             for (cx, w, lines, base) in &set {
                 if let Some(l) = lines.get(line) {
@@ -189,12 +222,34 @@ pub(crate) fn set_table(m: &mut Measurer, b: &typeset_model::Block, bi: u32, p: 
                     if sized.is_some() {
                         f |= flag::SIZED;
                     }
-                    grid_row.push(PLine { col: 0, row: 0, block: bi, s, e, x: *cx, avail: *w, natural: l.natural, spaces: sized.unwrap_or(l.spaces), flags: f });
+                    grid_row.push(PLine {
+                        col: 0,
+                        row: 0,
+                        block: bi,
+                        s,
+                        e,
+                        x: *cx,
+                        avail: *w,
+                        natural: l.natural,
+                        spaces: sized.unwrap_or(l.spaces),
+                        flags: f,
+                    });
                 }
             }
             // a grid row with no cell text in it still takes its row
             if grid_row.is_empty() {
-                grid_row.push(PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x: 0.0, avail: 0.0, natural: 0.0, spaces: 0, flags: flag::CELL });
+                grid_row.push(PLine {
+                    col: 0,
+                    row: 0,
+                    block: bi,
+                    s: 0,
+                    e: 0,
+                    x: 0.0,
+                    avail: 0.0,
+                    natural: 0.0,
+                    spaces: 0,
+                    flags: flag::CELL,
+                });
             }
             for (j, mut pl) in grid_row.into_iter().enumerate() {
                 if j > 0 {

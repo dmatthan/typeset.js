@@ -26,7 +26,10 @@ pub fn dev_corpus(name: String) -> Res<Response> {
     }
     // the corpus, then the generated fixtures (bench/fixtures)
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let p = [root.join("corpus").join(&name), root.join("bench/fixtures").join(&name)].into_iter().find(|p| p.exists()).ok_or("no such book")?;
+    let p = [root.join("corpus").join(&name), root.join("bench/fixtures").join(&name)]
+        .into_iter()
+        .find(|p| p.exists())
+        .ok_or("no such book")?;
     Ok(Response::new(std::fs::read(p).map_err(|e| e.to_string())?))
 }
 
@@ -45,4 +48,3 @@ pub fn dev_log(msg: String) {
         println!("SELFTEST {msg}");
     }
 }
-

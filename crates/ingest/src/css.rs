@@ -151,7 +151,12 @@ fn rules(s: &str, out: &mut Sheet) {
         for sel in prelude.split(',') {
             let sel = sel.trim();
             let l = sel.to_ascii_lowercase();
-            if sel.is_empty() || l.contains("::") || [":before", ":after", ":first-letter", ":first-line", ":hover", ":focus", ":active", ":visited"].iter().any(|p| l.contains(p)) {
+            if sel.is_empty()
+                || l.contains("::")
+                || [":before", ":after", ":first-letter", ":first-line", ":hover", ":focus", ":active", ":visited"]
+                    .iter()
+                    .any(|p| l.contains(p))
+            {
                 continue;
             }
             out.push((sel.to_string(), props));
@@ -161,7 +166,10 @@ fn rules(s: &str, out: &mut Sheet) {
 
 /// `@media` for screens (or all): not print, not Kindle (`amzn-kf8`, `amzn-mobi`).
 fn media_applies(q: &str) -> bool {
-    !(q.contains("amzn") || q.contains("kindle") || (q.contains("print") && !q.contains("screen")) || q.contains("speech"))
+    !(q.contains("amzn")
+        || q.contains("kindle")
+        || (q.contains("print") && !q.contains("screen"))
+        || q.contains("speech"))
 }
 
 pub(crate) fn declarations(src: &str) -> Props {
@@ -206,7 +214,9 @@ pub(crate) fn declarations(src: &str) -> Props {
                 p.centred = across(v).map(|x| x == "auto");
             }
             "margin-left" | "margin-right" => p.centred = Some(v == "auto"),
-            "border" | "border-top" | "border-bottom" | "border-style" | "border-top-style" => p.border = Some(shows(v)),
+            "border" | "border-top" | "border-bottom" | "border-style" | "border-top-style" => {
+                p.border = Some(shows(v))
+            }
             "width" => p.width = v.strip_suffix('%').and_then(|x| x.trim().parse::<f32>().ok()).map(|x| x / 100.0),
             "padding" => (p.padding_top, p.padding_bottom) = top_bottom(v),
             "font" => {
@@ -413,8 +423,12 @@ mod tests {
 
     #[test]
     fn specificity_then_order_then_the_element_itself() {
-        let doc = Html::parse_document(r#"<html><body><p class="a b" id="p">x</p><p class="a" style="font-style: italic">y</p></body></html>"#);
-        let sheet = parse_sheet("p.a { font-style: italic } .a { font-style: normal } #p { display: none } .a.b { font-style: normal }");
+        let doc = Html::parse_document(
+            r#"<html><body><p class="a b" id="p">x</p><p class="a" style="font-style: italic">y</p></body></html>"#,
+        );
+        let sheet = parse_sheet(
+            "p.a { font-style: italic } .a { font-style: normal } #p { display: none } .a.b { font-style: normal }",
+        );
         let c = cascade(&doc, &[&sheet]);
         let ps: Vec<_> = doc.select(&Selector::parse("p").unwrap()).collect();
         assert_eq!(c[&ps[0].id()], Props { hidden: Some(true), italic: Some(false), ..Props::default() });

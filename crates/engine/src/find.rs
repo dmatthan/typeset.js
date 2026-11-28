@@ -3,8 +3,8 @@
 //! UTF-16 offsets the reader uses. A query is folded the same way, so "naive" finds
 //! "naïve", "dont" does not find "don't" but "don't" finds "don’t", and so on.
 
-use unicode_normalization::char::decompose_compatible;
 use typeset_model::Book;
+use unicode_normalization::char::decompose_compatible;
 
 struct FoldedBlock {
     sec: u32,
@@ -59,7 +59,8 @@ fn fold(c: char, out: &mut String) {
         }
         c => decompose_compatible(c, |d| {
             // drop the marks a decomposition leaves (accents, cedillas, …)
-            if !matches!(d, '\u{300}'..='\u{36f}' | '\u{1ab0}'..='\u{1aff}' | '\u{1dc0}'..='\u{1dff}' | '\u{20d0}'..='\u{20ff}' | '\u{fe20}'..='\u{fe2f}') {
+            if !matches!(d, '\u{300}'..='\u{36f}' | '\u{1ab0}'..='\u{1aff}' | '\u{1dc0}'..='\u{1dff}' | '\u{20d0}'..='\u{20ff}' | '\u{fe20}'..='\u{fe2f}')
+            {
                 for l in d.to_lowercase() {
                     out.push(l);
                 }
@@ -160,7 +161,8 @@ impl Index {
 /// "painful", not "Spain").
 fn word_starts<'a>(t: &'a str, q: &'a str) -> impl Iterator<Item = (usize, &'a str)> + 'a {
     let first_alnum = q.chars().next().is_some_and(|c| c.is_alphanumeric());
-    t.match_indices(q).filter(move |&(i, _)| !first_alnum || !t[..i].chars().next_back().is_some_and(|c| c.is_alphanumeric()))
+    t.match_indices(q)
+        .filter(move |&(i, _)| !first_alnum || !t[..i].chars().next_back().is_some_and(|c| c.is_alphanumeric()))
 }
 
 #[cfg(test)]
@@ -176,8 +178,24 @@ mod tests {
     fn finds_at_word_starts_and_maps_back() {
         let text = "In Spain the pain was naïve; “Pain,” he said.".to_string();
         let block = typeset_model::Block::new(1, typeset_model::Kind::P, text, vec![]);
-        let sec = typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![block], head: None };
-        let book = Book { id: "t".into(), meta: Default::default(), sections: vec![sec], notes: vec![], images: vec![], leading: None, cover: None };
+        let sec = typeset_model::Section {
+            kind: typeset_model::SectionKind::Chapter,
+            part: String::new(),
+            label: String::new(),
+            num: "1".into(),
+            title: String::new(),
+            blocks: vec![block],
+            head: None,
+        };
+        let book = Book {
+            id: "t".into(),
+            meta: Default::default(),
+            sections: vec![sec],
+            notes: vec![],
+            images: vec![],
+            leading: None,
+            cover: None,
+        };
         let ix = Index::build(&book);
         let f = ix.find("pain", 10);
         assert_eq!(f.total, 2);

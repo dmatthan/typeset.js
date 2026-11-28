@@ -15,7 +15,11 @@ fn word_and_markdown_manuscripts_become_the_same_book() {
         // the title is not a chapter; the two headings are
         assert_eq!(b.sections.len(), 2, "{name}");
         assert!(b.sections.iter().all(|s| s.kind == SectionKind::Chapter));
-        assert_eq!((b.sections[0].label.as_str(), b.sections[0].title.as_str()), ("Chapter One", "The Harbour"), "{name}");
+        assert_eq!(
+            (b.sections[0].label.as_str(), b.sections[0].title.as_str()),
+            ("Chapter One", "The Harbour"),
+            "{name}"
+        );
         let blocks = &b.sections[0].blocks;
         let kinds: Vec<Kind> = blocks.iter().map(|b| b.kind).collect();
         assert_eq!(kinds, [Kind::P, Kind::P, Kind::Q, Kind::P, Kind::Break, Kind::P], "{name}");
@@ -41,8 +45,22 @@ fn markdown_keeps_its_links_to_the_web_and_mail_and_nothing_else() {
     let md = "# One\n\nSee [the archive](https://example.org/a?b=1), <https://example.org/auto>, [write](mailto:a@example.org), [a script](javascript:alert(1)) and [a page](other.md).\n";
     let b = typeset_ingest::any(md.as_bytes(), "post.md").unwrap();
     let p = &b.sections[0].blocks[0];
-    let urls: Vec<(&str, &str)> = p.links.iter().filter_map(|l| match &l.to { Target::Url(u) => Some((&p.text[l.start as usize..l.end as usize], u.as_str())), _ => None }).collect();
-    assert_eq!(urls, [("the archive", "https://example.org/a?b=1"), ("https://example.org/auto", "https://example.org/auto"), ("write", "mailto:a@example.org")]);
+    let urls: Vec<(&str, &str)> = p
+        .links
+        .iter()
+        .filter_map(|l| match &l.to {
+            Target::Url(u) => Some((&p.text[l.start as usize..l.end as usize], u.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        urls,
+        [
+            ("the archive", "https://example.org/a?b=1"),
+            ("https://example.org/auto", "https://example.org/auto"),
+            ("write", "mailto:a@example.org")
+        ]
+    );
     // the others' words stay, as words
     assert!(p.text.contains("a script and a page."), "{}", p.text);
 }

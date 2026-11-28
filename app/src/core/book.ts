@@ -18,7 +18,10 @@ export function blockOrdinals(book: BookData) {
   if (!o) {
     const start: number[] = [];
     let n = 0;
-    for (const s of book.sections) { start.push(n); n += s.blocks.length; }
+    for (const s of book.sections) {
+      start.push(n);
+      n += s.blocks.length;
+    }
     o = { start, total: Math.max(1, n) };
     ordinals.set(book, o);
   }

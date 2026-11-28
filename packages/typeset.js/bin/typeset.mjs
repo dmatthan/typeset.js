@@ -17,7 +17,9 @@ const isReader = d => existsSync(resolve(d, 'embed.html')) && existsSync(resolve
 
 if (existsSync(to) && readdirSync(to).length) {
   if (!statSync(to).isDirectory() || !isReader(to)) {
-    console.error(`${relative('.', to) || to} is not a reader's folder: nothing was written. Name a new folder, or an empty one.`);
+    console.error(
+      `${relative('.', to) || to} is not a reader's folder: nothing was written. Name a new folder, or an empty one.`,
+    );
     process.exit(1);
   }
   rmSync(to, { recursive: true });

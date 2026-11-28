@@ -20,19 +20,26 @@
   let shown = $state(false);
   let leaving = $state(false);
 
-  const vw = window.innerWidth, vh = window.innerHeight;
+  const vw = window.innerWidth,
+    vh = window.innerHeight;
   const capH = alt ? 56 : 0;
   // fit the window, and never more than twice the image's own size
   const k = Math.min((vw * 0.92) / iw, (vh * 0.88 - capH) / ih, 2);
-  const tw = iw * k, th = ih * k, tx = (vw - tw) / 2, ty = (vh - capH - th) / 2;
-  const from = $derived(`translate(${lb.rect.x - tx}px, ${lb.rect.y - ty}px) scale(${lb.rect.w / tw}, ${lb.rect.h / th})`);
+  const tw = iw * k,
+    th = ih * k,
+    tx = (vw - tw) / 2,
+    ty = (vh - capH - th) / 2;
+  const from = $derived(
+    `translate(${lb.rect.x - tx}px, ${lb.rect.y - ty}px) scale(${lb.rect.w / tw}, ${lb.rect.h / th})`,
+  );
 
   /** A press begun on the picture: only that puts it away (a touch screen's click for the
    *  tap that opened it comes after, onto the picture, and must not close it again). */
   let pressed = false;
   function close() {
     if (leaving) return;
-    leaving = true; shown = false;
+    leaving = true;
+    shown = false;
     setTimeout(() => (ui.lightbox = null), reduceMotion() ? 0 : 280);
   }
   // the image on the page steps aside while its large self is out, so it seems to lift
@@ -43,45 +50,112 @@
     for (const f of onPage) f.style.visibility = 'hidden';
     requestAnimationFrame(() => requestAnimationFrame(() => (shown = true)));
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+      if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        close();
+      }
     };
     window.addEventListener('keydown', key, true);
-    return () => { window.removeEventListener('keydown', key, true); for (const f of onPage) f.style.visibility = ''; };
+    return () => {
+      window.removeEventListener('keydown', key, true);
+      for (const f of onPage) f.style.visibility = '';
+    };
   });
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="lb" class:shown class:rich class:reduced={reduceMotion()} role="dialog" aria-label={rich ? 'Figure' : alt || 'Image'} tabindex="-1" onpointerdown={() => (pressed = true)} onclick={() => { if (pressed) close(); pressed = false; }}>
+<div
+  class="lb"
+  class:shown
+  class:rich
+  class:reduced={reduceMotion()}
+  role="dialog"
+  aria-label={rich ? 'Figure' : alt || 'Image'}
+  tabindex="-1"
+  onpointerdown={() => (pressed = true)}
+  onclick={() => {
+    if (pressed) close();
+    pressed = false;
+  }}
+>
   <div class="scrim"></div>
   {#if rich}<div class="card" style="left:{tx - 20}px;top:{ty - 20}px;width:{tw + 40}px;height:{th + 40}px"></div>{/if}
-  <img {src} alt={alt} style="left:{tx}px;top:{ty}px;width:{tw}px;height:{th}px;transform:{shown ? 'none' : from}" />
+  <img {src} {alt} style="left:{tx}px;top:{ty}px;width:{tw}px;height:{th}px;transform:{shown ? 'none' : from}" />
   {#if alt && !rich}<p class="cap" style="top:{ty + th + 16}px">{alt}</p>{/if}
 </div>
 
 <style>
-  .lb { position: fixed; inset: 0; z-index: 80; cursor: zoom-out; }
+  .lb {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    cursor: zoom-out;
+  }
   .scrim {
-    position: absolute; inset: 0; opacity: 0; transition: opacity var(--calm) ease;
-    background: radial-gradient(ellipse at 50% 46%, oklch(0.13 0.008 260 / 0.84) 0%, oklch(0.09 0.008 260 / 0.92) 60%, oklch(0.05 0.008 260 / 0.97) 100%);
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity var(--calm) ease;
+    background: radial-gradient(
+      ellipse at 50% 46%,
+      oklch(0.13 0.008 260 / 0.84) 0%,
+      oklch(0.09 0.008 260 / 0.92) 60%,
+      oklch(0.05 0.008 260 / 0.97) 100%
+    );
   }
   img {
-    position: absolute; transform-origin: 0 0; border-radius: var(--r-xs); will-change: transform;
-    transition: transform var(--calm) cubic-bezier(.2, .8, .2, 1); box-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
-    object-fit: contain; image-rendering: auto;
+    position: absolute;
+    transform-origin: 0 0;
+    border-radius: var(--r-xs);
+    will-change: transform;
+    transition: transform var(--calm) cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 0 0 1px oklch(1 0 0 / 0.06);
+    object-fit: contain;
+    image-rendering: auto;
     /* line art often comes on a transparent ground: give it its paper */
     background: var(--paper);
   }
   .cap {
-    position: absolute; left: 50%; transform: translateX(-50%); width: min(720px, 86vw); margin: 0; text-align: center;
-    font: 500 14px/1.45 var(--f-ui); color: oklch(0.92 0.005 260 / 0.82); opacity: 0; transition: opacity var(--quick) ease var(--quick);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(720px, 86vw);
+    margin: 0;
+    text-align: center;
+    font: 500 14px/1.45 var(--f-ui);
+    color: oklch(0.92 0.005 260 / 0.82);
+    opacity: 0;
+    transition: opacity var(--quick) ease var(--quick);
   }
-  .shown .scrim { opacity: 1; }
-  .shown .cap { opacity: 1; }
-  .reduced img, .reduced .scrim, .reduced .cap { transition: none; }
+  .shown .scrim {
+    opacity: 1;
+  }
+  .shown .cap {
+    opacity: 1;
+  }
+  .reduced img,
+  .reduced .scrim,
+  .reduced .cap {
+    transition: none;
+  }
   /* a rich block is ink on transparent: shown on a card of the page's paper, its ink
      turned light only where the paper is dark (as on the page: reader.css) */
-  .card { position: absolute; border-radius: var(--r-l); background: var(--paper); opacity: 0; transition: opacity var(--calm) ease; }
-  .shown .card { opacity: 1; }
-  .lb.rich img { background: none; box-shadow: none; }
-  :global(.dark-paper) .lb.rich img { filter: invert(1) hue-rotate(180deg); }
+  .card {
+    position: absolute;
+    border-radius: var(--r-l);
+    background: var(--paper);
+    opacity: 0;
+    transition: opacity var(--calm) ease;
+  }
+  .shown .card {
+    opacity: 1;
+  }
+  .lb.rich img {
+    background: none;
+    box-shadow: none;
+  }
+  :global(.dark-paper) .lb.rich img {
+    filter: invert(1) hue-rotate(180deg);
+  }
 </style>

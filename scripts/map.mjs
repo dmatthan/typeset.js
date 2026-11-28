@@ -7,7 +7,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = new URL('../app/src/', import.meta.url).pathname;
-const LAYERS = [['core', 'the platform: the engine, storage, the service, the browser'], ['reader', 'reading: a book laid out, moved, marked'], ['ui', 'the components: they show and ask'], ['.', 'the start']];
+const LAYERS = [
+  ['core', 'the platform: the engine, storage, the service, the browser'],
+  ['reader', 'reading: a book laid out, moved, marked'],
+  ['ui', 'the components: they show and ask'],
+  ['.', 'the start'],
+];
 
 /** What a file says it is: the comment it opens with (a component's, its script's first
  *  thing), its first sentence, on one line. */
@@ -16,7 +21,10 @@ function says(text) {
   const head = (script ? script[1] : text).trimStart();
   const m = head.match(/^\/\*\*?([\s\S]*?)\*\/|^((?:[ \t]*\/\/.*\n)+)/);
   if (!m) return '';
-  const body = (m[1] ?? m[2]).replace(/^[ \t]*(\*|\/\/)[ \t]?/gm, '').replace(/\s+/g, ' ').trim();
+  const body = (m[1] ?? m[2])
+    .replace(/^[ \t]*(\*|\/\/)[ \t]?/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const end = body.search(/\.(\s|$)/);
   const first = end > 0 ? body.slice(0, end + 1) : body;
   return first.length > 150 ? first.slice(0, 149) + '…' : first;
@@ -24,7 +32,9 @@ function says(text) {
 
 const missing = [];
 for (const [dir, what] of LAYERS) {
-  const files = readdirSync(join(root, dir)).filter(f => /\.(ts|svelte)$/.test(f) && !f.endsWith('.d.ts')).sort();
+  const files = readdirSync(join(root, dir))
+    .filter(f => /\.(ts|svelte)$/.test(f) && !f.endsWith('.d.ts'))
+    .sort();
   console.log(`\n${dir === '.' ? 'app/src' : dir + '/'}: ${what}`);
   for (const f of files) {
     const s = says(readFileSync(join(root, dir, f), 'utf8'));

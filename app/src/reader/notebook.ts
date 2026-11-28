@@ -29,29 +29,64 @@ export interface NoteEntry {
 
 /** What the library keeps of each book's notebook, so it can list every book's at once
  *  without opening them. Written whenever the book's notes change. */
-export interface Digest { title: string; author: string; updated: number; items: NoteEntry[] }
+export interface Digest {
+  title: string;
+  author: string;
+  updated: number;
+  items: NoteEntry[];
+}
 
 /** Everything the reader has added to a book, in reading order. */
-export function notebookOf(book: BookData, keyIndex: KeyIndex, ann: Annotation[], marks: Iterable<string>): NoteEntry[] {
+export function notebookOf(
+  book: BookData,
+  keyIndex: KeyIndex,
+  ann: Annotation[],
+  marks: Iterable<string>,
+): NoteEntry[] {
   const out: NoteEntry[] = [];
   const files = new Map(fileNotes(book, ann, marks, keyIndex).map(f => [f.id, f]));
   for (const a of ann) {
     if (a.lost) continue;
     const hit = keyIndex.get(a.key);
     if (!hit) continue;
-    out.push({ kind: 'ann', id: a.id, sec: hit[0], where: chapTitle(book, hit[0]), quote: a.quote.replace(/\n/g, ' / '), note: a.note, color: a.color, at: { key: a.key, off: a.s }, order: readingOrder(hit[0], hit[1], a.s), file: files.get(a.id) });
+    out.push({
+      kind: 'ann',
+      id: a.id,
+      sec: hit[0],
+      where: chapTitle(book, hit[0]),
+      quote: a.quote.replace(/\n/g, ' / '),
+      note: a.note,
+      color: a.color,
+      at: { key: a.key, off: a.s },
+      order: readingOrder(hit[0], hit[1], a.s),
+      file: files.get(a.id),
+    });
   }
   for (const key of marks) {
     const hit = keyIndex.get(key);
     if (!hit) continue;
-    out.push({ kind: 'mark', id: key, sec: hit[0], where: chapTitle(book, hit[0]), quote: book.sections[hit[0]].blocks[hit[1]].t.replace(/\n/g, ' / '), note: '', color: 0, at: { key, off: 0 }, order: readingOrder(hit[0], hit[1], 0), file: files.get('m:' + key) });
+    out.push({
+      kind: 'mark',
+      id: key,
+      sec: hit[0],
+      where: chapTitle(book, hit[0]),
+      quote: book.sections[hit[0]].blocks[hit[1]].t.replace(/\n/g, ' / '),
+      note: '',
+      color: 0,
+      at: { key, off: 0 },
+      order: readingOrder(hit[0], hit[1], 0),
+      file: files.get('m:' + key),
+    });
   }
   return out.sort((a, z) => a.order - z.order);
 }
 
 export function saveDigest(book: BookData, items: NoteEntry[]) {
   const k = 'nb.' + book.id;
-  if (!items.length) { kv.del(k); return; }
+  if (!items.length) {
+    kv.del(k);
+    return;
+  }
   kv.set(k, { title: book.title, author: book.author, updated: Date.now(), items } satisfies Digest);
 }
 
@@ -67,8 +102,13 @@ export function digests(): Map<string, Digest> {
 
 /** Text as find matches it: case, accents, curly quotes and dashes folded away. */
 export function fold(s: string): string {
-  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
-    .replace(/[‘’‛′]/g, "'").replace(/[“”‟″]/g, '"').replace(/[‐-―]/g, '-');
+  return s
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[‘’‛′]/g, "'")
+    .replace(/[“”‟″]/g, '"')
+    .replace(/[‐-―]/g, '-');
 }
 
 /** A book's notebook entries as Markdown that can be put back on the book
@@ -80,7 +120,20 @@ export function markdownOf(book: { id: string; title: string; author: string }, 
     const shown = it.quote.replace(/ \/ /g, '\n');
     const key = 'key' in it.at ? it.at.key : '';
     const s = 'key' in it.at ? it.at.off : 0;
-    const file: FileNote = it.file ?? { id: it.kind === 'mark' ? 'm:' + key : it.id, kind: it.kind === 'mark' ? 'mark' : 'highlight', key, s, e: s + shown.length, quote: shown, prefix: '', suffix: '', color: it.color || undefined, note: it.note || undefined, created: 0, updated: 0 };
+    const file: FileNote = it.file ?? {
+      id: it.kind === 'mark' ? 'm:' + key : it.id,
+      kind: it.kind === 'mark' ? 'mark' : 'highlight',
+      key,
+      s,
+      e: s + shown.length,
+      quote: shown,
+      prefix: '',
+      suffix: '',
+      color: it.color || undefined,
+      note: it.note || undefined,
+      created: 0,
+      updated: 0,
+    };
     return { where: it.where, shown: it.kind === 'ann' ? file.quote : shown, file };
   });
   return { file: { format: FORMAT, book, from: { id: m.id, name: m.name }, sent: Date.now() }, entries };

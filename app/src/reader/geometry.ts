@@ -9,15 +9,27 @@ export const BAR = 52;
 
 /** Reading geometry for a stage size. */
 export interface Metrics {
-  W: number; H: number; phone: boolean;
+  W: number;
+  H: number;
+  phone: boolean;
   /** The type's size (`sizeOf`: the theme's, the screen's, the reader's steps), whatever the
    *  face: one size is one size, as a type size is anywhere. */
-  fs: number; lh: number; G: number; P: number;
+  fs: number;
+  lh: number;
+  G: number;
+  P: number;
   /** Columns in the focus window, and its width and left edge. */
-  N: number; focusW: number; x0: number;
+  N: number;
+  focusW: number;
+  x0: number;
   /** Whether the requested layout had to give way to a narrower window. */
   reduced: boolean;
-  colW: number; colH: number; rows: number; y0: number; cx: number; headRows: number;
+  colW: number;
+  colH: number;
+  rows: number;
+  y0: number;
+  cx: number;
+  headRows: number;
   /** The band under the text, above the window's safe area, that holds where the reader is
    *  (Progress.svelte): nothing of the text is ever in it. */
   foot: number;
@@ -28,7 +40,12 @@ export interface Metrics {
   arrows: boolean;
 }
 
-interface Across { N: number; colW: number; G: number; arrows: boolean }
+interface Across {
+  N: number;
+  colW: number;
+  G: number;
+  arrows: boolean;
+}
 
 /** What a theme contributes to the geometry. */
 export interface Look {
@@ -50,7 +67,8 @@ export const RAIL = 360;
  *  where the page asked for less of the reader, nor where their room would leave the text
  *  a measure narrower than the layout ever takes (`spread`). */
 export const ARROWS = 56;
-const arrowed = () => embedded && embedOpts.ui === 'full' && ui.place === 'box' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+const arrowed = () =>
+  embedded && embedOpts.ui === 'full' && ui.place === 'box' && matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 /** A spread of exactly the chosen columns filling the window, like an open book, each column
  *  a page. A page's margins are a tenth of its width (a phone's, as Apple Books sets them;
@@ -63,11 +81,14 @@ const arrowed = () => embedded && embedOpts.ui === 'full' && ui.place === 'box' 
  *  turn columns pass under the paper at its sides. */
 function spread(W: number, fs: number, phone: boolean, q: number, layout: Layout): Across {
   const G = phone ? 24 : Math.round(Math.min(84, Math.max(40, fs * 2.6, W * 0.035)));
-  const comfortable = Math.round(fs * 25), minMeasure = Math.round(fs * 21), cap = Math.round(fs * 32);
+  const comfortable = Math.round(fs * 25),
+    minMeasure = Math.round(fs * 21),
+    cap = Math.round(fs * 32);
   const room = ARROWS + Math.ceil(G / 2);
   // for n columns and the reader's steps: the margin, and the column's width
   const set = (n: number, arrows: boolean, steps = q) => {
-    const page = Math.round(W / n / 10), base = arrows ? Math.max(page, room) : page;
+    const page = Math.round(W / n / 10),
+      base = arrows ? Math.max(page, room) : page;
     const margin = Math.max(arrows ? room : 0, Math.round(page * 0.3), Math.round(base * (1 + 0.08 * steps)));
     const width = Math.floor((W - 2 * margin - (n - 1) * G) / n);
     // (the line capped: the step takes from it what it would have given the margins)
@@ -90,15 +111,28 @@ function spread(W: number, fs: number, phone: boolean, q: number, layout: Layout
  *  app), in px: read from CSS `env()` through a probe, once a size is known. */
 export function insets(): { t: number; b: number; l: number; r: number } {
   const p = document.createElement('div');
-  p.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  p.style.cssText =
+    'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
   document.body.append(p);
   const cs = getComputedStyle(p);
-  const v = { t: parseFloat(cs.paddingTop) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0, r: parseFloat(cs.paddingRight) || 0 };
+  const v = {
+    t: parseFloat(cs.paddingTop) || 0,
+    b: parseFloat(cs.paddingBottom) || 0,
+    l: parseFloat(cs.paddingLeft) || 0,
+    r: parseFloat(cs.paddingRight) || 0,
+  };
   p.remove();
   return v;
 }
 
-export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t: 0, b: 0, l: 0, r: 0 }, size?: number, layout: Layout = settings.layout): Metrics {
+export function metrics(
+  W: number,
+  H: number,
+  look: Look = PLAIN_LOOK,
+  ins = { t: 0, b: 0, l: 0, r: 0 },
+  size?: number,
+  layout: Layout = settings.layout,
+): Metrics {
   const phone = W < 640;
   // a phone's bands for a phone held sideways too (a short window): wide, but with room for
   // only a few lines
@@ -123,15 +157,38 @@ export function metrics(W: number, H: number, look: Look = PLAIN_LOOK, ins = { t
   // as from the top or the foot, which the window's own edges, or a phone's, give the app)
   const pad = embedded && !bare ? 8 : 0;
   const foot = (bare ? (small ? 26 : 44) : small ? 52 : 60) + pad;
-  let topM = ins.t + (bare ? foot : pad + BAR + (small ? 10 : 20)), botM = ins.b + foot;
+  let topM = ins.t + (bare ? foot : pad + BAR + (small ? 10 : 20)),
+    botM = ins.b + foot;
   // as many rows as fit between the head and the foot, never one under them; a box too short
   // for even one (a strip on someone's page) gives up some of its head and foot for it
-  if (H - topM - botM < lh) { const k = Math.max(0, H - lh) / (topM + botM); topM = Math.floor(topM * k); botM = Math.floor(botM * k); }
+  if (H - topM - botM < lh) {
+    const k = Math.max(0, H - lh) / (topM + botM);
+    topM = Math.floor(topM * k);
+    botM = Math.floor(botM * k);
+  }
   const rows = Math.max(1, Math.min(46, Math.floor((H - topM - botM) / lh)));
   const colH = rows * lh;
   const y0 = topM + Math.max(0, Math.floor((H - topM - botM - colH) / 2));
   return {
-    W, H, phone, fs, lh, G, P: colW + G, N, focusW, x0, reduced: layout !== 'auto' && N < layout,
-    colW, colH, rows, y0, cx, headRows: rows < 16 ? 4 : phone ? 6 : 7, foot: botM - ins.b, pad, arrows,
+    W,
+    H,
+    phone,
+    fs,
+    lh,
+    G,
+    P: colW + G,
+    N,
+    focusW,
+    x0,
+    reduced: layout !== 'auto' && N < layout,
+    colW,
+    colH,
+    rows,
+    y0,
+    cx,
+    headRows: rows < 16 ? 4 : phone ? 6 : 7,
+    foot: botM - ins.b,
+    pad,
+    arrows,
   };
 }

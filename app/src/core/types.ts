@@ -50,9 +50,33 @@ export interface BlockData {
   /** A table's shape: columns, header rows, each cell's column span. */
   tb?: { cols: number; header_rows: number; spans: number[] };
 }
-export interface NoteData { label: string; t: string; r: number[]; at: string | null }
-export const enum BlockKind { P = 0, H = 1, Q = 2, Li = 3, Verse = 4, Attrib = 5, Sign = 6, Center = 7, Break = 8, Image = 9, Table = 10, Pre = 11 }
-export const enum Style { Italic = 1, Bold = 2, SmallCaps = 4, Sup = 8, Sub = 16 }
+export interface NoteData {
+  label: string;
+  t: string;
+  r: number[];
+  at: string | null;
+}
+export const enum BlockKind {
+  P = 0,
+  H = 1,
+  Q = 2,
+  Li = 3,
+  Verse = 4,
+  Attrib = 5,
+  Sign = 6,
+  Center = 7,
+  Break = 8,
+  Image = 9,
+  Table = 10,
+  Pre = 11,
+}
+export const enum Style {
+  Italic = 1,
+  Bold = 2,
+  SmallCaps = 4,
+  Sup = 8,
+  Sub = 16,
+}
 
 export interface LayoutParams {
   size: number;
@@ -97,18 +121,53 @@ export interface FamilyLoad {
 
 /** Where a note was: its block, UTF-16 offsets, the words and a little either side, and
  *  how far through the book (0–1), if known. */
-export interface NoteAnchor { key: string; s: number; e: number; quote: string; prefix: string; suffix: string; pos?: number }
+export interface NoteAnchor {
+  key: string;
+  s: number;
+  e: number;
+  quote: string;
+  prefix: string;
+  suffix: string;
+  pos?: number;
+}
 /** Where it is now. `same`: unmoved; `moved`: the same words elsewhere; `changed`: the
  *  words were reworded; `lost`: not found (key and offsets as they were). */
-export interface Placed { key: string; s: number; e: number; how: 'same' | 'moved' | 'changed' | 'lost' }
+export interface Placed {
+  key: string;
+  s: number;
+  e: number;
+  how: 'same' | 'moved' | 'changed' | 'lost';
+}
 
 /** A match found by library search, with the words around it. */
-export interface LibHit { sec: number; block: number; key: string; s: number; e: number; chapter: string; before: string; matched: string; after: string }
+export interface LibHit {
+  sec: number;
+  block: number;
+  key: string;
+  s: number;
+  e: number;
+  chapter: string;
+  before: string;
+  matched: string;
+  after: string;
+}
 /** A book's matches: how many, whether the phrase (else paragraphs with every word), the first few. */
-export interface BookHits { id: string; total: number; phrase: boolean; hits: LibHit[] }
+export interface BookHits {
+  id: string;
+  total: number;
+  phrase: boolean;
+  hits: LibHit[];
+}
 
 /** A note as a Word comment: the words, a little either side, who, what (annotate.rs). */
-export interface WordComment { quote: string; prefix: string; suffix: string; author: string; text: string; date: string }
+export interface WordComment {
+  quote: string;
+  prefix: string;
+  suffix: string;
+  author: string;
+  text: string;
+  date: string;
+}
 
 export interface LibEntry {
   id: string;
@@ -176,7 +235,10 @@ export interface Core {
   imageBytes(id: string, idx: number): Promise<ArrayBuffer>;
   /** Readers' notes put into a Word file as Word comments, found there by their words:
    *  the file again, how many were placed, and which were not. */
-  annotateDocx(docx: Uint8Array, notes: WordComment[]): Promise<{ bytes: Uint8Array; placed: number; unplaced: number[] }>;
+  annotateDocx(
+    docx: Uint8Array,
+    notes: WordComment[],
+  ): Promise<{ bytes: Uint8Array; placed: number; unplaced: number[] }>;
   /** Chapters `from` to `to` of a file (a book's kept file) as an EPUB of their own: a
    *  sample to put online, or a manuscript as an EPUB. */
   epubOf(bytes: Uint8Array, name: string, from: number, to: number): Promise<Uint8Array>;
@@ -187,5 +249,7 @@ export interface Core {
   /** Files the engine fetched (web build), for the service worker to keep. */
   fetched?(): Promise<string[]>;
   /** Native file picker (desktop app); the web build uses a file input instead. */
-  pick?(): Promise<{ kind: 'book'; entry: LibEntry } | { kind: 'notes'; text: string } | { kind: 'backup'; file: Blob } | null>;
+  pick?(): Promise<
+    { kind: 'book'; entry: LibEntry } | { kind: 'notes'; text: string } | { kind: 'backup'; file: Blob } | null
+  >;
 }

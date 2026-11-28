@@ -39,10 +39,13 @@ export function edges(color: string, ms: number) {
     });
   }
   clearTimeout(again);
-  if (strips.length) again = window.setTimeout(() => {
-    for (const d of strips) d.style.display = 'none';
-    requestAnimationFrame(() => { for (const d of strips) d.style.display = ''; });
-  }, ms + 60);
+  if (strips.length)
+    again = window.setTimeout(() => {
+      for (const d of strips) d.style.display = 'none';
+      requestAnimationFrame(() => {
+        for (const d of strips) d.style.display = '';
+      });
+    }, ms + 60);
   // theme-color, when the browser is idle (reading the colour back makes it restyle now)
   const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 200));
   idle(() => {

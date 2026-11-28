@@ -37,7 +37,11 @@ pub struct BookHits {
 /// Each paragraph's folded text, for the full-text index: (section, block, text).
 pub fn fts_rows(book: &Book) -> impl Iterator<Item = (u32, u32, String)> + '_ {
     book.sections.iter().enumerate().flat_map(|(si, sec)| {
-        sec.blocks.iter().enumerate().filter(|(_, b)| !b.text.is_empty()).map(move |(bi, b)| (si as u32, bi as u32, fold_str(&b.text)))
+        sec.blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.text.is_empty())
+            .map(move |(bi, b)| (si as u32, bi as u32, fold_str(&b.text)))
     })
 }
 
@@ -133,7 +137,12 @@ pub fn in_book(book: &Book, blocks: Option<&[(u32, u32)]>, query: &str, keep: us
     let list = match blocks {
         Some(b) => b,
         None => {
-            all = book.sections.iter().enumerate().flat_map(|(si, s)| (0..s.blocks.len()).map(move |bi| (si as u32, bi as u32))).collect();
+            all = book
+                .sections
+                .iter()
+                .enumerate()
+                .flat_map(|(si, s)| (0..s.blocks.len()).map(move |bi| (si as u32, bi as u32)))
+                .collect();
             &all
         }
     };
@@ -191,12 +200,26 @@ mod tests {
 
     fn book() -> Book {
         let mk = |k: u64, t: &str| typeset_model::Block::new(k, typeset_model::Kind::P, t.to_string(), vec![]);
-        let sec = |label: &str, blocks| typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: label.into(), num: "1".into(), title: String::new(), blocks, head: None };
+        let sec = |label: &str, blocks| typeset_model::Section {
+            kind: typeset_model::SectionKind::Chapter,
+            part: String::new(),
+            label: label.into(),
+            num: "1".into(),
+            title: String::new(),
+            blocks,
+            head: None,
+        };
         Book {
             id: "b".into(),
             meta: Default::default(),
             sections: vec![
-                sec("Chapter I", vec![mk(1, "The anarchist poet said nothing at all, and the night went on without him."), mk(2, "A naïve poet; “Don’t,” said he.")]),
+                sec(
+                    "Chapter I",
+                    vec![
+                        mk(1, "The anarchist poet said nothing at all, and the night went on without him."),
+                        mk(2, "A naïve poet; “Don’t,” said he."),
+                    ],
+                ),
                 sec("Chapter II", vec![mk(3, "Poets and anarchists, he said, are one.")]),
             ],
             notes: vec![],
@@ -236,7 +259,10 @@ mod tests {
 
     #[test]
     fn fts_expressions() {
-        assert_eq!(fts_queries("Anarchist  po").unwrap(), ("\"anarchist po\" *".to_string(), "\"anarchist\" * AND \"po\" *".to_string()));
+        assert_eq!(
+            fts_queries("Anarchist  po").unwrap(),
+            ("\"anarchist po\" *".to_string(), "\"anarchist\" * AND \"po\" *".to_string())
+        );
         assert_eq!(fts_queries("Don’t").unwrap().0, "\"don t\" *");
         assert!(fts_queries("— …").is_none());
     }

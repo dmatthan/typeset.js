@@ -1,7 +1,6 @@
 //! Turns EPUB, Word (DOCX), Markdown and plain-text files into the book model.
 
 pub mod annotate;
-pub mod write;
 mod css;
 mod doc;
 mod docx;
@@ -10,6 +9,7 @@ mod heads;
 mod markdown;
 mod rich;
 mod text;
+pub mod write;
 
 pub use typeset_model::Book;
 
@@ -94,10 +94,14 @@ pub fn any(bytes: &[u8], file_name: &str) -> Result<Book, Error> {
 fn foreign(b: &[u8]) -> Option<&'static str> {
     let at = |o: usize, sig: &[u8]| b.len() >= o + sig.len() && &b[o..o + sig.len()] == sig;
     if at(0, b"%PDF") {
-        return Some("it is a PDF, which fixes its text on pages; Volumen needs text it can set itself (EPUB, Word, Markdown or plain text)");
+        return Some(
+            "it is a PDF, which fixes its text on pages; Volumen needs text it can set itself (EPUB, Word, Markdown or plain text)",
+        );
     }
     if at(60, b"BOOKMOBI") || at(60, b"TEXtREAd") || at(0, b"\xeaDRMION\xee") {
-        return Some("it is a Kindle book; Volumen reads EPUB (Calibre converts Kindle books that have no copy protection)");
+        return Some(
+            "it is a Kindle book; Volumen reads EPUB (Calibre converts Kindle books that have no copy protection)",
+        );
     }
     if at(0, b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1") {
         return Some("it is an older Word document (.doc); save it as .docx from Word, Pages or Google Docs");
@@ -105,7 +109,12 @@ fn foreign(b: &[u8]) -> Option<&'static str> {
     if at(0, b"{\\rtf") {
         return Some("it is in Rich Text Format; save it as .docx from the program that made it");
     }
-    if at(0, b"\xff\xd8\xff") || at(0, b"\x89PNG") || at(0, b"GIF8") || (at(0, b"RIFF") && at(8, b"WEBP")) || (at(4, b"ftyp") && (at(8, b"heic") || at(8, b"heix") || at(8, b"mif1") || at(8, b"avif"))) {
+    if at(0, b"\xff\xd8\xff")
+        || at(0, b"\x89PNG")
+        || at(0, b"GIF8")
+        || (at(0, b"RIFF") && at(8, b"WEBP"))
+        || (at(4, b"ftyp") && (at(8, b"heic") || at(8, b"heix") || at(8, b"mif1") || at(8, b"avif")))
+    {
         return Some("it is an image, not a book");
     }
     if b.starts_with(b"PK\x03\x04") {
@@ -130,7 +139,15 @@ fn is_docx(bytes: &[u8]) -> bool {
 }
 
 pub(crate) fn finish_book(source: &[u8], meta: Meta, sections: Vec<Section>) -> Book {
-    Book { id: format!("{:016x}", typeset_model::fnv64(source)), meta, sections, notes: vec![], images: vec![], leading: None, cover: None }
+    Book {
+        id: format!("{:016x}", typeset_model::fnv64(source)),
+        meta,
+        sections,
+        notes: vec![],
+        images: vec![],
+        leading: None,
+        cover: None,
+    }
 }
 
 /// One long unbroken text (no headings to cut it by) in parts of about 2,600 words, named
@@ -142,7 +159,15 @@ pub(crate) fn parts(blocks: Vec<Block>, cut: bool) -> Vec<Section> {
     for b in blocks {
         if out.is_empty() || (cut && w > 2600 && b.kind != Kind::Break) {
             let n = out.len() + 1;
-            out.push(Section { kind: SectionKind::Chapter, part: String::new(), label: if cut { format!("Part {n}") } else { String::new() }, num: n.to_string(), title: String::new(), blocks: Vec::new(), head: None });
+            out.push(Section {
+                kind: SectionKind::Chapter,
+                part: String::new(),
+                label: if cut { format!("Part {n}") } else { String::new() },
+                num: n.to_string(),
+                title: String::new(),
+                blocks: Vec::new(),
+                head: None,
+            });
             w = 0;
         }
         w += typeset_model::words(&b.text);

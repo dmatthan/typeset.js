@@ -12,12 +12,21 @@ fn main() {
         "all" => (1, usize::MAX),
         r => match r.split_once('-') {
             Some((f, t)) => (f.parse().expect("a number"), t.parse().expect("a number")),
-            None => { let n = r.parse().expect("a number"); (n, n) }
+            None => {
+                let n = r.parse().expect("a number");
+                (n, n)
+            }
         },
     };
     let bytes = std::fs::read(src).expect("the book");
     match typeset_ingest::write::sample(&bytes, src, from, to) {
-        Ok(epub) => { std::fs::write(out, epub).expect("written"); eprintln!("{out}"); }
-        Err(e) => { eprintln!("{e}"); std::process::exit(1); }
+        Ok(epub) => {
+            std::fs::write(out, epub).expect("written");
+            eprintln!("{out}");
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
     }
 }

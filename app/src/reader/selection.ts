@@ -8,11 +8,15 @@ import type { Strip } from './strip';
 export type Point = [number, number, number];
 
 /** A text selection in the book: from one point to another (either may come first). */
-export interface Sel { a: Point; z: Point }
+export interface Sel {
+  a: Point;
+  z: Point;
+}
 
 /** The selection's ends in reading order. */
 function ordered(sel: Sel): [Point, Point] {
-  const [as, ab, ao] = sel.a, [zs, zb, zo] = sel.z;
+  const [as, ab, ao] = sel.a,
+    [zs, zb, zo] = sel.z;
   return as > zs || (as === zs && (ab > zb || (ab === zb && ao > zo))) ? [sel.z, sel.a] : [sel.a, sel.z];
 }
 
@@ -30,7 +34,8 @@ export function* spans(book: BookData, sel: Sel): Generator<{ s: number; b: numb
 /** The quote of a selection, for copying. */
 export function selText(book: BookData, sel: Sel): string {
   const parts: string[] = [];
-  for (const { s, b, from, to } of spans(book, sel)) parts.push(book.sections[s].blocks[b].t.slice(from, to).replace(/\n/g, ' / '));
+  for (const { s, b, from, to } of spans(book, sel))
+    parts.push(book.sections[s].blocks[b].t.slice(from, to).replace(/\n/g, ' / '));
   return parts.join('\n\n').trim();
 }
 
@@ -46,7 +51,10 @@ export function pointAt(strip: Strip, node: Node | null, off: number): Point | n
   const tw = document.createTreeWalker(ln, NodeFilter.SHOW_TEXT);
   for (let t = tw.nextNode(); t; t = tw.nextNode()) {
     if ((t.parentElement as Element).closest('.bul')) continue;
-    if (t === node) { n += off; break; }
+    if (t === node) {
+      n += off;
+      break;
+    }
     n += (t as Text).length;
   }
   if (node?.nodeType !== 3) n = 0;

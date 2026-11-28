@@ -38,17 +38,38 @@ struct V3Block {
 }
 impl From<V3Block> for super::Block {
     fn from(b: V3Block) -> Self {
-        super::Block { links: b.links, image: b.image, table: b.table, ..super::Block::new(b.key, b.kind, b.text, b.runs) }
+        super::Block {
+            links: b.links,
+            image: b.image,
+            table: b.table,
+            ..super::Block::new(b.key, b.kind, b.text, b.runs)
+        }
     }
 }
 impl From<V3Section> for super::Section {
     fn from(s: V3Section) -> Self {
-        super::Section { kind: s.kind, part: s.part, label: s.label, num: s.num, title: s.title, blocks: s.blocks.into_iter().map(Into::into).collect(), head: None }
+        super::Section {
+            kind: s.kind,
+            part: s.part,
+            label: s.label,
+            num: s.num,
+            title: s.title,
+            blocks: s.blocks.into_iter().map(Into::into).collect(),
+            head: None,
+        }
     }
 }
 impl From<V3> for super::Book {
     fn from(b: V3) -> Self {
-        super::Book { id: b.id, meta: b.meta, sections: b.sections.into_iter().map(Into::into).collect(), notes: b.notes, images: b.images, leading: None, cover: None }
+        super::Book {
+            id: b.id,
+            meta: b.meta,
+            sections: b.sections.into_iter().map(Into::into).collect(),
+            notes: b.notes,
+            images: b.images,
+            leading: None,
+            cover: None,
+        }
     }
 }
 
@@ -57,14 +78,37 @@ fn a_book_saved_by_an_earlier_release_is_read_and_this_form_keeps_what_it_adds()
     let v3 = V3 {
         id: "c".into(),
         meta: super::Meta { title: "Old".into(), ..Default::default() },
-        sections: vec![V3Section { kind: super::SectionKind::Chapter, part: String::new(), label: "I".into(), num: "1".into(), title: "One".into(), blocks: vec![V3Block { key: 3, kind: super::Kind::P, text: "Third.".into(), runs: vec![], links: vec![], image: None, table: None }] }],
+        sections: vec![V3Section {
+            kind: super::SectionKind::Chapter,
+            part: String::new(),
+            label: "I".into(),
+            num: "1".into(),
+            title: "One".into(),
+            blocks: vec![V3Block {
+                key: 3,
+                kind: super::Kind::P,
+                text: "Third.".into(),
+                runs: vec![],
+                links: vec![],
+                image: None,
+                table: None,
+            }],
+        }],
         notes: vec![],
         images: vec![],
     };
     let mut bytes = super::SAVE_MAGIC_V3.to_vec();
     bytes.extend(postcard::to_allocvec(&v3).unwrap());
     let b = super::Book::restore(&bytes).unwrap();
-    assert_eq!((b.id.as_str(), b.sections[0].title.as_str(), b.sections[0].blocks[0].text.as_str(), b.sections[0].head.is_none()), ("c", "One", "Third.", true));
+    assert_eq!(
+        (
+            b.id.as_str(),
+            b.sections[0].title.as_str(),
+            b.sections[0].blocks[0].text.as_str(),
+            b.sections[0].head.is_none()
+        ),
+        ("c", "One", "Third.", true)
+    );
     // and this form keeps the book's leading
     let b = super::Book { leading: Some(1.5), ..b };
     assert_eq!(super::Book::restore(&b.save().unwrap()).unwrap().leading, Some(1.5));

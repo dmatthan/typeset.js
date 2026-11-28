@@ -17,7 +17,16 @@
   const { reader, contents } = reading(core);
   let findBar: any = $state();
   let chip: any = $state();
-  const keyed: Keyed = { reader, contents, get chip() { return chip; }, get findBar() { return findBar; } };
+  const keyed: Keyed = {
+    reader,
+    contents,
+    get chip() {
+      return chip;
+    },
+    get findBar() {
+      return findBar;
+    },
+  };
 
   /** A theme by its name, or one the page made (`typeset-theme/1`, checked as any theme
    *  file is); for this visit only. False if it is neither. */
@@ -50,12 +59,25 @@
   // svelte-ignore state_referenced_locally
   embeddedBook(core)
     .then(async r => {
-      if ('error' in r) { error = r.error; return; }
+      if ('error' in r) {
+        error = r.error;
+        return;
+      }
       await reader.open(r.id);
-      tellPage('ready', { title: reader.book?.title ?? '', chapters: reader.book?.sections.filter(s => s.k === 1).length ?? 0 });
+      tellPage('ready', {
+        title: reader.book?.title ?? '',
+        chapters: reader.book?.sections.filter(s => s.k === 1).length ?? 0,
+      });
     })
-    .catch(e => { error = `The book could not be opened (${(e as Error).message}).`; })
-    .finally(() => { if (error) { ui.busy = ''; tellPage('error', { message: error }); } });
+    .catch(e => {
+      error = `The book could not be opened (${(e as Error).message}).`;
+    })
+    .finally(() => {
+      if (error) {
+        ui.busy = '';
+        tellPage('error', { message: error });
+      }
+    });
 
   // where the book is: its box or the page's window, as the page last said; the screen, past
   // either, the frame's own (the browser's full screen), its leaving (Escape too) whatever
@@ -64,13 +86,20 @@
   const placed = () => (ui.place = document.fullscreenElement ? 'screen' : told);
   document.addEventListener('fullscreenchange', placed);
   onCommand(async c => {
-    if (c.type === 'place') { told = c.place; placed(); return; }
+    if (c.type === 'place') {
+      told = c.place;
+      placed();
+      return;
+    }
     if (!reader.book || !reader.strip) return;
     // (a place named before the whole book is set would be travelled to by estimate)
     await reader.whole;
     if (!reader.strip) return;
     // (a theme is a face and its spacing as much as colours: the text is set again for it)
-    if (c.type === 'theme') { if (useTheme(c.theme)) await reader.settingsChanged('layout'); return; }
+    if (c.type === 'theme') {
+      if (useTheme(c.theme)) await reader.settingsChanged('layout');
+      return;
+    }
     // a chapter (counted from 1, as the page counts them), or a fraction of the book
     const chapters = reader.book.sections.flatMap((s, i) => (s.k === 1 ? [i] : []));
     const sec = c.chapter !== undefined ? chapters[c.chapter - 1] : undefined;
