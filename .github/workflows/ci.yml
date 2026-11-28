@@ -65,7 +65,7 @@ jobs:
         with: { browser: "${{ matrix.browser }}" }
       - run: (cd app && npx playwright test ${{ matrix.projects }})
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with: { name: "test-results-${{ matrix.suite }}", path: app/test-results, retention-days: 7 }
 
   # the package's command on the oldest Node its `engines` allows

@@ -27,7 +27,7 @@ jobs:
         with: { browser: webkit }
       - run: (cd app && npx playwright test --project=webkit --retries=2)
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with: { name: test-results-webkit, path: app/test-results, retention-days: 14 }
 
   slow:
@@ -42,7 +42,7 @@ jobs:
         with: { browser: chromium }
       - run: scripts/check.sh --slow
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with: { name: test-results-slow, path: app/test-results, retention-days: 14 }
 
   report:
