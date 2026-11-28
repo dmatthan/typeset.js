@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read};
 use typeset_model::{Block, Head, HeadLine, Kind, Meta, Section, SectionKind, TextBuilder, fnv64, percent_decode, style};
 
+mod blocks;
 mod images;
 mod links;
 mod sections;
