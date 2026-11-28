@@ -165,7 +165,7 @@ pub fn parse(bytes: &[u8]) -> Result<crate::Book, Error> {
     let container = z.text("META-INF/container.xml").ok_or(Error::Unreadable("it has no META-INF/container.xml"))?;
     if locked(&mut z) {
         return Err(Error::Unreadable(
-            "it is locked by the shop that sold it (DRM), and Volumen reads only books without DRM",
+            "it is locked by the shop that sold it (DRM), and only books without DRM are read here",
         ));
     }
     let cdoc = Html::parse_document(&container);

@@ -32,7 +32,7 @@ use typeset_model::{Block, Kind, Meta, Section, SectionKind};
 
 #[derive(Debug)]
 pub enum Error {
-    /// The file is not one Volumen reads, or is damaged; the message finishes "Couldn't
+    /// The file is not one the importers read, or is damaged; the message finishes "Couldn't
     /// open it: …".
     Unreadable(&'static str),
     /// No readable text was found.
@@ -89,18 +89,18 @@ pub fn any(bytes: &[u8], file_name: &str) -> Result<Book, Error> {
     }
 }
 
-/// A kind of file Volumen does not read, told by its first bytes (or a zip's contents),
+/// A kind of file the importers do not read, told by its first bytes (or a zip's contents),
 /// as the end of "Couldn't open it: …".
 fn foreign(b: &[u8]) -> Option<&'static str> {
     let at = |o: usize, sig: &[u8]| b.len() >= o + sig.len() && &b[o..o + sig.len()] == sig;
     if at(0, b"%PDF") {
         return Some(
-            "it is a PDF, which fixes its text on pages; Volumen needs text it can set itself (EPUB, Word, Markdown or plain text)",
+            "it is a PDF, which fixes its text on pages; books are read here from text that can be set anew (EPUB, Word, Markdown or plain text)",
         );
     }
     if at(60, b"BOOKMOBI") || at(60, b"TEXtREAd") || at(0, b"\xeaDRMION\xee") {
         return Some(
-            "it is a Kindle book; Volumen reads EPUB (Calibre converts Kindle books that have no copy protection)",
+            "it is a Kindle book; books are read here as EPUB (Calibre converts Kindle books that have no copy protection)",
         );
     }
     if at(0, b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1") {

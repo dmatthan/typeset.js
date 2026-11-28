@@ -1,4 +1,4 @@
-//! A book written out as an EPUB 3, from Volumen's own model: the text with its styles,
+//! A book written out as an EPUB 3, from the book model (typeset-model): the text with its styles,
 //! headings, quotations, verse, lists, tables, images and notes, in plain XHTML and a
 //! small stylesheet. What it is for first: a sample of a few chapters, so an author puts
 //! only those online (typeset.js); and it reads back as the same book.
