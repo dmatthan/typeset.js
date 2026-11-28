@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  rust:
+  cargo-deny:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -24,7 +24,7 @@ jobs:
         with: { tool: cargo-deny }
       - run: cargo deny check
 
-  npm:
+  npm-audit:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
