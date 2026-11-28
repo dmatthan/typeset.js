@@ -187,7 +187,7 @@ for (const { size, use, axe, books } of SIZES) test.describe(size, () => {
     await check('help', ['.sheet']);
     await esc('.sheet');
     // a link out of the book, asked about (a long address: it wraps within the sheet)
-    await p.evaluate(() => (window as any).__typeset.reader.openLink('https://example.org/a/rather/long/address/for/a/phone/to/wrap/within/its/sheet?with=a&query=too'));
+    await p.evaluate(() => (window as any).__typeset.reader.references.openLink('https://example.org/a/rather/long/address/for/a/phone/to/wrap/within/its/sheet?with=a&query=too'));
     await expect(p.locator('.sheet')).toBeVisible();
     await check('link', ['.sheet']);
     await esc('.sheet');

@@ -8,6 +8,7 @@ import { kv } from '../core/kv';
 import type { BookData, NoteAnchor } from '../core/types';
 import { CTX } from './annotations';
 import type { Strip } from './strip';
+import type { Reader } from './reader.svelte';
 
 export interface Bookmark { id: string; key: string; off: number; quote: string; prefix: string; suffix: string; at: number }
 
@@ -44,3 +45,42 @@ export const bookmarksIn = (list: Bookmark[], strip: Strip, from: number, to: nu
 
 /** A bookmark as an anchor to place on the book's text again (`Core.place`). */
 export const anchorOfBookmark = (b: Bookmark): NoteAnchor => ({ key: b.key, s: b.off, e: b.off + b.quote.length, quote: b.quote, prefix: b.prefix, suffix: b.suffix });
+
+/** The open book's bookmarks, and the page in view's (`reader.bookmarks`). */
+export class Bookmarks {
+  /** The pages marked to come back to, in the order they were marked. */
+  list: Bookmark[] = $state([]);
+
+  constructor(private r: Reader) {}
+
+  load(bookId: string) { this.list = loadBookmarks(bookId); }
+  clear() { this.list = []; }
+
+  /** The bookmarks on the columns in view. */
+  inView(): Bookmark[] {
+    const { strip, M, cur } = this.r;
+    return strip && M ? bookmarksIn(this.list, strip, cur, cur + M.N - 1) : [];
+  }
+
+  /** Whether the page in view has a bookmark, or can have one (`markable`). */
+  canMark(): boolean {
+    const { strip, cur } = this.r;
+    return !!strip && (this.inView().length > 0 || !!markable(strip, cur));
+  }
+
+  /** The page in view marked to come back to; or, marked already, unmarked. */
+  toggle() {
+    const { book, strip, cur } = this.r;
+    if (!book || !strip) return;
+    const here = this.inView();
+    if (here.length) this.list = this.list.filter(b => !here.includes(b));
+    else { const b = bookmarkAt(book, strip, cur); if (b) this.list = [...this.list, b]; }
+    saveBookmarks(book.id, this.list);
+  }
+
+  remove(id: string) {
+    this.list = this.list.filter(b => b.id !== id);
+    if (this.r.book) saveBookmarks(this.r.book.id, this.list);
+  }
+}
+

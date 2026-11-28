@@ -117,10 +117,10 @@ export class ReaderInput {
 
   /** What a press in the text opens, by what it was on. */
   private targets: [string, (el: HTMLElement) => void][] = [
-    ['a.nr', el => this.r.openNote(+el.dataset.n!, el)],
-    ['a.xr', el => this.r.followRef(el.dataset.b!)],
-    ['a.ur', el => this.r.openLink(el.dataset.u!)],
-    ['figure.img', el => this.r.openImage(+el.dataset.i!, el)],
+    ['a.nr', el => this.r.references.openNote(+el.dataset.n!, el)],
+    ['a.xr', el => this.r.references.follow(el.dataset.b!)],
+    ['a.ur', el => this.r.references.openLink(el.dataset.u!)],
+    ['figure.img', el => this.r.references.openImage(+el.dataset.i!, el)],
     // (with the rail, every note in view has its card already)
     ['.nd', el => { ui.chip = null; if (!ui.railed) ui.sideNotes = { ids: [el.dataset.a!], pinned: true }; }],
   ];

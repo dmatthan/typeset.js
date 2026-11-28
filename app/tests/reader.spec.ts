@@ -82,7 +82,7 @@ test('the reader\'s menus and sheets take each theme\'s paper, softened, and its
     const ratio = (a: number[], b: number[]) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
     const found: string[] = [], seen: string[] = [];
     for (const t of BUILTIN) for (const mode of ['light', 'dark']) {
-      v.settings.theme = t.id; v.settings.appearance = mode; v.reader.themeChanged();
+      v.settings.theme = t.id; v.settings.appearance = mode; v.reader.appearance.themeChanged();
       const paper = rgb('backgroundColor', 'var(--paper)');
       // the text over each highlight, laid on the paper as the page lays it, reads
       for (const h of ['--hl1', '--hl2', '--hl3', '--hl4']) {
@@ -1035,7 +1035,7 @@ test('each theme its own size, a step of the reader\'s carried to every theme, a
   await openSample(p);
   const sizeIn = async (theme: string) => {
     await p.evaluate(async t => { const v = (window as any).__typeset; v.settings.theme = t; await v.reader.settingsChanged('layout'); }, theme);
-    await expect.poll(() => p.evaluate(() => { const r = (window as any).__typeset.reader; return r.M.fs === r.measure(undefined, r.wanted()).fs; })).toBe(true);
+    await expect.poll(() => p.evaluate(() => { const r = (window as any).__typeset.reader; return r.M.fs === r.measure(undefined, r.appearance.wanted()).fs; })).toBe(true);
     return p.evaluate(() => (window as any).__typeset.reader.M.fs);
   };
   // (a desktop: each theme's phone size three steps up)
@@ -1055,7 +1055,7 @@ test('each theme its own size, a step of the reader\'s carried to every theme, a
   // Book in Linen's face: Book's size still
   await sizeIn('book');
   await p.evaluate(async () => { const v = (window as any).__typeset; v.setOption(v.themeById('book'), 'face', 'Charis'); await v.reader.settingsChanged('layout'); });
-  await expect.poll(() => p.evaluate(() => (window as any).__typeset.reader.look.chain[0])).toBe('Charis');
+  await expect.poll(() => p.evaluate(() => (window as any).__typeset.reader.appearance.look.chain[0])).toBe('Charis');
   expect(await p.evaluate(() => (window as any).__typeset.reader.M.fs)).toBe(17);
 });
 
@@ -1157,7 +1157,7 @@ test('margins: a page\'s a tenth of its width, each of the reader\'s steps (−1
       await v.reader.settingsChanged('layout');
     }, m);
     // (the page as the geometry has it: a layout for the window's new size may land after)
-    await expect.poll(() => p.evaluate(() => { const r = (window as any).__typeset.reader; return r.M.colW === r.measure(undefined, r.wanted()).colW; })).toBe(true);
+    await expect.poll(() => p.evaluate(() => { const r = (window as any).__typeset.reader; return r.M.colW === r.measure(undefined, r.appearance.wanted()).colW; })).toBe(true);
     return p.evaluate(() => { const M = (window as any).__typeset.reader.M; return { colW: M.colW, x0: M.x0 }; });
   };
   for (const [w, h] of [[390, 844], [900, 800], [1600, 900]]) {
@@ -1187,7 +1187,7 @@ test('a page turned from a marked one shows no ribbon of its own, and B there ma
   await expect(ribbon).toHaveCount(0);
   await p.keyboard.press('b');
   await expect(ribbon).toHaveCount(1);
-  expect(await p.evaluate(() => (window as any).__typeset.reader.bookmarks.length)).toBe(2);
+  expect(await p.evaluate(() => (window as any).__typeset.reader.bookmarks.list.length)).toBe(2);
 });
 
 test('a bookmark is on the page it was made on (text or a picture) and goes when taken off; the title page offers none', async ({ page: p }) => {
@@ -1199,11 +1199,11 @@ test('a bookmark is on the page it was made on (text or a picture) and goes when
     await settled(p);
     const r = await p.evaluate(() => {
       const rd = (window as any).__typeset.reader;
-      rd.toggleBookmark();
-      const on = rd.bookmarks.map((b: any) => rd.strip.resolve({ key: b.key, off: b.off }));
-      const shown = rd.bookmarksInView().length;
-      rd.toggleBookmark();
-      return { on, shown, left: rd.bookmarks.length };
+      rd.bookmarks.toggle();
+      const on = rd.bookmarks.list.map((b: any) => rd.strip.resolve({ key: b.key, off: b.off }));
+      const shown = rd.bookmarks.inView().length;
+      rd.bookmarks.toggle();
+      return { on, shown, left: rd.bookmarks.list.length };
     });
     got.push({ page: k + 1, ...r }); want.push(k === 0 ? { page: 1, on: [], shown: 0, left: 0 } : { page: k + 1, on: [k], shown: 1, left: 0 });
   }
@@ -2101,9 +2101,9 @@ test('a fault in the engine: a plain message, and the engine starts again', asyn
   const out = await p.evaluate(async () => {
     const R = (window as any).__typeset.reader, core = R.core, id = R.book.id;
     // a layout already asked for when the fault comes is answered by the new engine
-    const late = core.layout(id, [0], R.params(R.M)).then(() => 'ok', (e: Error) => e.message);
+    const late = core.layout(id, [0], R.appearance.params(R.M)).then(() => 'ok', (e: Error) => e.message);
     const fault = await core.faultForTest().then(() => 'no fault', (e: Error) => e.message);
-    const after = await core.layout(id, [1], R.params(R.M)).then(() => 'ok', (e: Error) => e.message);
+    const after = await core.layout(id, [1], R.appearance.params(R.M)).then(() => 'ok', (e: Error) => e.message);
     return { fault, late: await late, after, title: (await core.open(id)).title };
   });
   expect(out.fault).toMatch(/^The reader hit a bug of its own \(a fault made on purpose, lib\.rs:\d+\)\.$/);
@@ -2261,7 +2261,7 @@ test('rich blocks: a genealogy, a figure and a formula drawn as the publisher ma
   // on dark paper, the ink turns light
   await book.click();
   await p.waitForFunction(() => (window as any).__typeset.reader.reading);
-  await p.evaluate(() => { const v = (window as any).__typeset; v.settings.appearance = 'dark'; v.reader.themeChanged(); const r = v.reader; r.jump(r.strip.secStart[0]); });
+  await p.evaluate(() => { const v = (window as any).__typeset; v.settings.appearance = 'dark'; v.reader.appearance.themeChanged(); const r = v.reader; r.jump(r.strip.secStart[0]); });
   await expect.poll(() => p.locator('figure.img.rich img').first().evaluate(i => getComputedStyle(i).filter)).toContain('invert');
 });
 
@@ -2306,7 +2306,7 @@ test('a link out of the book asks first, naming the address, then opens in a new
   expect(again.url()).toBe('https://example.org/archive');
   await again.close();
   // and an address that is neither is refused, said plainly
-  expect(await p.evaluate(() => (window as any).__typeset.reader.openLink('javascript:alert(1)'))).toBeUndefined();
+  expect(await p.evaluate(() => (window as any).__typeset.reader.references.openLink('javascript:alert(1)'))).toBeUndefined();
   await expect(p.locator('.toast')).toContainText('This link can’t be opened');
   await expect(ask).toHaveCount(0);
 });

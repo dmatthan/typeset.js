@@ -53,13 +53,13 @@
   const stepped = $derived((away && ui.sheet !== 'settings') || reader.finder.open);
   // a page with nothing of its own to come back to (the title page, the colophon) offers no
   // bookmark
-  const bookmarkable = $derived.by(() => { ui.layoutVersion; return reader.canBookmark(); });
+  const bookmarkable = $derived.by(() => { ui.layoutVersion; return reader.bookmarks.canMark(); });
   // the page in view marked (a ribbon over each column that is, while reading)
   const marked = $derived.by(() => {
     ui.page; ui.cols; ui.layoutVersion;
     const M = reader.M, strip = reader.strip;
     if (!M || !strip) return [];
-    const at = new Set(reader.bookmarksInView().map(b => strip.resolve({ key: b.key, off: b.off })));
+    const at = new Set(reader.bookmarks.inView().map(b => strip.resolve({ key: b.key, off: b.off })));
     return Array.from({ length: M.N }, (_, i) => i).filter(i => at.has(reader.cur + i)).map(i => M.x0 + i * M.P + M.colW);
   });
   const show = () => { clearTimeout(hideT); away = false; };
@@ -131,7 +131,7 @@
     {/if}
     <div class="side right">
       {#if features.highlights && bookmarkable}
-        <button class="ibtn" onclick={() => reader.toggleBookmark()} aria-pressed={marked.length > 0} aria-label="Bookmark this page" title="Bookmark this page (B)">
+        <button class="ibtn" onclick={() => reader.bookmarks.toggle()} aria-pressed={marked.length > 0} aria-label="Bookmark this page" title="Bookmark this page (B)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path class:on={marked.length > 0} d="M7 4h10v16l-5-4-5 4z" /></svg>
         </button>
       {/if}

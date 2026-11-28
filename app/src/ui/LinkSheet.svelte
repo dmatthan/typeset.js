@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** Before a link leaves the book: where it goes, and Open or Cancel (Reader.openLink). */
+  /** Before a link leaves the book: where it goes, and Open or Cancel (References.openLink). */
   import { shell } from '../core/shell';
   import { toast, ui } from '../state.svelte';
   import Sheet from './Sheet.svelte';

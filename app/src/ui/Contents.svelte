@@ -85,7 +85,7 @@
               <span class="q">{b.quote}</span>
               <span class="d">{when(b.at)}</span>
             </button>
-            <button class="rm" onclick={() => reader.removeBookmark(b.id)} aria-label="Remove bookmark" title="Remove bookmark">
+            <button class="rm" onclick={() => reader.bookmarks.remove(b.id)} aria-label="Remove bookmark" title="Remove bookmark">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
             </button>
           </div>

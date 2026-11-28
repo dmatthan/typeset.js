@@ -1,26 +1,29 @@
-/** The reader: opens a book, lays it out, puts it on the page and moves it, and holds what
- *  is open with it (notes, bookmarks, readers' notes). */
-import { edges } from '../core/edges';
-import type { BookData, Core, LayoutParams } from '../core/types';
+/** The reader: opens a book, lays it out, puts it on the page and moves it through it,
+ *  and keeps what is open with it. Its other jobs are its collaborators: the look the text
+ *  is set and painted in (appearance.ts), how far it has been read (progress.ts), bookmarks
+ *  (bookmarks.svelte.ts), what a press on the text opens (references.ts), highlights and marks (marking.ts), find (find.svelte.ts),
+ *  the keyboard's cursor (cursor.ts), pictures (images.ts). */
+import type { BookData, Core } from '../core/types';
 import { kv, flushKV } from '../core/kv';
-import { nearest, shareAt, shareOf } from '../core/book';
-import { metrics, insets, RAIL, type Look, type Metrics } from './geometry';
-import { Strip, parseLayout, F, FIELDS, type Anchor } from './strip';
+import { nearest } from '../core/book';
+import { embedded, embedMoved, embedOpts } from '../core/embed';
+import { metrics, insets, RAIL, type Metrics } from './geometry';
+import { Strip, parseLayout, type Anchor } from './strip';
 import { columnHTML, leafHTML, chapName, esc } from './render';
 import { Surface } from './surface';
 import { Motion } from './motion';
-import { calibrate } from './calibrate';
-import { settings, reduceMotion, SIZES } from './settings.svelte';
-import { themes, themeById, resolve, loadFamily, fontsReady, type Resolved } from './themes.svelte';
+import { settings, reduceMotion } from './settings.svelte';
+import { themes, type Resolved } from './themes.svelte';
+import { Appearance } from './appearance';
 import { Annotations } from './annotations';
 import { Finder } from './find.svelte';
-import { Feedback, notesFile, type Progress } from './feedback';
-import { bookmarkAt, bookmarksIn, loadBookmarks, markable, saveBookmarks, type Bookmark } from './bookmarks';
+import { Feedback, notesFile } from './feedback';
+import { ReadingProgress } from './progress';
+import { Bookmarks } from './bookmarks.svelte';
+import { References } from './references';
 import { Hold, lineStart } from './hold';
-import { geomVars, paletteVars, PALETTE, setVars, typeVars } from './paint';
+import { geomVars, setVars, typeVars } from './paint';
 import { takeNotes } from './intake';
-import { embedded, embedMoved, embedOpts, features } from '../core/embed';
-import { shell } from '../core/shell';
 import { spokenPage } from './spoken';
 import { ui, toast } from '../state.svelte';
 import { Marking } from './marking';
@@ -34,6 +37,7 @@ import { BookImages } from './images';
 const REST = 6;
 
 export class Reader {
+  /* ---------- the open book ---------- */
   core: Core;
   book: BookData | null = null;
   strip: Strip | null = null;
@@ -41,34 +45,66 @@ export class Reader {
   /** First column of the focus window, at rest (state: what shows of the page in view,
    *  its ribbon, its bookmark button, is worked out from it again when it lands). */
   cur = $state(0);
+  /** The paragraphs marked (by key). */
   marks = new Set<string>();
-  /** The pages marked to come back to (bookmarks.ts). */
-  bookmarks: Bookmark[] = $state([]);
+  /** This reader's highlights and notes on the open book. */
   ann: Annotations | null = null;
-  seen = new Set<string>();
-  /** The furthest this reader has read in the book, as a share of it (kept: `far.<id>`). */
-  furthest = 0;
+  /** Other readers' notes on the open book. */
+  fb: Feedback | null = null;
   reading = false;
+  /** Settles once the whole book is laid out for the parameters in use (until then the
+   *  columns of the sections not yet set are estimates): what travels to a place named
+   *  from outside waits for it. One promise until then, however many changes come
+   *  meanwhile: a superseded layout's is answered by the one that replaces it. */
+  whole: Promise<void> = Promise.resolve();
+  /** The column the way back returns to, while there is one. */
+  returnTo: number | null = $state(null);
 
+  /* ---------- the page ---------- */
   stage!: HTMLElement;
   surface!: Surface;
   motion!: Motion;
-
-  private gen = 0;
-  /** Bumps whenever the text is set with new parameters; a whole-book layout that
-   *  arrives for older parameters is dropped, one for the current ones always applies. */
-  private paramGen = 0;
-  private shownK = -1;
-  private dwellT = 0; private saveT = 0; private seenT = 0;
-  /** The reader's notes on a book may have changed (`notes` makes them, when wanted). */
-  onNotes: (id: string, notes: () => ReturnType<Reader['myNotes']>) => void = () => {};
-
   input!: ReaderInput;
+  /** The page as it was, faded into the new one as the text is set again (hold.ts). */
+  hold = new Hold();
+
+  /* ---------- what the reader does, by job ---------- */
+  /** The theme, its faces and calibration, and the page painted with them. */
+  appearance = new Appearance(this);
   /** Highlights, notes, marks and the notebook they make (marking.ts). */
   marking = new Marking(this);
   /** Marking from the keyboard (V). */
   cursor = new Cursor(this);
+  finder = new Finder(this);
+  bookmarks = new Bookmarks(this);
+  /** How far this reader has read the open book. */
+  progress = new ReadingProgress(this);
+  references = new References(this);
   images: BookImages;
+  /** The reader's notes on a book may have changed (`notes` makes them, when wanted). */
+  onNotes: (id: string, notes: () => ReturnType<Reader['myNotes']>) => void = () => {};
+
+  /* ---------- bookkeeping ---------- */
+  private gen = 0;
+  /** Bumps whenever the text is set with new parameters; a whole-book layout that
+   *  arrives for older parameters is dropped, one for the current ones always applies. */
+  private paramGen = 0;
+  private wholeLaid: (() => void) | null = null;
+  /** The next relayout sets the text again even if the geometry is unchanged. */
+  forceRelayout = false;
+  private opening = false;
+  private resizedWhileOpening = false;
+  private resizeT = 0;
+  private shownK = -1;
+  private saveT = 0;
+  /** A trip's way back: where the reader was and where the trip ended, as places in the
+   *  text (a relayout keeps them). Offered until the reader moves from where it ended. */
+  private trip: { from: Anchor; to: Anchor } | null = null;
+  /** Highlights and find hits for a block, as the renderer draws them (hits first). */
+  private marksOf = (key: string) => {
+    const f = this.finder.open ? this.finder.of(key) : undefined, a = this.ann?.of(key);
+    return f && a ? [...f, ...a] : f || a;
+  };
 
   constructor(core: Core) {
     this.core = core; this.images = new BookImages(core, () => this.book);
@@ -104,94 +140,11 @@ export class Reader {
       clearTimeout(this.resizeT);
       this.resizeT = window.setTimeout(() => this.relayout(), 140);
     }).observe(stage);
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.themeChanged());
-    matchMedia('(prefers-contrast: more)').addEventListener('change', () => this.themeChanged());
-    this.prewarm();
-  }
-  private resizeT = 0;
-  private opening = false;
-  private resizedWhileOpening = false;
-
-  /** The current theme, resolved for the current appearance. */
-  look: Resolved = resolve(themeById(settings.theme), false);
-
-  isDark() {
-    if (settings.appearance !== 'auto') return settings.appearance === 'dark';
-    return themes.desktop ? themes.desktop.dark : matchMedia('(prefers-color-scheme: dark)').matches;
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.appearance.themeChanged());
+    matchMedia('(prefers-contrast: more)').addEventListener('change', () => this.appearance.themeChanged());
+    this.appearance.prewarm();
   }
 
-  /** The look the settings ask for now (the page's only once its text is set: `commit`). */
-  private wanted() { return resolve(themeById(settings.theme), this.isDark()); }
-
-  /** Paints `look` on the page: the appearance on the root, the theme's colours on the
-   *  reader and all it shows (its menus, panels and sheets: the theme's paper, softened, as
-   *  their surface, so that all of it is of one piece with the page; the library's sheets
-   *  keep the app's own), the type the lines are set in (on the root, so calibration probes
-   *  anywhere are set as the lines are). Only with the text set for it (`commit`), or a
-   *  look that sets nothing differently (another appearance: `themeChanged`). */
-  private paint(look: Resolved) {
-    const root = document.documentElement;
-    const want = settings.appearance === 'auto' ? (themes.desktop ? (themes.desktop.dark ? 'dark' : 'light') : null) : settings.appearance;
-    if (want) root.setAttribute('data-theme', want); else root.removeAttribute('data-theme');
-    this.look = look;
-    const el = this.stage?.closest<HTMLElement>('.look');
-    if (el) {
-      const pal = paletteVars(look.palette, this.isDark(), matchMedia('(prefers-contrast: more)').matches);
-      if (pal) setVars(el, pal); else for (const k of PALETTE) el.style.removeProperty(k);
-    }
-    // (dark paper: rich blocks, drawn in ink, are inverted: reader.css)
-    this.stage?.parentElement?.classList.toggle('dark-paper', this.isDark());
-    root.classList.toggle('synth-sc', look.synthSc);
-    setVars(root, typeVars(look, this.M?.fs ?? 20));
-    this.paintEdges(1400);
-  }
-
-  /** The colour around the page follows the surface in view (`core/edges.ts`); `ms` as the
-   *  surface changes: the reader fades between themes over 1.4 s. */
-  paintEdges(ms: number) {
-    const c = ui.lightbox ? '#0c0d11' : ui.view !== 'reader' ? 'var(--ground)' : this.look.palette?.paper ?? 'var(--paper)';
-    edges(c, ms);
-  }
-
-  lookGeom(look = this.look): Look {
-    const o = look.options;
-    return { size: look.size, lineSpacing: o.lineSpacing, margins: o.margins };
-  }
-
-  /** The faces, weights and book the fonts were last made ready for: a size changes none
-   *  of them (asking again cost 23 ms of every change of size). */
-  private fontsFor = '';
-  /** Loads `look`'s face (system families are handed to the webview first), nothing on
-   *  the page changing; returns the look as it is known with its face (small capitals). */
-  private async ensureFonts(look: Resolved): Promise<Resolved> {
-    const book = this.book;
-    const key = JSON.stringify([look.chain, look.wght, look.bold, book?.id ?? '', book?.ext ?? '']);
-    if (key === this.fontsFor) return look;
-    // the page's faces first: the engine's copy of them then comes from the browser's
-    // cache (asked for at once, each face was downloaded twice)
-    await fontsReady(look, this.M?.fs ?? 20, '', undefined).catch(() => {});
-    await loadFamily(this.core, look.chain[0]);
-    // the family's small capitals are known only once it is loaded
-    look = this.wanted();
-    const needs = book ? await this.core.fontNeeds(book.id, look.chain[0]).catch(() => undefined) : undefined;
-    await fontsReady(look, this.M?.fs ?? 20, book?.ext ?? '', needs);
-    this.fontsFor = key;
-    return look;
-  }
-
-  /** Another appearance (light, dark, the desktop's colours): the theme's other palette,
-   *  nothing set differently. A theme, a face or an option changes through
-   *  `settingsChanged`, with the text set for it. */
-  themeChanged() { this.paint(this.wanted()); }
-
-  /** Highlights and find hits for a block, as the renderer draws them (hits first). */
-  private marksOf = (key: string) => {
-    const f = this.finder.open ? this.finder.of(key) : undefined, a = this.ann?.of(key);
-    return f && a ? [...f, ...a] : f || a;
-  };
-  finder = new Finder(this);
-  /** Other readers' notes on the open book. */
-  fb: Feedback | null = null;
 
   /** Takes notes files while a book is open (intake.ts): those for it are placed on it at
    *  once, others kept for their books. */
@@ -199,30 +152,8 @@ export class Reader {
     const texts = Array.isArray(input) ? input : [input];
     if (!this.book || !this.fb || !this.strip || !this.ann) return 'Open the book the notes are for first.';
     const { said, changed } = await takeNotes(this.core, texts, await this.core.library(), { book: this.book, ann: this.ann, marks: this.marks, fb: this.fb });
-    if (changed) { this.bookmarks = loadBookmarks(this.book.id); this.redraw(); this.marking.digestSoon(); }
+    if (changed) { this.bookmarks.load(this.book.id); this.redraw(); this.marking.digestSoon(); }
     return said;
-  }
-
-  /** The bookmarks on the columns in view. */
-  bookmarksInView(): Bookmark[] {
-    return this.strip && this.M ? bookmarksIn(this.bookmarks, this.strip, this.cur, this.cur + this.M.N - 1) : [];
-  }
-  /** Whether the page in view has a bookmark, or can have one (`markable`). */
-  canBookmark(): boolean {
-    return !!this.strip && (this.bookmarksInView().length > 0 || !!markable(this.strip, this.cur));
-  }
-  /** The page in view marked to come back to; or, marked already, unmarked. */
-  toggleBookmark() {
-    const book = this.book, strip = this.strip;
-    if (!book || !strip) return;
-    const here = this.bookmarksInView();
-    if (here.length) this.bookmarks = this.bookmarks.filter(b => !here.includes(b));
-    else { const b = bookmarkAt(book, strip, this.cur); if (b) this.bookmarks = [...this.bookmarks, b]; }
-    saveBookmarks(book.id, this.bookmarks);
-  }
-  removeBookmark(id: string) {
-    this.bookmarks = this.bookmarks.filter(b => b.id !== id);
-    if (this.book) saveBookmarks(this.book.id, this.bookmarks);
   }
 
   /** Every column in view built again from what is on the book, and what lists it told:
@@ -234,40 +165,15 @@ export class Reader {
 
   /** This reader's notes on the open book, as a notes file. */
   myNotes() {
-    const f = notesFile(this.book!, this.ann?.list ?? [], this.marks, this.strip!.keyIndex, this.bookmarks);
+    const f = notesFile(this.book!, this.ann?.list ?? [], this.marks, this.strip!.keyIndex, this.bookmarks.list);
     // how far they got goes with their notes, unless they said not
-    if (kv.get('progress.' + this.book!.id, true)) f.progress = this.progress();
+    if (kv.get('progress.' + this.book!.id, true)) f.progress = this.progress.now();
     return f;
-  }
-
-  /** Where the reader is, and the furthest they have read (to the hundredth: a page or
-   *  two read changes nothing to send). */
-  progress(): Progress {
-    const strip = this.strip!, at = this.viewEnd();
-    const r = (x: number) => Math.round(x * 100) / 100;
-    const it = strip.itemAt(this.cur);
-    return { at: r(at), furthest: r(Math.max(this.furthest, at)), where: it?.type === 'sect' ? chapName(this.book!, it.sec) : this.headFor(this.cur), done: Math.max(this.furthest, at) >= 0.995 || strip.itemAt(this.cur)?.type === 'colophon' };
-  }
-  /** The share of the book read by the end of the page in view. */
-  private viewEnd() { const strip = this.strip!; return this.textShare(Math.min(strip.N - 1, this.cur + this.M.N - 1)); }
-  /** How far through the book's text column k is: its first paragraph's place among all
-   *  of them (0 to 1). By the text, not by columns, which are estimates until the whole
-   *  book is laid out: the same in any layout, size or device. */
-  private textShare(k: number): number {
-    const strip = this.strip!, book = this.book!, a = strip.anchorAt(k);
-    if (!a) return 0;
-    if ('key' in a) return shareOf(book, strip.keyIndex, a.key) ?? 0;
-    return a.leaf === 'colophon' ? 1 : a.leaf === 'title' ? 0 : shareAt(book, a.sec, 0);
   }
 
   /** Redraws the columns in view (marks, hits) without moving anything. */
   repaint() { if (this.strip) this.surface.reset(this.cur); }
 
-  /** A trip's way back: where the reader was and where the trip ended, as places in the
-   *  text (a relayout keeps them). Offered until the reader moves from where it ended. */
-  private trip: { from: Anchor; to: Anchor } | null = null;
-  /** The column the way back returns to, while there is one. */
-  returnTo: number | null = $state(null);
 
   /** Brings column k into view: a short way on a calm curve; a long way with a quick
    *  fade, as the surface cannot build a hundred columns in passing. A trip past the
@@ -297,28 +203,11 @@ export class Reader {
     return leafHTML(strip, it);
   }
 
-  /** Whether this webview rounds glyph advances, to whole px or 1/60 px (calibrate.ts). */
-  private round = false;
-  private appUnits = false;
-  /** Whether this webview kerns across word spaces (see calibrate.ts). */
-  private spaceKern: 0 | 1 | 2 = 0;
-  /** Whether this webview shapes inline elements apart (see calibrate.ts). */
-  private linkRuns = false;
-  calibErr = 0;
-  private params(M = this.M, L = this.look): LayoutParams {
-    const o = L.options;
-    // (justified as the theme or the reader says, at any measure: a phone's too, as Apple
-    // Books sets them, hyphenation and the line breaker keeping a short line's spaces even)
-    return {
-      size: M.fs, measure: M.colW, rows: M.rows, headRows: M.headRows, lh: M.lh, justify: o.justify, hyphenate: o.hyphenate, round: this.round, appUnits: this.appUnits,
-      font: L.chain, wght: L.wght, bold: L.bold, ls: +((o.charSpacing / 100) * M.fs).toFixed(3), ws: +((o.wordSpacing / 100) * M.fs).toFixed(3), axes: L.axes, spaceKern: this.spaceKern, linkRuns: this.linkRuns,
-    };
-  }
   /** The page's style made `look`'s at `M`, in the frame the text set for them comes in
    *  (`recompose` follows at once): never before it. */
   private commit(look: Resolved, M: Metrics) {
     this.M = M;
-    this.paint(look);
+    this.appearance.paint(look);
     const reader = this.stage.parentElement!;
     setVars(reader, geomVars(M));
     ui.cols = M.N; ui.colsReduced = M.reduced; ui.phone = M.phone; ui.arrows = M.arrows; ui.railed = this.railed();
@@ -358,9 +247,8 @@ export class Reader {
       await this.images.measure(book).catch(() => {});
       if (gen !== this.gen) return;
       this.marks = new Set(kv.get<string[]>('marks.' + id, []));
-      this.bookmarks = loadBookmarks(id);
-      this.seen = new Set(kv.get<string[]>('seen.' + id, []));
-      this.furthest = kv.get<number>('far.' + id, 0);
+      this.bookmarks.load(id);
+      this.progress.load(id);
       this.reading = false;
       this.strip = new Strip(book);
       this.ann = new Annotations(book, this.strip.keyIndex);
@@ -373,7 +261,7 @@ export class Reader {
       ui.title = book.title;
       ui.view = 'reader';
       await new Promise(r => requestAnimationFrame(r));
-      const look = this.wanted();
+      const look = this.appearance.wanted();
       await this.layoutFrom(at ?? kv.get<Anchor | null>('pos.' + id, null), gen, look, this.measure(undefined, look));
       if (gen !== this.gen) return;
       // a book whose notebook the library has not seen yet gets its digest now
@@ -400,12 +288,6 @@ export class Reader {
     await this.finder.run();
   }
 
-  /** Settles once the whole book is laid out for the parameters in use (until then the
-   *  columns of the sections not yet set are estimates): what travels to a place named
-   *  from outside waits for it. One promise until then, however many changes come
-   *  meanwhile: a superseded layout's is answered by the one that replaces it. */
-  whole: Promise<void> = Promise.resolve();
-  private wholeLaid: (() => void) | null = null;
 
   /** The notes' rail is beside the text: asked for, and room for it (never on a phone). */
   railed(): boolean {
@@ -413,20 +295,9 @@ export class Reader {
   }
 
   /** The geometry for the stage as it is (less the rail, which takes one column's place). */
-  private measure(size?: number, look = this.look) {
+  measure(size?: number, look = this.appearance.look) {
     const rail = this.railed();
-    return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.lookGeom(look), insets(), size, rail ? 1 : settings.layout);
-  }
-
-  /** Calibrates `look` at `M` on a probe host of its own (the page keeps its style), in
-   *  the document's body: always drawn (the reader is hidden until a book opens, and a
-   *  probe in it measured nothing). */
-  private async calibrateFor(look: Resolved, M: Metrics) {
-    const host = document.createElement('div');
-    host.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none';
-    setVars(host, typeVars(look, M.fs));
-    document.body.append(host);
-    try { return await calibrate(this.core, host, { ...this.params(M, look), round: false, appUnits: false }); } finally { host.remove(); }
+    return metrics(this.stage.clientWidth - (rail ? RAIL : 0), this.stage.clientHeight, this.appearance.lookGeom(look), insets(), size, rail ? 1 : settings.layout);
   }
 
   /** Lays the book out at `M` in `look`, apart from the page, and puts both on the page in
@@ -437,14 +308,13 @@ export class Reader {
     if (!this.wholeLaid) this.whole = new Promise(r => (this.wholeLaid = r));
     // (the numbers wait for the whole book's count: Progress.svelte)
     ui.settling = true;
-    look = await this.ensureFonts(look);
+    look = await this.appearance.ensureFonts(look);
     performance.mark('open:fonts');
     if (gen !== this.gen) return;
-    const cal = await this.calibrateFor(look, M);
+    await this.appearance.calibrate(look, M);
     performance.mark('open:calibrated');
-    this.round = cal.round; this.appUnits = cal.appUnits; this.spaceKern = cal.spaceKern; this.linkRuns = cal.linkRuns; this.calibErr = cal.err;
     if (gen !== this.gen) return;
-    const p = this.params(M, look);
+    const p = this.appearance.params(M, look);
     const pg = ++this.paramGen;
     const near = anchor ?? strip.anchorAt(this.cur);
     let sec = 0;
@@ -455,7 +325,7 @@ export class Reader {
     if (gen !== this.gen) return;
     // the page as it is, then (in the same frame) the new: its style and its text together
     const at = anchor ?? strip.anchorAt(this.cur), old = this.M;
-    if (fade && old) this.hold.take(this.stage, this.surface.track, this.inView(), { ...typeVars(this.look, old.fs), ...geomVars(old) }, this.lineOf(at));
+    if (fade && old) this.hold.take(this.stage, this.surface.track, this.inView(), { ...typeVars(this.appearance.look, old.fs), ...geomVars(old) }, this.lineOf(at));
     this.commit(look, M);
     strip.setEstimate(M.rows, M.colW, M.fs);
     strip.layouts = first;
@@ -464,7 +334,7 @@ export class Reader {
     // a book's first page, opening, comes in softly over its paper (at the calm pace)
     else if (this.opening) this.surface.track.animate([{ opacity: 0 }, { opacity: 1 }], { duration: parseFloat(getComputedStyle(this.stage).getPropertyValue('--calm')) * 1000 || 300, easing: 'ease-out' });
     performance.mark('open:shown');
-    this.calibrateNeighbours();
+    this.appearance.calibrateNeighbours();
     // the rest, a few chapters a call, nearest first: the engine answers one call at a time,
     // and a whole book is one long call (half a second on a desktop, seconds on a phone), so
     // a change made meanwhile waited for all of it, and each change after it for another
@@ -494,36 +364,6 @@ export class Reader {
     ui.settling = false;
   }
 
-  /** The sizes either side of this one, measured while nothing else is happening: the
-   *  next step of the size control finds them known (a size not yet measured took 11–30
-   *  ms of its change). */
-  private calibrateNeighbours() {
-    // (the book, not the layout's generation: a relayout that changes nothing still
-    // counts one, and the neighbours were never measured)
-    const book = this.book;
-    const now = this.M.fs;
-    const i = SIZES.indexOf(now);
-    const next = [SIZES[i - 1], SIZES[i + 1]].filter((s): s is number => s !== undefined && i >= 0);
-    const idle = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 400));
-    idle(async () => {
-      for (const size of next) {
-        if (!book || this.book !== book) return;
-        await this.calibrateFor(this.look, this.measure(size)).catch(() => {});
-      }
-    });
-  }
-
-  /** Measures this webview's glyph positioning once, before any book is opened. */
-  async prewarm() {
-    this.paint(this.wanted());
-    const look = await this.ensureFonts(this.look);
-    await document.fonts.ready;
-    if (this.book) return;
-    this.paint(look);
-    await this.calibrateFor(look, metrics(Math.max(640, window.innerWidth), Math.max(480, window.innerHeight), this.lookGeom(look))).catch(() => {});
-    if (!this.book) this.core.idle?.();
-  }
-
   private recompose(anchor: Anchor | null, quiet = false) {
     const strip = this.strip!;
     strip.compose();
@@ -534,8 +374,6 @@ export class Reader {
     ui.layoutVersion++;
   }
 
-  /** The page as it was, faded into the new one as the text is set again (hold.ts). */
-  hold = new Hold();
   private inView() { return Array.from({ length: this.M.N }, (_, i) => this.surface.columnEl(this.cur + i)); }
   /** Where the line at `a` begins on the page in view. */
   private lineOf(a: Anchor | null | undefined) {
@@ -548,7 +386,7 @@ export class Reader {
   async relayout() {
     if (!this.book || !this.strip) return;
     const gen = ++this.gen;
-    const old = this.M, look = this.wanted(), M = this.measure(undefined, look);
+    const old = this.M, look = this.appearance.wanted(), M = this.measure(undefined, look);
     const force = this.forceRelayout;
     this.forceRelayout = false;
     if (!force && old && M.W === old.W && M.H === old.H && M.fs === old.fs && M.colW === old.colW && M.rows === old.rows && M.N === old.N) return;
@@ -561,7 +399,6 @@ export class Reader {
     }
     await this.layoutFrom(null, gen, look, M, true);
   }
-  forceRelayout = false;
   async settingsChanged(kind: 'layout' | 'style') {
     if (!this.strip) return;
     if (kind === 'layout') { this.forceRelayout = true; await this.relayout(); }
@@ -576,7 +413,7 @@ export class Reader {
     this.motion.jump(0);
     if (this.finder.open) this.finder.hide();
     ui.bookNote = null; ui.lightbox = null;
-    this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false; this.bookmarks = [];
+    this.book = null; this.strip = null; this.ann = null; this.fb = null; this.reading = false; this.bookmarks.clear();
     themes.leading = null;
     ui.chip = null;
     this.cursor.end();
@@ -590,11 +427,10 @@ export class Reader {
 
   flush() {
     if (!this.book || !this.strip) return;
-    clearTimeout(this.saveT); clearTimeout(this.seenT); clearTimeout(this.dwellT);
+    clearTimeout(this.saveT);
     const id = this.book.id;
     kv.set('pos.' + id, this.strip.anchorAt(this.cur));
-    kv.set('far.' + id, this.furthest);
-    kv.set('seen.' + id, [...this.seen]);
+    this.progress.save(id);
     kv.set('marks.' + id, [...this.marks]);
     this.marking.flushDigest();
     const it = this.strip.itemAt(this.cur);
@@ -674,9 +510,8 @@ export class Reader {
     this.returnTo = this.trip ? strip.resolve(this.trip.from) : null;
     ui.runhead = this.headFor(k); ui.page = k + 1; ui.pages = strip.N;
     const focus = this.focusCols();
-    clearTimeout(this.dwellT); this.dwellT = window.setTimeout(() => focus.forEach(c => this.markSeen(c)), 1600);
-    this.furthest = Math.max(this.furthest, this.viewEnd());
-    clearTimeout(this.saveT); this.saveT = window.setTimeout(() => { if (!this.book) return; kv.set('pos.' + this.book.id, strip.anchorAt(this.cur)); kv.set('far.' + this.book.id, this.furthest); }, 400);
+    this.progress.arrive(focus);
+    clearTimeout(this.saveT); this.saveT = window.setTimeout(() => { if (!this.book) return; kv.set('pos.' + this.book.id, strip.anchorAt(this.cur)); kv.set('far.' + this.book.id, this.progress.furthest); }, 400);
     // (by the view's last column: a spread ends with the book's last on its right)
     const last = focus[focus.length - 1] ?? k;
     if (embedded) embedMoved(strip.frac(last), last >= strip.N - 1);
@@ -690,27 +525,6 @@ export class Reader {
     if (said) said.innerHTML = spokenPage(strip, focus);
     if (!quiet && document.activeElement?.closest?.('.leaf') && !focus.some(c => this.surface.columnEl(c)?.contains(document.activeElement))) this.stage.focus({ preventScroll: true });
     if (this.cursor.active) this.cursor.move(0);
-  }
-
-  private markSeen(k: number) {
-    const L = this.strip?.linesAt(k);
-    if (!L || !this.book) return;
-    let changed = false;
-    const sec = this.book.sections[L.sec];
-    for (let j = L.from; j < L.to; j++) {
-      const key = sec.blocks[L.sl.u[j * FIELDS + F.block]].key;
-      if (!this.seen.has(key)) { this.seen.add(key); changed = true; }
-    }
-    if (changed) { clearTimeout(this.seenT); this.seenT = window.setTimeout(() => this.book && kv.set('seen.' + this.book.id, [...this.seen]), 800); }
-  }
-
-  colSeen(k: number) {
-    const L = this.strip?.linesAt(k);
-    if (!L || L.to <= L.from) return false;
-    const sec = this.book!.sections[L.sec];
-    let s = 0;
-    for (let j = L.from; j < L.to; j++) if (this.seen.has(sec.blocks[L.sl.u[j * FIELDS + F.block]].key)) s++;
-    return s / (L.to - L.from) > 0.6;
   }
 
   /** Moves to column k on a calm curve. */
@@ -731,31 +545,7 @@ export class Reader {
     this.arrive(this.cur);
   }
 
-  /* ---------- notes, references, images ---------- */
-  /** Shows note `i` beside its marker. */
-  openNote(i: number, at: HTMLElement) {
-    if (!this.book?.notes[i]) return;
-    const r = at.getBoundingClientRect(), st = this.stage.getBoundingClientRect();
-    const below = r.bottom - st.top < st.height * 0.6;
-    ui.chip = null;
-    ui.bookNote = { i, x: r.left + r.width / 2 - st.left, y: (below ? r.bottom + 6 : r.top - 6) - st.top, below };
-  }
-  /** A link out of the book: asked about first, naming the address (a press on a word is
-   *  easily made, and it leaves the book), as Apple Books asks; opened from there
-   *  (LinkSheet). Not where the page around an embedded reader has said its links are not
-   *  to be followed; an address that may not be opened is refused at once. */
-  openLink(url: string) {
-    if (!features.links) return;
-    if (!shell.outward(url)) { toast('This link can’t be opened.'); return; }
-    ui.chip = null;
-    ui.leaving = url; ui.sheet = 'link';
-  }
-  /** Travels to the block a reference names. */
-  followRef(key: string) {
-    if (!this.strip) return;
-    ui.bookNote = null;
-    this.travelTo(this.strip.resolve({ key, off: 0 }));
-  }
+  /* ---------- notes beside the text ---------- */
   /** The column of every note with a card beside its line (one's own written notes, and
    *  readers' on the page), in order (two on one page, twice): the notes' rail counts them
    *  and goes from one page with notes to the next. */
@@ -765,17 +555,6 @@ export class Reader {
     const at = [...(this.ann?.list ?? []).filter(a => a.note).map(a => ({ key: a.key, off: a.s })), ...(this.fb?.writtenAt() ?? [])];
     return at.map(a => strip.resolve(a)).sort((a, b) => a - b);
   }
-  /** Where a note is printed in the book, as a column to go to. */
-  noteHome(i: number): number | null {
-    const at = this.book?.notes[i]?.at;
-    return at && this.strip ? this.strip.resolve({ key: at, off: 0 }) : null;
-  }
-  openImage(i: number, fig: HTMLElement) {
-    const r = fig.getBoundingClientRect();
-    ui.bookNote = null; ui.chip = null;
-    ui.lightbox = { i, rect: { x: r.left, y: r.top, w: r.width, h: r.height } };
-  }
-
   /** The notes beside the text: in their rail where there is room for it (the text then
    *  in one column beside it; kept for the next time), else those in view over their
    *  columns. */

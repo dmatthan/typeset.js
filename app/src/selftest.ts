@@ -63,7 +63,7 @@ export async function selftest(reader: Reader, log: (s: string) => Promise<void>
   const t = (n: string) => { const e = performance.getEntriesByName(n).at(-1), o = performance.getEntriesByName('open').at(-1); return e && o ? Math.round(e.startTime - o.startTime) : null; };
   await until(() => !!performance.getEntriesByName('open:all-layout').length, 'the whole-book layout after opening');
   out.openStages = Object.fromEntries(['open:book', 'open:calibrated', 'open:first-layout', 'open:shown', 'open:all-layout'].map(n => [n.slice(5), t(n)]));
-  out.round = (reader as any).round; out.calibErr = reader.calibErr;
+  out.round = reader.appearance.round; out.calibErr = reader.appearance.calibErr;
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   (document.querySelector('.sheet .btn.primary') as HTMLElement)?.click();
   await wait(600);
@@ -137,7 +137,7 @@ export async function selftest(reader: Reader, log: (s: string) => Promise<void>
         }
       }
     }
-    return { lines, overflow: over, worstOverPx: worst, short, corrected: fitStats.fixed, squeezed: fitStats.squeezed, maxCorrection: fitStats.maxPx, round: (reader as any).round, calibErr: +reader.calibErr.toFixed(3) };
+    return { lines, overflow: over, worstOverPx: worst, short, corrected: fitStats.fixed, squeezed: fitStats.squeezed, maxCorrection: fitStats.maxPx, round: reader.appearance.round, calibErr: +reader.appearance.calibErr.toFixed(3) };
   };
   out.fidelity = { ...fit(), N: reader.strip!.N, focus: reader.M.N, laidOut: reader.strip!.layouts.size, sections: reader.book!.sections.length };
   const themesFit: Record<string, unknown> = {};
@@ -241,14 +241,14 @@ export async function contentProbe(reader: Reader, log: (s: string) => Promise<v
       await until(() => img.complete && img.naturalWidth > 0, 'an image through the volimg: scheme', 8000).catch(e => (r.imageError = String(e)));
       r.image = { src: img.src.slice(0, 40), w: img.naturalWidth };
       const fig = img.parentElement as HTMLElement;
-      reader.openImage(+fig.dataset.i!, fig);
+      reader.references.openImage(+fig.dataset.i!, fig);
       await wait(500);
       r.lightbox = !!document.querySelector('.lb img');
       ui.lightbox = null;
     }
     if (want === 'a.nr' && k >= 0) {
       const a = document.querySelector(`.col[data-k="${k}"] a.nr`) as HTMLElement;
-      reader.openNote(+a.dataset.n!, a);
+      reader.references.openNote(+a.dataset.n!, a);
       await wait(200);
       r.note = document.querySelector('.bn .body')?.textContent?.slice(0, 50);
       ui.bookNote = null;
@@ -268,7 +268,7 @@ export async function contentProbe(reader: Reader, log: (s: string) => Promise<v
         if (d > 0.5) { over++; if (ex.length < 6) ex.push(`${d}px ${ln.className}: ${ln.innerHTML.slice(0, 140)}`); }
       }
     }
-    r.fit = { linkRuns: (reader as any).linkRuns, lines, pre, sized, mono: document.fonts.check('16px "JetBrains Mono"'), overflow: over, corrected: vf.fitStats.fixed, subpx: vf.fitStats.subpx, maxCorrection: vf.fitStats.maxPx, calibErr: +reader.calibErr.toFixed(3), examples: ex, missed: vf.fitStats.samples.slice(0, 3) };
+    r.fit = { linkRuns: reader.appearance.linkRuns, lines, pre, sized, mono: document.fonts.check('16px "JetBrains Mono"'), overflow: over, corrected: vf.fitStats.fixed, subpx: vf.fitStats.subpx, maxCorrection: vf.fitStats.maxPx, calibErr: +reader.appearance.calibErr.toFixed(3), examples: ex, missed: vf.fitStats.samples.slice(0, 3) };
     out[file] = r;
     const id = reader.book!.id;
     reader.close();
@@ -380,7 +380,7 @@ export async function probeStrings(reader: Reader, log: (s: string) => Promise<v
     }
   }
   pr.remove();
-  await log(JSON.stringify({ round: (reader as any).round, rows }));
+  await log(JSON.stringify({ round: reader.appearance.round, rows }));
 }
 
 /** Fit under display scaling (TYPESET_SELFTEST=scale): the webview zoomed to 125% and 150%,
@@ -406,7 +406,7 @@ export async function scaleProbe(reader: Reader, log: (s: string) => Promise<voi
         reader.jump(c);
         for (const ln of document.querySelectorAll<HTMLElement>(`.col[data-k="${c}"] .ln:not(.brk)`)) { lines++; if (vf.residual(ln) > 0.5) over++; }
       }
-      out[`${z} ${t}`] = { dpr: devicePixelRatio, fs: reader.M.fs, round: (reader as any).round, calibErr: +reader.calibErr.toFixed(3), lines, overflow: over, corrected: vf.fitStats.fixed, subpx: vf.fitStats.subpx, missed: vf.fitStats.samples.slice(0, 2) };
+      out[`${z} ${t}`] = { dpr: devicePixelRatio, fs: reader.M.fs, round: reader.appearance.round, calibErr: +reader.appearance.calibErr.toFixed(3), lines, overflow: over, corrected: vf.fitStats.fixed, subpx: vf.fitStats.subpx, missed: vf.fitStats.samples.slice(0, 2) };
     }
   }
   await invoke('dev_zoom', { scale: 1 });

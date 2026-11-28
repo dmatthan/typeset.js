@@ -22,7 +22,7 @@
 
   const theme = $derived(themeById(settings.theme));
   const o = $derived(optionsOf(theme));
-  const dark = $derived(reader.isDark());
+  const dark = $derived(reader.appearance.isDark());
   const size = $derived.by(() => { ui.layoutVersion; return reader.M.fs; });
 
   $effect(() => { for (const t of themes.user) loadFamily(reader.core, t.type.family); });
@@ -48,7 +48,7 @@
   const relayout = () => { clearTimeout(relayT); relayT = window.setTimeout(() => reader.settingsChanged('layout'), 60); };
   // (a step from the theme's size, carried to every theme; none past either end of the scale)
   function setSize(d: number) {
-    if (sizeOf(reader.look.size, settings.step + d) === sizeOf(reader.look.size)) return;
+    if (sizeOf(reader.appearance.look.size, settings.step + d) === sizeOf(reader.appearance.look.size)) return;
     settings.step += d; save(); relayout();
   }
   function set<K extends keyof Settings>(k: K, v: Settings[K]) {

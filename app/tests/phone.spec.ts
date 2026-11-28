@@ -347,7 +347,7 @@ test('a phone: the bookmark button marks the page in view and turns nothing; tap
   await p.touchscreen.tap(st.x + st.width / 2, st.y + st.height / 2);
   const bm = p.locator('.bar').getByRole('button', { name: /Bookmark this page|Remove this page’s bookmark|Remove the bookmark/ });
   await expect(bm).toBeVisible();
-  const marked = () => p.evaluate(() => { const r = (window as any).__typeset.reader; return { cur: r.cur, on: r.bookmarks.map((b: any) => r.strip.resolve({ key: b.key, off: b.off })) }; });
+  const marked = () => p.evaluate(() => { const r = (window as any).__typeset.reader; return { cur: r.cur, on: r.bookmarks.list.map((b: any) => r.strip.resolve({ key: b.key, off: b.off })) }; });
   await bm.tap();
   await expect.poll(marked).toEqual({ cur: 6, on: [6] });
   await bm.tap();
