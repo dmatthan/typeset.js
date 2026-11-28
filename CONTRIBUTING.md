@@ -5,16 +5,16 @@ maintainer's, goes through an issue and a pull request.
 
 ## Setup
 
-The requirements and build commands are in the [README](README.md#build). The tests also
-need Python 3 (the package tests serve files with it) and, on Linux, clippy over the whole
-workspace needs the WebKitGTK development packages listed in `.github/workflows/ci.yml`.
+With rustup and Node installed (versions in the [README](README.md#build)):
 
 ```sh
-scripts/build-wasm.sh                     # the engine for the browser → app/src/core/pkg
-npm --prefix app ci && npm --prefix service ci
-npx --prefix app playwright install chromium firefox
-git config core.hooksPath scripts/hooks   # the fast checks before every commit
+scripts/setup.sh
 ```
+
+It installs the pinned Rust toolchain and wasm-bindgen CLI, the npm packages, the engine
+built for the browser, Playwright's browsers and the pre-commit hook, and says what else is
+wanted: Python 3 for the package's browser tests, and on Linux the WebKitGTK development
+packages for the desktop app (listed in `.github/workflows/ci.yml`).
 
 ## Flow
 
