@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: 'http://localhost:5193', viewport: { width: 1280, height: 820 } },
   webServer: [
-    { command: 'npx vite --port 5193', url: 'http://localhost:5193', reuseExistingServer: true },
+    { command: 'npx vite --port 5193', url: 'http://localhost:5193', reuseExistingServer: !process.env.CI },
     // the production build as volumen.page has it (the app at /read, the site's page at /),
     // for what only it has (the service worker)
     {
