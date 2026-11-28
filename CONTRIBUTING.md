@@ -11,8 +11,8 @@ With rustup and Node installed (versions in the [README](README.md#build)):
 scripts/setup.sh
 ```
 
-It installs the pinned Rust toolchain and wasm-bindgen CLI, the npm packages, the engine
-built for the browser, Playwright's browsers and the pre-commit hook, and says what else is
+It installs the pinned Rust toolchain and wasm-bindgen CLI, cargo-machete, the npm packages,
+the engine built for the browser, Playwright's browsers and the pre-commit hook, and says what else is
 wanted: Python 3 for the package's browser tests, and on Linux the WebKitGTK development
 packages for the desktop app (listed in `.github/workflows/ci.yml`).
 

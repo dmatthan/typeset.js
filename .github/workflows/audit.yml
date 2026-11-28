@@ -1,6 +1,7 @@
 # The dependencies, audited: the Rust crates' advisories, licences and sources (cargo-deny,
-# deny.toml), unused Rust dependencies (cargo-machete), and the npm packages' runtime
-# dependencies' advisories (npm audit). On a pull request that changes them, and weekly.
+# deny.toml) and the npm packages' runtime dependencies' advisories (npm audit). On a pull
+# request that changes them, and weekly: an advisory is published without a change here.
+# (Unused Rust dependencies are the fast gate's: scripts/lint.sh.)
 name: Audit
 
 on:
@@ -20,9 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: taiki-e/install-action@v2
-        with: { tool: "cargo-deny,cargo-machete" }
+        with: { tool: cargo-deny }
       - run: cargo deny check
-      - run: cargo machete
 
   npm:
     runs-on: ubuntu-24.04
