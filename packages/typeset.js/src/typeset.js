@@ -54,7 +54,9 @@
 // its own to copy, and the reader is not one)
 const EMBED = 'embed.html';
 let reader = new URL(EMBED, import.meta.url);
-export function serveFrom(path) { reader = new URL(EMBED, new URL(path.replace(/\/?$/, '/'), location.href)); }
+export function serveFrom(path) {
+  reader = new URL(EMBED, new URL(path.replace(/\/?$/, '/'), location.href));
+}
 // the messages between this page and the reader's frame: their version (app/src/core/embed.ts)
 const PROTOCOL = 1;
 
@@ -73,11 +75,23 @@ const css = `
 `;
 
 class TypesetBook extends HTMLElement {
-  static observedAttributes = ['src', 'chapters', 'theme', 'paper', 'back', 'end-href', 'end-label', 'remember', 'ui', 'off'];
+  static observedAttributes = [
+    'src',
+    'chapters',
+    'theme',
+    'paper',
+    'back',
+    'end-href',
+    'end-label',
+    'remember',
+    'ui',
+    'off',
+  ];
 
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' }).innerHTML = `<style>${css}</style><iframe allow="fullscreen; clipboard-write"></iframe>`;
+    this.attachShadow({ mode: 'open' }).innerHTML =
+      `<style>${css}</style><iframe allow="fullscreen; clipboard-write"></iframe>`;
     this.frame = this.shadowRoot.querySelector('iframe');
     this.ready = false;
     // where the book is: in its box, or filling the page's window
@@ -92,10 +106,18 @@ class TypesetBook extends HTMLElement {
       // (the reader's asks of the page: bigger, out again, and its paper for the page's edges)
       if (type === 'expand') return this.expand();
       if (type === 'close') return this.collapse();
-      if (type === 'paper') { this.papered(detail.paper); return; }
+      if (type === 'paper') {
+        this.papered(detail.paper);
+        return;
+      }
       if (!['ready', 'progress', 'end', 'error', 'back'].includes(type)) return;
-      if (type === 'ready') { this.ready = true; if (this.place === 'window') this.send({ type: 'place', place: 'window' }); }
-      const go = this.dispatchEvent(new CustomEvent('typeset-' + type, { detail, bubbles: true, cancelable: type === 'back' }));
+      if (type === 'ready') {
+        this.ready = true;
+        if (this.place === 'window') this.send({ type: 'place', place: 'window' });
+      }
+      const go = this.dispatchEvent(
+        new CustomEvent('typeset-' + type, { detail, bubbles: true, cancelable: type === 'back' }),
+      );
       // the reader's Back, with no address named: where the reader came from, unless the page
       // goes its own way
       if (type === 'back' && go) history.back();
@@ -110,7 +132,12 @@ class TypesetBook extends HTMLElement {
     this.place = 'window';
     this.fill(true);
     const metas = [...document.querySelectorAll('meta[name="theme-color"]')].map(m => [m, m.content]);
-    if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.append(m); metas.push([m, null]); }
+    if (!metas.length) {
+      const m = document.createElement('meta');
+      m.name = 'theme-color';
+      document.head.append(m);
+      metas.push([m, null]);
+    }
     this.tinted = { metas, root: document.documentElement.style.backgroundColor };
     this.tint();
     history.pushState({ typeset: 'place' }, '');
@@ -125,7 +152,10 @@ class TypesetBook extends HTMLElement {
     this.place = 'box';
     removeEventListener('popstate', this.onPop);
     this.fill(false);
-    for (const [m, c] of this.tinted.metas) { if (c === null) m.remove(); else m.content = c; }
+    for (const [m, c] of this.tinted.metas) {
+      if (c === null) m.remove();
+      else m.content = c;
+    }
     document.documentElement.style.backgroundColor = this.tinted.root;
     this.tinted = null;
     if (!byHistory && history.state?.typeset === 'place') history.back();
@@ -139,7 +169,10 @@ class TypesetBook extends HTMLElement {
   papered(paper) {
     this.paper = paper;
     this.style.setProperty('--paper', paper);
-    if (!this.hasAttribute('papered')) { this.setAttribute('papered', ''); if (this.hasAttribute('open')) this.frame.focus(); }
+    if (!this.hasAttribute('papered')) {
+      this.setAttribute('papered', '');
+      if (this.hasAttribute('open')) this.frame.focus();
+    }
     this.tint();
   }
 
@@ -162,24 +195,45 @@ class TypesetBook extends HTMLElement {
   fill(on) {
     this.toggleAttribute('full', on);
     const s = document.documentElement.style;
-    if (on && this.held === undefined) { this.held = { overflow: s.overflow, x: scrollX, y: scrollY }; s.overflow = 'hidden'; }
-    else if (!on && this.held !== undefined) { s.overflow = this.held.overflow; scrollTo(this.held.x, this.held.y); this.held = undefined; }
+    if (on && this.held === undefined) {
+      this.held = { overflow: s.overflow, x: scrollX, y: scrollY };
+      s.overflow = 'hidden';
+    } else if (!on && this.held !== undefined) {
+      s.overflow = this.held.overflow;
+      scrollTo(this.held.x, this.held.y);
+      this.held = undefined;
+    }
   }
 
   /** Goes to a chapter ({ chapter: 3 }, counted from 1) or a place ({ at: 0.5 }). */
-  goTo(where) { this.send({ type: 'goto', ...where }); }
+  goTo(where) {
+    this.send({ type: 'goto', ...where });
+  }
 
   /** A theme by name, or one made with Volumen (its exported JSON, as an object). */
-  setTheme(theme) { this.send({ type: 'theme', theme }); }
+  setTheme(theme) {
+    this.send({ type: 'theme', theme });
+  }
 
   send(command) {
     if (!this.ready) throw new Error('The book is not open yet: wait for typeset-ready.');
     this.frame.contentWindow.postMessage({ typeset: PROTOCOL, ...command }, reader.origin);
   }
 
-  connectedCallback() { addEventListener('message', this.onMessage); this.load(); }
-  disconnectedCallback() { removeEventListener('message', this.onMessage); if (this.place === 'window') { this.closing = null; this.collapse(true); } }
-  attributeChangedCallback() { if (this.isConnected) this.load(); }
+  connectedCallback() {
+    addEventListener('message', this.onMessage);
+    this.load();
+  }
+  disconnectedCallback() {
+    removeEventListener('message', this.onMessage);
+    if (this.place === 'window') {
+      this.closing = null;
+      this.collapse(true);
+    }
+  }
+  attributeChangedCallback() {
+    if (this.isConnected) this.load();
+  }
 
   load() {
     const src = this.getAttribute('src');
@@ -187,19 +241,35 @@ class TypesetBook extends HTMLElement {
     const p = new URLSearchParams();
     // (the book's address as the page sees it: the frame is elsewhere)
     p.set('src', new URL(src, document.baseURI).href);
-    for (const [attr, key] of [['chapters', 'ch'], ['theme', 'theme'], ['end-href', 'end'], ['end-label', 'endl'], ['ui', 'ui'], ['off', 'off']]) {
+    for (const [attr, key] of [
+      ['chapters', 'ch'],
+      ['theme', 'theme'],
+      ['end-href', 'end'],
+      ['end-label', 'endl'],
+      ['ui', 'ui'],
+      ['off', 'off'],
+    ]) {
       const v = this.getAttribute(attr);
       if (v) p.set(key, attr === 'end-href' ? new URL(v, document.baseURI).href : v);
     }
     if (this.hasAttribute('remember')) p.set('rem', '1');
     const paper = this.getAttribute('paper');
-    if (paper) { const hex = paper === 'page' ? behind(this) : painted(paper); if (hex) p.set('paper', hex); }
-    if (this.hasAttribute('back')) { const b = this.getAttribute('back'); p.set('back', b ? new URL(b, document.baseURI).href : 'history'); }
+    if (paper) {
+      const hex = paper === 'page' ? behind(this) : painted(paper);
+      if (hex) p.set('paper', hex);
+    }
+    if (this.hasAttribute('back')) {
+      const b = this.getAttribute('back');
+      p.set('back', b ? new URL(b, document.baseURI).href : 'history');
+    }
     // (this page's origin: the reader talks to it alone)
     p.set('host', location.origin);
     this.frame.title = this.getAttribute('title') || 'A book';
     const url = `${reader.href}#${p.toString()}`;
-    if (this.frame.src !== url) { this.ready = false; this.frame.src = url; }
+    if (this.frame.src !== url) {
+      this.ready = false;
+      this.frame.src = url;
+    }
   }
 }
 
@@ -228,32 +298,49 @@ function behind(el) {
 async function epubCover(src) {
   const MAX = 4 << 20;
   const head = await fetch(src, { method: 'HEAD' }).catch(() => null);
-  let total = +(head?.ok && head.headers.get('content-length')) || 0, whole = null;
+  let total = +(head?.ok && head.headers.get('content-length')) || 0,
+    whole = null;
   // bytes start..end (inclusive) of the file
   const bytes = async (start, end) => {
     if (whole) return whole.subarray(start, end + 1);
     const r = await fetch(src, { headers: { Range: `bytes=${start}-${end}` } });
-    if (r.status === 206) { total ||= +(/\/(\d+)$/.exec(r.headers.get('content-range') || '')?.[1] || 0); return new Uint8Array(await r.arrayBuffer()); }
+    if (r.status === 206) {
+      total ||= +(/\/(\d+)$/.exec(r.headers.get('content-range') || '')?.[1] || 0);
+      return new Uint8Array(await r.arrayBuffer());
+    }
     if (!r.ok || +(r.headers.get('content-length') || 0) > MAX) throw new Error('too large to read whole');
     whole = new Uint8Array(await r.arrayBuffer());
     if (whole.length > MAX) throw new Error('too large to read whole');
     return whole.subarray(start, end + 1);
   };
-  if (!total) { await bytes(0, 0); total ||= whole?.length || 0; }
+  if (!total) {
+    await bytes(0, 0);
+    total ||= whole?.length || 0;
+  }
   if (!total) return null;
-  const le = (b, o, n) => n === 2 ? b[o] | b[o + 1] << 8 : (b[o] | b[o + 1] << 8 | b[o + 2] << 16) + b[o + 3] * 0x1000000;
+  const le = (b, o, n) =>
+    n === 2 ? b[o] | (b[o + 1] << 8) : (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16)) + b[o + 3] * 0x1000000;
   // the end of the central directory, within the last 64 KB
-  const tailAt = Math.max(0, total - 65557), tail = await bytes(tailAt, total - 1);
+  const tailAt = Math.max(0, total - 65557),
+    tail = await bytes(tailAt, total - 1);
   let e = tail.length - 22;
   while (e >= 0 && le(tail, e, 4) !== 0x06054b50) e--;
   if (e < 0) return null;
-  const cdSize = le(tail, e + 12, 4), cdAt = le(tail, e + 16, 4);
-  const cd = cdAt >= tailAt ? tail.subarray(cdAt - tailAt, cdAt - tailAt + cdSize) : await bytes(cdAt, cdAt + cdSize - 1);
+  const cdSize = le(tail, e + 12, 4),
+    cdAt = le(tail, e + 16, 4);
+  const cd =
+    cdAt >= tailAt ? tail.subarray(cdAt - tailAt, cdAt - tailAt + cdSize) : await bytes(cdAt, cdAt + cdSize - 1);
   const entries = new Map();
   const dec = new TextDecoder();
-  for (let o = 0; o + 46 <= cd.length && le(cd, o, 4) === 0x02014b50;) {
-    const n = le(cd, o + 28, 2), x = le(cd, o + 30, 2), c = le(cd, o + 32, 2);
-    entries.set(dec.decode(cd.subarray(o + 46, o + 46 + n)), { method: le(cd, o + 10, 2), size: le(cd, o + 20, 4), at: le(cd, o + 42, 4) });
+  for (let o = 0; o + 46 <= cd.length && le(cd, o, 4) === 0x02014b50; ) {
+    const n = le(cd, o + 28, 2),
+      x = le(cd, o + 30, 2),
+      c = le(cd, o + 32, 2);
+    entries.set(dec.decode(cd.subarray(o + 46, o + 46 + n)), {
+      method: le(cd, o + 10, 2),
+      size: le(cd, o + 20, 4),
+      at: le(cd, o + 42, 4),
+    });
     o += 46 + n + x + c;
   }
   const read = async name => {
@@ -264,17 +351,29 @@ async function epubCover(src) {
     const data = en.size ? await bytes(start, start + en.size - 1) : new Uint8Array();
     if (en.method === 0) return data;
     if (en.method !== 8) return null;
-    return new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    return new Uint8Array(
+      await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer(),
+    );
   };
-  const xml = async name => { const b = await read(name); return b && new DOMParser().parseFromString(dec.decode(b), 'application/xml'); };
+  const xml = async name => {
+    const b = await read(name);
+    return b && new DOMParser().parseFromString(dec.decode(b), 'application/xml');
+  };
   const opfPath = (await xml('META-INF/container.xml'))?.querySelector('rootfile')?.getAttribute('full-path');
-  const opf = opfPath && await xml(opfPath);
+  const opf = opfPath && (await xml(opfPath));
   if (!opf) return null;
   const items = [...opf.getElementsByTagName('item')];
-  const named = [...opf.getElementsByTagName('meta')].find(m => m.getAttribute('name') === 'cover')?.getAttribute('content');
-  const item = items.find(i => /(^|\s)cover-image(\s|$)/.test(i.getAttribute('properties') || ''))
-    || items.find(i => named && i.getAttribute('id') === named && /^image\//.test(i.getAttribute('media-type') || ''))
-    || items.find(i => /^image\//.test(i.getAttribute('media-type') || '') && /cover/i.test((i.getAttribute('id') || '') + (i.getAttribute('href') || '')));
+  const named = [...opf.getElementsByTagName('meta')]
+    .find(m => m.getAttribute('name') === 'cover')
+    ?.getAttribute('content');
+  const item =
+    items.find(i => /(^|\s)cover-image(\s|$)/.test(i.getAttribute('properties') || '')) ||
+    items.find(i => named && i.getAttribute('id') === named && /^image\//.test(i.getAttribute('media-type') || '')) ||
+    items.find(
+      i =>
+        /^image\//.test(i.getAttribute('media-type') || '') &&
+        /cover/i.test((i.getAttribute('id') || '') + (i.getAttribute('href') || '')),
+    );
   if (!item) return null;
   const path = decodeURIComponent(new URL(item.getAttribute('href'), 'z:/' + opfPath).pathname.slice(1));
   const img = await read(path);
@@ -295,9 +394,13 @@ class TypesetLibrary extends HTMLElement {
     const src = this.getAttribute('src');
     if (!src) return;
     let books = [];
-    try { books = await (await fetch(new URL(src, document.baseURI))).json(); }
-    catch { this.shadowRoot.textContent = 'The list of books could not be read.'; return; }
-    this.books = Array.isArray(books) ? books : books.books ?? [];
+    try {
+      books = await (await fetch(new URL(src, document.baseURI))).json();
+    } catch {
+      this.shadowRoot.textContent = 'The list of books could not be read.';
+      return;
+    }
+    this.books = Array.isArray(books) ? books : (books.books ?? []);
     this.shelf();
   }
 
@@ -306,15 +409,28 @@ class TypesetLibrary extends HTMLElement {
     // an EPUB's own cover, read when its tile comes into view (once per book)
     this.covers ??= new Map();
     this.seen?.disconnect();
-    this.seen = new IntersectionObserver(es => {
-      for (const { isIntersecting, target: c } of es) {
-        if (!isIntersecting) continue;
-        this.seen.unobserve(c);
-        const src = new URL(c.book.src, document.baseURI).href;
-        if (!this.covers.has(src)) this.covers.set(src, epubCover(src).catch(() => null));
-        this.covers.get(src).then(u => { if (u) { c.style.backgroundImage = `url("${u}")`; c.textContent = ''; c.classList.add('own'); } });
-      }
-    }, { rootMargin: '200px' });
+    this.seen = new IntersectionObserver(
+      es => {
+        for (const { isIntersecting, target: c } of es) {
+          if (!isIntersecting) continue;
+          this.seen.unobserve(c);
+          const src = new URL(c.book.src, document.baseURI).href;
+          if (!this.covers.has(src))
+            this.covers.set(
+              src,
+              epubCover(src).catch(() => null),
+            );
+          this.covers.get(src).then(u => {
+            if (u) {
+              c.style.backgroundImage = `url("${u}")`;
+              c.textContent = '';
+              c.classList.add('own');
+            }
+          });
+        }
+      },
+      { rootMargin: '200px' },
+    );
     r.innerHTML = `<style>
       :host { display: block; font: inherit; color: inherit; }
       .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 28px 20px; padding: 0; margin: 0; list-style: none; }
@@ -354,7 +470,8 @@ class TypesetLibrary extends HTMLElement {
     const book = document.createElement('typeset-book');
     book.setAttribute('src', new URL(b.src, document.baseURI).href);
     book.setAttribute('title', b.title ?? 'A book');
-    for (const k of ['theme', 'remember', 'ui', 'off']) if (this.hasAttribute(k)) book.setAttribute(k, this.getAttribute(k) || '');
+    for (const k of ['theme', 'remember', 'ui', 'off'])
+      if (this.hasAttribute(k)) book.setAttribute(k, this.getAttribute(k) || '');
     r.append(book);
     r.querySelector('.back').onclick = () => this.shelf();
   }
@@ -366,11 +483,21 @@ class TypesetLibrary extends HTMLElement {
  *  it was, the focus where it was. Returns the <typeset-book> and how to close it. */
 export function open(attrs = {}, onclose) {
   const book = document.createElement('typeset-book');
-  for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) book.setAttribute(k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()), v === true ? '' : String(v));
+  for (const [k, v] of Object.entries(attrs))
+    if (v != null && v !== false)
+      book.setAttribute(
+        k.replace(/[A-Z]/g, c => '-' + c.toLowerCase()),
+        v === true ? '' : String(v),
+      );
   book.setAttribute('open', '');
   const focus = document.activeElement;
   document.body.append(book);
-  book.closing = () => { book.closing = null; book.remove(); focus?.focus?.({ preventScroll: true }); onclose?.(); };
+  book.closing = () => {
+    book.closing = null;
+    book.remove();
+    focus?.focus?.({ preventScroll: true });
+    onclose?.();
+  };
   book.expand();
   return { book, close: () => book.collapse() };
 }
@@ -386,19 +513,37 @@ class TypesetOpen extends HTMLElement {
     </style><slot><button class="cover" part="cover"><span class="c"></span></button></slot>`;
     this.addEventListener('click', () => this.open());
     // (what it holds that cannot take the keyboard, a picture alone: the element takes it)
-    this.addEventListener('keydown', e => { if (e.target === this && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this.open(); } });
+    this.addEventListener('keydown', e => {
+      if (e.target === this && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        this.open();
+      }
+    });
   }
 
-  get book() { return this.opened?.book ?? null; }
+  get book() {
+    return this.opened?.book ?? null;
+  }
 
   connectedCallback() {
-    const title = this.getAttribute('title'), src = this.getAttribute('src');
-    const cover = this.shadowRoot.querySelector('.cover'), c = this.shadowRoot.querySelector('.c');
+    const title = this.getAttribute('title'),
+      src = this.getAttribute('src');
+    const cover = this.shadowRoot.querySelector('.cover'),
+      c = this.shadowRoot.querySelector('.c');
     cover.setAttribute('aria-label', title ? `Read ${title}` : 'Read the book');
     c.textContent = title ?? '';
     const own = this.getAttribute('cover');
     if (own) c.style.backgroundImage = `url("${new URL(own, document.baseURI).href.replace(/"/g, '%22')}")`;
-    else if (src && /\.epub([?#]|$)/i.test(src)) epubCover(new URL(src, document.baseURI).href).then(u => { if (u) { c.style.backgroundImage = `url("${u}")`; c.textContent = ''; } }, () => {});
+    else if (src && /\.epub([?#]|$)/i.test(src))
+      epubCover(new URL(src, document.baseURI).href).then(
+        u => {
+          if (u) {
+            c.style.backgroundImage = `url("${u}")`;
+            c.textContent = '';
+          }
+        },
+        () => {},
+      );
     if (this.children.length && !this.querySelector('button, a[href], input, [tabindex]')) {
       this.tabIndex = 0;
       this.setAttribute('role', 'button');
@@ -409,9 +554,13 @@ class TypesetOpen extends HTMLElement {
   open() {
     if (this.opened || !this.getAttribute('src')) return;
     const attrs = {};
-    for (const k of ['src', 'chapters', 'theme', 'paper', 'end-href', 'end-label', 'remember', 'ui', 'off', 'title']) if (this.hasAttribute(k)) attrs[k] = this.getAttribute(k) || true;
+    for (const k of ['src', 'chapters', 'theme', 'paper', 'end-href', 'end-label', 'remember', 'ui', 'off', 'title'])
+      if (this.hasAttribute(k)) attrs[k] = this.getAttribute(k) || true;
     attrs.src = new URL(attrs.src, document.baseURI).href;
-    this.opened = open(attrs, () => { this.opened = null; this.dispatchEvent(new CustomEvent('typeset-close', { bubbles: true })); });
+    this.opened = open(attrs, () => {
+      this.opened = null;
+      this.dispatchEvent(new CustomEvent('typeset-close', { bubbles: true }));
+    });
     this.dispatchEvent(new CustomEvent('typeset-open', { bubbles: true, detail: { book: this.opened.book } }));
   }
 }

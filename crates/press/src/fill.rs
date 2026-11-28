@@ -122,14 +122,27 @@ pub(crate) fn spans_with(b: &typeset_model::Block, add: u8, link_runs: bool) -> 
 }
 
 /// Sets one section's paragraphs into lines (no columns yet).
-fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image], p: &Params, lang: Option<&Patterns>) -> Vec<Para> {
+fn set_paras(
+    m: &mut Measurer,
+    mono: &mut Mono,
+    sec: &Section,
+    images: &[Image],
+    p: &Params,
+    lang: Option<&Patterns>,
+) -> Vec<Para> {
     let em = p.typo.size;
     let mut out: Vec<Para> = Vec::with_capacity(sec.blocks.len());
     let mut no_indent = true;
     for (bi, b) in sec.blocks.iter().enumerate() {
         let bi = bi as u32;
         let mut para = Para { lines: Vec::new(), space_before: 0, space_after: 0, keep_with_next: false, whole: false };
-        let mk = |lines: Vec<crate::brk::Line>, text: &str, base: usize, x_first: f32, x_rest: f32, flags: u16, out: &mut Vec<PLine>| {
+        let mk = |lines: Vec<crate::brk::Line>,
+                  text: &str,
+                  base: usize,
+                  x_first: f32,
+                  x_rest: f32,
+                  flags: u16,
+                  out: &mut Vec<PLine>| {
             let mut cur = U16Cursor::new(text);
             for (i, l) in lines.iter().enumerate() {
                 let x = if i == 0 { x_first } else { x_rest };
@@ -147,7 +160,18 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                 }
                 let s = cur.at(base + l.s as usize);
                 let e = cur.at(base + l.e as usize);
-                out.push(PLine { col: 0, row: 0, block: bi, s, e, x, avail: p.measure - x, natural: l.natural, spaces: l.spaces, flags: f });
+                out.push(PLine {
+                    col: 0,
+                    row: 0,
+                    block: bi,
+                    s,
+                    e,
+                    x,
+                    avail: p.measure - x,
+                    natural: l.natural,
+                    spaces: l.spaces,
+                    flags: f,
+                });
             }
         };
         match b.kind {
@@ -157,7 +181,9 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                 let longest = b.text.split('\n').map(|l| l.chars().count()).max().unwrap_or(1).max(1) as f32;
                 let fit = p.measure / (longest * 0.6) * 0.99;
                 let size = (((em * 0.82).min(fit) * 4.0).floor() / 4.0).max((em * 0.55 * 4.0).ceil() / 4.0);
-                let wide = |t: &str, mono: &mut Mono, m: &mut Measurer| mono.width(size, p.typo.round, p.typo.app_units, t).unwrap_or_else(|| m.width(t, 0) * size / em);
+                let wide = |t: &str, mono: &mut Mono, m: &mut Measurer| {
+                    mono.width(size, p.typo.round, p.typo.app_units, t).unwrap_or_else(|| m.width(t, 0) * size / em)
+                };
                 let mut cur = U16Cursor::new(&b.text);
                 let mut at = 0usize;
                 // a line still too wide wraps at its last space that fits (or, with none,
@@ -176,7 +202,9 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                         let rest = &b.text[start..end];
                         let chars = rest.chars().count();
                         let end_of = |n: usize| rest.char_indices().nth(n).map_or(end, |(i, _)| start + i);
-                        let fits = |n: usize, mono: &mut Mono, m: &mut Measurer| wide(&b.text[start..end_of(n)], mono, m) <= room;
+                        let fits = |n: usize, mono: &mut Mono, m: &mut Measurer| {
+                            wide(&b.text[start..end_of(n)], mono, m) <= room
+                        };
                         // `lo` characters fit, `hi` do not
                         let (mut lo, mut hi) = (0, chars + 1);
                         let mut step = 1;
@@ -218,7 +246,11 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                         }
                         let mut next = stop;
                         if stop < end {
-                            if let Some(sp) = b.text[start..=stop].rfind(' ').map(|i| start + i).filter(|&i| !b.text[start..i].trim_start().is_empty()) {
+                            if let Some(sp) = b.text[start..=stop]
+                                .rfind(' ')
+                                .map(|i| start + i)
+                                .filter(|&i| !b.text[start..i].trim_start().is_empty())
+                            {
                                 stop = b.text[start..sp].trim_end_matches(' ').len() + start;
                                 next = sp;
                             }
@@ -226,7 +258,18 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                         }
                         let w = if stop > start { wide(&b.text[start..stop], mono, m) } else { 0.0 };
                         let f = if start == 0 { flag::SIZED | flag::FIRST } else { flag::SIZED };
-                        para.lines.push(PLine { col: 0, row: 0, block: bi, s: cur.at(start), e: cur.at(stop), x, avail: room, natural: w, spaces: (size * 16.0) as u16, flags: f });
+                        para.lines.push(PLine {
+                            col: 0,
+                            row: 0,
+                            block: bi,
+                            s: cur.at(start),
+                            e: cur.at(stop),
+                            x,
+                            avail: room,
+                            natural: w,
+                            spaces: (size * 16.0) as u16,
+                            flags: f,
+                        });
                         if next >= end {
                             break;
                         }
@@ -255,7 +298,12 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
             Kind::Image => {
                 // fitted to the measure and to a column, rounded up to whole rows, centred
                 let rows = p.rows.max(4);
-                let (iw, ih) = b.image.and_then(|i| images.get(i as usize)).filter(|i| i.w > 0 && i.h > 0).map(|i| (i.w as f32, i.h as f32)).unwrap_or((p.measure, p.measure * 0.6));
+                let (iw, ih) = b
+                    .image
+                    .and_then(|i| images.get(i as usize))
+                    .filter(|i| i.w > 0 && i.h > 0)
+                    .map(|i| (i.w as f32, i.h as f32))
+                    .unwrap_or((p.measure, p.measure * 0.6));
                 let mut w = iw.min(p.measure);
                 let mut h = w * ih / iw;
                 let max_h = (rows - 1) as f32 * p.lh;
@@ -264,9 +312,31 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
                     w = h * iw / ih;
                 }
                 let span = ((h / p.lh).ceil() as u32).clamp(1, rows - 1);
-                para.lines.push(PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x: ((p.measure - w) / 2.0).max(0.0), avail: w, natural: h, spaces: span as u16, flags: flag::IMAGE | flag::FIRST });
+                para.lines.push(PLine {
+                    col: 0,
+                    row: 0,
+                    block: bi,
+                    s: 0,
+                    e: 0,
+                    x: ((p.measure - w) / 2.0).max(0.0),
+                    avail: w,
+                    natural: h,
+                    spaces: span as u16,
+                    flags: flag::IMAGE | flag::FIRST,
+                });
                 for _ in 1..span {
-                    para.lines.push(PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x: 0.0, avail: p.measure, natural: 0.0, spaces: 0, flags: flag::IMAGE_ROW });
+                    para.lines.push(PLine {
+                        col: 0,
+                        row: 0,
+                        block: bi,
+                        s: 0,
+                        e: 0,
+                        x: 0.0,
+                        avail: p.measure,
+                        natural: 0.0,
+                        spaces: 0,
+                        flags: flag::IMAGE_ROW,
+                    });
                 }
                 para.whole = true;
                 para.space_before = 1;
@@ -276,7 +346,18 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
             // two rows: the reader's mark on the first, or the rule its book draws between them
             // (at its width and place, drawn as a table's rule is, at the second's top)
             Kind::Break => {
-                let line = |x: f32, avail: f32, flags: u16| PLine { col: 0, row: 0, block: bi, s: 0, e: 0, x, avail, natural: 0.0, spaces: 0, flags };
+                let line = |x: f32, avail: f32, flags: u16| PLine {
+                    col: 0,
+                    row: 0,
+                    block: bi,
+                    s: 0,
+                    e: 0,
+                    x,
+                    avail,
+                    natural: 0.0,
+                    spaces: 0,
+                    flags,
+                };
                 match b.rule {
                     Some(r) => {
                         let w = (r.width * p.measure).round();
@@ -364,11 +445,12 @@ fn set_paras(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image],
         // attribution belongs with its verse: move the verse's space after past it
         if b.kind == Kind::Attrib
             && let Some(prev) = out.last_mut()
-                && prev.space_after > 0 {
-                    para.space_after = prev.space_after;
-                    prev.space_after = 0;
-                    prev.keep_with_next = true;
-                }
+            && prev.space_after > 0
+        {
+            para.space_after = prev.space_after;
+            prev.space_after = 0;
+            prev.keep_with_next = true;
+        }
         if !para.lines.is_empty() {
             out.push(para);
         }
@@ -453,7 +535,15 @@ fn pour(paras: Vec<Para>, p: &Params, head_rows: u32) -> SectionLayout {
 }
 
 /// Sets a section's paragraphs and pours them into columns under a head of `head_rows`.
-pub fn layout_section(m: &mut Measurer, mono: &mut Mono, sec: &Section, images: &[Image], p: &Params, lang: Option<&Patterns>, head_rows: u32) -> SectionLayout {
+pub fn layout_section(
+    m: &mut Measurer,
+    mono: &mut Mono,
+    sec: &Section,
+    images: &[Image],
+    p: &Params,
+    lang: Option<&Patterns>,
+    head_rows: u32,
+) -> SectionLayout {
     let paras = set_paras(m, mono, sec, images, p, lang);
     pour(paras, p, head_rows)
 }
@@ -471,7 +561,16 @@ mod tests {
 
     /// The press as these tests set text: 19 px on rows of 28, `measure` wide.
     fn params(measure: f32) -> Params {
-        Params { typo: Typo::plain(19.0, false), measure, rows: 30, head_rows: 0, lh: 28.0, link_runs: false, justify: true, hyphenate: true }
+        Params {
+            typo: Typo::plain(19.0, false),
+            measure,
+            rows: 30,
+            head_rows: 0,
+            lh: 28.0,
+            link_runs: false,
+            justify: true,
+            hyphenate: true,
+        }
     }
 
     /// Words measured in Literata at `p`'s size.
@@ -481,7 +580,15 @@ mod tests {
 
     /// A chapter of one block.
     fn alone(block: Block) -> Section {
-        Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: String::new(), title: String::new(), blocks: vec![block], head: None }
+        Section {
+            kind: SectionKind::Chapter,
+            part: String::new(),
+            label: String::new(),
+            num: String::new(),
+            title: String::new(),
+            blocks: vec![block],
+            head: None,
+        }
     }
 
     /// A block of preformatted text set alone, in a measure of 400 px; the monospaced face
@@ -489,7 +596,19 @@ mod tests {
     fn preformatted(text: &str) -> (SectionLayout, Params, Mono) {
         let p = params(400.0);
         let mut mono = Mono::new(Some(face(&["JetBrainsMono.ttf"])));
-        (layout_section(&mut literata(&p), &mut mono, &alone(Block::new(1, Kind::Pre, text.into(), vec![])), &[], &p, None, 0), p, mono)
+        (
+            layout_section(
+                &mut literata(&p),
+                &mut mono,
+                &alone(Block::new(1, Kind::Pre, text.into(), vec![])),
+                &[],
+                &p,
+                None,
+                0,
+            ),
+            p,
+            mono,
+        )
     }
 
     #[test]
@@ -504,7 +623,8 @@ mod tests {
         assert!(pre.iter().all(|l| l.natural <= l.avail), "{:?}", pre.iter().map(|l| l.natural).collect::<Vec<_>>());
         // the source lines and the blank one survive, and the long one wraps into several
         let u16s: Vec<u16> = text.encode_utf16().collect();
-        let got: Vec<String> = pre.iter().map(|l| String::from_utf16(&u16s[l.s as usize..l.e as usize]).unwrap()).collect();
+        let got: Vec<String> =
+            pre.iter().map(|l| String::from_utf16(&u16s[l.s as usize..l.e as usize]).unwrap()).collect();
         assert_eq!(got[0], "  Lat.    Summer   Winter");
         assert_eq!(got[1], "");
         assert!(got.len() >= 5, "{got:?}");
@@ -538,7 +658,10 @@ mod tests {
 
     /// A chapter of one table of `cols` columns (rows by '\n', cells by '\t').
     fn table(text: &str, cols: u32) -> Section {
-        alone(Block { table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }), ..Block::new(1, Kind::Table, text.into(), vec![]) })
+        alone(Block {
+            table: Some(typeset_model::TableShape { cols, header_rows: 0, spans: vec![] }),
+            ..Block::new(1, Kind::Table, text.into(), vec![])
+        })
     }
 
     #[test]
@@ -572,7 +695,8 @@ mod tests {
         let lay = layout_section(&mut m, &mut Mono::default(), &sec, &[], &p, None, 0);
         let text = &sec.blocks[0].text;
         let start = text.find("A spanning").unwrap() as u32;
-        let lines: Vec<&PLine> = lay.lines.iter().filter(|l| l.flags & flag::CELL != 0 && l.s >= start && l.s < start + 30).collect();
+        let lines: Vec<&PLine> =
+            lay.lines.iter().filter(|l| l.flags & flag::CELL != 0 && l.s >= start && l.s < start + 30).collect();
         assert_eq!(lines.len(), 1, "the spanning cell on one line");
         assert!(lines[0].natural <= lines[0].avail);
     }

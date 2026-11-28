@@ -26,9 +26,13 @@ export function progressOf(b: LibEntry): string {
 }
 
 /** The books, the one opened last first (one never opened: as when it was added). */
-export const byLastOpened = (list: LibEntry[]) => list.sort((a, z) => kv.get<number>('opened.' + z.id, z.added) - kv.get<number>('opened.' + a.id, a.added));
+export const byLastOpened = (list: LibEntry[]) =>
+  list.sort((a, z) => kv.get<number>('opened.' + z.id, z.added) - kv.get<number>('opened.' + a.id, a.added));
 /** A book opened from the library: first in the order, and the one to come back to. */
-export function opened(id: string) { kv.set('lastOpened', id); kv.set('opened.' + id, Date.now()); }
+export function opened(id: string) {
+  kv.set('lastOpened', id);
+  kv.set('opened.' + id, Date.now());
+}
 
 /** Notes files taken in (one's own put back on their books, another reader's kept as
  *  feedback on theirs: reader/intake.ts), and what came of them said. */
@@ -47,7 +51,10 @@ export async function backUp(core: Core) {
   const bytes = new Uint8Array(await b.blob.arrayBuffer());
   const day = new Date().toISOString().slice(0, 10);
   if (await shell.saveBytes(`Volumen library ${day}.vbackup`, bytes)) {
-    toast(`Backed up: ${b.books} book${b.books === 1 ? '' : 's'} and everything about them.${b.missing.length ? ` Not their files: ${b.missing.join(', ')} (added before files were kept: add them again).` : ''}`, 6000);
+    toast(
+      `Backed up: ${b.books} book${b.books === 1 ? '' : 's'} and everything about them.${b.missing.length ? ` Not their files: ${b.missing.join(', ')} (added before files were kept: add them again).` : ''}`,
+      6000,
+    );
   }
 }
 /** A library put back from its file, then the app started again (settings, themes and
@@ -55,8 +62,14 @@ export async function backUp(core: Core) {
 export async function restoreFrom(core: Core, f: File) {
   toast('Restoring the library…', 15000);
   const r = await restore(core, f);
-  if (typeof r === 'string') { toast(r, 5200); return; }
-  toast(`Restored: ${r.books} book${r.books === 1 ? '' : 's'} added${r.failed.length ? `; could not read ${r.failed.join(', ')}` : ''}. Reloading…`, 4000);
+  if (typeof r === 'string') {
+    toast(r, 5200);
+    return;
+  }
+  toast(
+    `Restored: ${r.books} book${r.books === 1 ? '' : 's'} added${r.failed.length ? `; could not read ${r.failed.join(', ')}` : ''}. Reloading…`,
+    4000,
+  );
   setTimeout(() => location.reload(), 1600);
 }
 
@@ -65,16 +78,33 @@ export async function restoreFrom(core: Core, f: File) {
  *  are taken in after the books, so a folder holding a manuscript and its readers' notes
  *  is taken whole. The book added last (to focus), and a new draft of a book already here
  *  (to be offered its notes, feedback and share). */
-export async function addFiles(core: Core, files: FileList | File[], shelf: string | null, readerOpen: boolean): Promise<{ last?: LibEntry; draft?: { from: LibEntry; to: LibEntry } }> {
-  const notes: string[] = [], names: string[] = [];
+export async function addFiles(
+  core: Core,
+  files: FileList | File[],
+  shelf: string | null,
+  readerOpen: boolean,
+): Promise<{ last?: LibEntry; draft?: { from: LibEntry; to: LibEntry } }> {
+  const notes: string[] = [],
+    names: string[] = [];
   let last: LibEntry | undefined, draft: { from: LibEntry; to: LibEntry } | undefined;
   for (const f of files) {
-    if (/\.vbackup$/i.test(f.name) || (f.size > 10 && await isBackup(f))) { await restoreFrom(core, f); return {}; }
-    if (/\.vnotes$/i.test(f.name)) { notes.push(await f.text()); names.push(f.name); continue; }
+    if (/\.vbackup$/i.test(f.name) || (f.size > 10 && (await isBackup(f)))) {
+      await restoreFrom(core, f);
+      return {};
+    }
+    if (/\.vnotes$/i.test(f.name)) {
+      notes.push(await f.text());
+      names.push(f.name);
+      continue;
+    }
     // notes exported as Markdown (rather than a manuscript), or as Web Annotations
     if (/\.(md|markdown|txt|json|jsonld)$/i.test(f.name) && f.size < 8e6) {
       const text = await f.text();
-      if (isNotesMarkdown(text) || isWebAnno(text) || /\.(json|jsonld)$/i.test(f.name)) { notes.push(text); names.push(f.name); continue; }
+      if (isNotesMarkdown(text) || isWebAnno(text) || /\.(json|jsonld)$/i.test(f.name)) {
+        notes.push(text);
+        names.push(f.name);
+        continue;
+      }
     }
     toast(`Opening ${f.name}…`, 8000);
     try {
@@ -123,7 +153,10 @@ export async function collectSoon(core: Core, titleOf: (id: string) => string) {
   collectedAt = Date.now();
   // shares made on the writer's other devices (their vault) first
   const added = await syncShares(core).catch(() => 0);
-  if (added) { toast(`${added} shared book${added === 1 ? '' : 's'} from your other devices added to this library.`, 5200); ui.libVersion++; }
+  if (added) {
+    toast(`${added} shared book${added === 1 ? '' : 's'} from your other devices added to this library.`, 5200);
+    ui.libVersion++;
+  }
   const got = await collectNotes().catch(() => []);
   if (!got.length) return;
   const by = new Map<string, string[]>();
@@ -135,7 +168,8 @@ export async function collectSoon(core: Core, titleOf: (id: string) => string) {
 
 /** Books read by an earlier importer are read again from their kept files, one at a time,
  *  once a session, never the one open (reader/reread.ts). */
-let rereading = false, rereadDone = false;
+let rereading = false,
+  rereadDone = false;
 export async function rereadStale(core: Core, list: LibEntry[], openId: () => string | undefined) {
   if (rereading || rereadDone) return;
   const todo = list.filter(b => stale(b) && b.source);
@@ -144,12 +178,26 @@ export async function rereadStale(core: Core, list: LibEntry[], openId: () => st
   let n = 0;
   for (const b of todo) {
     if (openId() === b.id) continue;
-    try { await reread(core, b); n++; } catch { /* left as it was: tried again next session */ }
+    try {
+      await reread(core, b);
+      n++;
+    } catch {
+      /* left as it was: tried again next session */
+    }
     if (openId()) break;
   }
   if (!openId()) core.idle?.();
-  rereading = false; rereadDone = true;
-  if (n) { toast(n === 1 ? 'A book was read again with what Volumen now understands of it.' : `${n} books were read again with what Volumen now understands of them.`, 4200); ui.libVersion++; }
+  rereading = false;
+  rereadDone = true;
+  if (n) {
+    toast(
+      n === 1
+        ? 'A book was read again with what Volumen now understands of it.'
+        : `${n} books were read again with what Volumen now understands of them.`,
+      4200,
+    );
+    ui.libVersion++;
+  }
 }
 
 /** Readers' notes from the sharing service, kept as feedback on their books. What came,

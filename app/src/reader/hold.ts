@@ -23,15 +23,21 @@ const AT_MOST_MS = 1000;
  *  need not). */
 const SCALE = 0.1;
 
-export interface Point { x: number; y: number }
+export interface Point {
+  x: number;
+  y: number;
+}
 
 /** Where a line of the page begins, in `stage`'s coordinates: among `cols`, the last line
  *  of block `b` (its place in its section) that starts at or before `off`. */
 export function lineStart(stage: HTMLElement, cols: HTMLElement[], b: number, off: number): Point | null {
   let best: HTMLElement | null = null;
-  for (const c of cols) for (const l of c.querySelectorAll<HTMLElement>(`.ln[data-b="${b}"]`)) if (+l.dataset.s! <= off && (!best || +l.dataset.s! > +best.dataset.s!)) best = l;
+  for (const c of cols)
+    for (const l of c.querySelectorAll<HTMLElement>(`.ln[data-b="${b}"]`))
+      if (+l.dataset.s! <= off && (!best || +l.dataset.s! > +best.dataset.s!)) best = l;
   if (!best) return null;
-  const r = best.getBoundingClientRect(), st = stage.getBoundingClientRect();
+  const r = best.getBoundingClientRect(),
+    st = stage.getBoundingClientRect();
   return { x: r.left - st.left, y: r.top - st.top };
 }
 
@@ -64,7 +70,8 @@ export class Hold {
     for (const c of cols) {
       if (!c) continue;
       const k = c.cloneNode(true) as HTMLElement;
-      for (const e of [k, ...k.querySelectorAll<HTMLElement>('*')]) for (const a of [...e.attributes]) if (a.name.startsWith('data-')) e.removeAttribute(a.name);
+      for (const e of [k, ...k.querySelectorAll<HTMLElement>('*')])
+        for (const a of [...e.attributes]) if (a.name.startsWith('data-')) e.removeAttribute(a.name);
       t.append(k);
     }
     box.append(t);
@@ -80,17 +87,31 @@ export class Hold {
    *  lands at `to` (in the stage's coordinates, where that line now begins), grown or
    *  shrunk toward the new size by `scale` (capped). */
   release(to: Point | null = null, scale = 1) {
-    const el = this.el, box = this.box, from = this.from;
+    const el = this.el,
+      box = this.box,
+      from = this.from;
     if (!el || !box || this.fading) return;
-    if (reduceMotion()) { this.drop(); return; }
-    const timing: KeyframeAnimationOptions = { duration: FADE_MS, easing: 'cubic-bezier(.3, 0, .2, 1)', fill: 'forwards' };
+    if (reduceMotion()) {
+      this.drop();
+      return;
+    }
+    const timing: KeyframeAnimationOptions = {
+      duration: FADE_MS,
+      easing: 'cubic-bezier(.3, 0, .2, 1)',
+      fill: 'forwards',
+    };
     if (from && to) {
       const s = Math.min(1 + SCALE, Math.max(1 - SCALE, scale));
       box.style.transformOrigin = `${from.x}px ${from.y}px`;
-      box.animate([{ transform: 'none' }, { transform: `translate(${to.x - from.x}px, ${to.y - from.y}px) scale(${s})` }], timing);
+      box.animate(
+        [{ transform: 'none' }, { transform: `translate(${to.x - from.x}px, ${to.y - from.y}px) scale(${s})` }],
+        timing,
+      );
     }
-    const a = this.fading = el.animate([{ opacity: 1 }, { opacity: 0 }], timing);
-    a.onfinish = () => { if (this.fading === a) this.drop(); };
+    const a = (this.fading = el.animate([{ opacity: 1 }, { opacity: 0 }], timing));
+    a.onfinish = () => {
+      if (this.fading === a) this.drop();
+    };
   }
 
   /** The copy gone, at once (a book closing; another change; a copy outstaying its time). */

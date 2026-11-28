@@ -3,15 +3,33 @@
 import { Fail, json, now, DAY } from './http';
 import { sameSite } from './limits';
 import { writerOf, mustWriter, registerBegin, registerFinish, loginBegin, loginFinish, logout } from './auth';
-import { list, publish, renew, withdraw, inbox, readerNotes, fetchBook, sendNotes, drop, getVault, putVault, newDraft, bookVersion } from './books';
+import {
+  list,
+  publish,
+  renew,
+  withdraw,
+  inbox,
+  readerNotes,
+  fetchBook,
+  sendNotes,
+  drop,
+  getVault,
+  putVault,
+  newDraft,
+  bookVersion,
+} from './books';
 
 type Route = [method: string, pattern: RegExp, handle: (env: Env, req: Request, m: string[]) => Promise<Response>];
 
 const ROUTES: Route[] = [
-  ['GET', /^\/api\/config$/, async (env, req) => {
-    const w = await writerOf(env, req);
-    return json({ v: 1, turnstile: env.TURNSTILE_SITEKEY || null, writer: w ? { name: w.name } : null });
-  }],
+  [
+    'GET',
+    /^\/api\/config$/,
+    async (env, req) => {
+      const w = await writerOf(env, req);
+      return json({ v: 1, turnstile: env.TURNSTILE_SITEKEY || null, writer: w ? { name: w.name } : null });
+    },
+  ],
   ['POST', /^\/api\/auth\/register\/begin$/, registerBegin],
   ['POST', /^\/api\/auth\/register\/finish$/, registerFinish],
   ['POST', /^\/api\/auth\/login\/begin$/, loginBegin],
@@ -19,14 +37,26 @@ const ROUTES: Route[] = [
   ['POST', /^\/api\/auth\/logout$/, logout],
   ['GET', /^\/api\/shares$/, async (env, req) => list(env, await mustWriter(env, req))],
   ['POST', /^\/api\/shares$/, async (env, req) => publish(env, req, await mustWriter(env, req))],
-  ['PUT', /^\/api\/shares\/([\w-]+)\/draft$/, async (env, req, m) => newDraft(env, req, await mustWriter(env, req), m[1])],
+  [
+    'PUT',
+    /^\/api\/shares\/([\w-]+)\/draft$/,
+    async (env, req, m) => newDraft(env, req, await mustWriter(env, req), m[1]),
+  ],
   ['GET', /^\/api\/books\/([\w-]+)\/version$/, (env, req, m) => bookVersion(env, req, m[1])],
-  ['POST', /^\/api\/shares\/([\w-]+)\/renew$/, async (env, req, m) => renew(env, req, await mustWriter(env, req), m[1])],
+  [
+    'POST',
+    /^\/api\/shares\/([\w-]+)\/renew$/,
+    async (env, req, m) => renew(env, req, await mustWriter(env, req), m[1]),
+  ],
   ['DELETE', /^\/api\/shares\/([\w-]+)$/, async (env, req, m) => withdraw(env, req, await mustWriter(env, req), m[1])],
   ['GET', /^\/api\/vault$/, async (env, req) => getVault(env, await mustWriter(env, req))],
   ['PUT', /^\/api\/vault$/, async (env, req) => putVault(env, req, await mustWriter(env, req))],
   ['GET', /^\/api\/inbox$/, async (env, req) => inbox(env, await mustWriter(env, req))],
-  ['GET', /^\/api\/shares\/([\w-]+)\/notes\/(\w+)$/, async (env, req, m) => readerNotes(env, await mustWriter(env, req), m[1], m[2])],
+  [
+    'GET',
+    /^\/api\/shares\/([\w-]+)\/notes\/(\w+)$/,
+    async (env, req, m) => readerNotes(env, await mustWriter(env, req), m[1], m[2]),
+  ],
   ['GET', /^\/api\/books\/([\w-]+)$/, (env, req, m) => fetchBook(env, req, m[1])],
   ['PUT', /^\/api\/books\/([\w-]+)\/notes\/(\w+)$/, (env, req, m) => sendNotes(env, req, m[1], m[2])],
 ];
@@ -56,8 +86,15 @@ export default {
    *  sessions, ceremonies, invitations and counts. */
   async scheduled(_ctrl, env) {
     const t = now();
-    const gone = (await env.DB.prepare('SELECT id FROM books WHERE expires < ?1 OR (complete = 0 AND created < ?2) LIMIT 40').bind(t, t - 3_600_000).all<{ id: string }>()).results;
-    await drop(env.DB, gone.map(b => b.id));
+    const gone = (
+      await env.DB.prepare('SELECT id FROM books WHERE expires < ?1 OR (complete = 0 AND created < ?2) LIMIT 40')
+        .bind(t, t - 3_600_000)
+        .all<{ id: string }>()
+    ).results;
+    await drop(
+      env.DB,
+      gone.map(b => b.id),
+    );
     await env.DB.batch([
       env.DB.prepare('DELETE FROM sessions WHERE expires < ?1').bind(t),
       env.DB.prepare('DELETE FROM passes WHERE expires < ?1').bind(t),

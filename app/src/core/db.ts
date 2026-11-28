@@ -10,14 +10,19 @@ function db(): Promise<IDBDatabase> {
     const q = indexedDB.open('typeset', 4);
     q.onupgradeneeded = () => {
       const d = q.result;
-      for (const s of ['books', 'meta', 'covers', 'images', 'sources']) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s);
+      for (const s of ['books', 'meta', 'covers', 'images', 'sources'])
+        if (!d.objectStoreNames.contains(s)) d.createObjectStore(s);
     };
     q.onsuccess = () => res(q.result);
     q.onerror = () => rej(q.error);
   }));
 }
 
-export async function tx<T>(store: string, mode: IDBTransactionMode, f: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+export async function tx<T>(
+  store: string,
+  mode: IDBTransactionMode,
+  f: (s: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
   const d = await db();
   return new Promise((res, rej) => {
     const t = d.transaction(store, mode);
@@ -37,7 +42,10 @@ export async function library(): Promise<LibEntry[]> {
  *  once each read the list and wrote it back, and one was lost). */
 let listLock: Promise<unknown> = Promise.resolve();
 export function changeList(f: (lib: LibEntry[]) => LibEntry[]): Promise<void> {
-  const r = listLock.then(async () => { const next = f(await library()); await tx('meta', 'readwrite', s => s.put(next, 'library')); });
+  const r = listLock.then(async () => {
+    const next = f(await library());
+    await tx('meta', 'readwrite', s => s.put(next, 'library'));
+  });
   listLock = r.catch(() => {});
   return r;
 }

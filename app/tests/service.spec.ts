@@ -17,7 +17,12 @@ import { readFileSync } from 'node:fs';
  * Turnstile runs with its test keys (they pass; the service takes them only here). */
 
 const persist = new URL('../../service/.wrangler/test', import.meta.url).pathname;
-const invite = (name: string) => execFileSync('../scripts/service.sh', ['--local', 'invite', name], { env: { ...process.env, SERVICE_PERSIST: persist } }).toString().trim();
+const invite = (name: string) =>
+  execFileSync('../scripts/service.sh', ['--local', 'invite', name], {
+    env: { ...process.env, SERVICE_PERSIST: persist },
+  })
+    .toString()
+    .trim();
 
 /** Escape leaves a text field first, then closes the sheet. */
 async function closeSheet(p: Page) {
@@ -30,18 +35,32 @@ async function closeSheet(p: Page) {
 /** Holds on the n-th line of prose in the first column in view, drags over a few words,
  *  and highlights them (2). */
 async function highlight(r: Page, n: number) {
-  const handle = await r.waitForFunction(n => {
-    const found = [];
-    for (const l of document.querySelectorAll('.ln[data-b]')) {
-      const b = l.getBoundingClientRect(), mid = b.left + b.width / 2;
-      // (above the toasts)
-      if (mid > 60 && mid < innerWidth / 2 && b.top > 100 && b.bottom < 620 && (l.textContent ?? '').length > 40 && !l.querySelector('mark')) found.push({ x: b.left, y: b.top, height: b.height });
-    }
-    return found[n * 3] ?? null;
-  }, n, { timeout: 15000 });
-  const box = await handle.jsonValue() as { x: number; y: number; height: number };
+  const handle = await r.waitForFunction(
+    n => {
+      const found = [];
+      for (const l of document.querySelectorAll('.ln[data-b]')) {
+        const b = l.getBoundingClientRect(),
+          mid = b.left + b.width / 2;
+        // (above the toasts)
+        if (
+          mid > 60 &&
+          mid < innerWidth / 2 &&
+          b.top > 100 &&
+          b.bottom < 620 &&
+          (l.textContent ?? '').length > 40 &&
+          !l.querySelector('mark')
+        )
+          found.push({ x: b.left, y: b.top, height: b.height });
+      }
+      return found[n * 3] ?? null;
+    },
+    n,
+    { timeout: 15000 },
+  );
+  const box = (await handle.jsonValue()) as { x: number; y: number; height: number };
   const y = box.y + box.height / 2;
-  await r.mouse.move(box.x + 20, y); await r.mouse.down();
+  await r.mouse.move(box.x + 20, y);
+  await r.mouse.down();
   await r.mouse.move(box.x + 200, y, { steps: 6 });
   await r.mouse.up();
   await expect(r.locator('.chip-pop')).toBeVisible();
@@ -51,25 +70,42 @@ async function highlight(r: Page, n: number) {
 /** Each test browser its own address, so their per-minute limits are their own (locally
  *  the service reads the header; on Cloudflare, Cloudflare sets it). */
 async function ownAddress(ctx: BrowserContext) {
-  const ip = `10.${Math.random() * 250 | 0}.${Math.random() * 250 | 0}.${Math.random() * 250 | 0}`;
-  await ctx.route('http://localhost:8788/api/**', r => r.continue({ headers: { ...r.request().headers(), 'cf-connecting-ip': ip } }));
+  const ip = `10.${(Math.random() * 250) | 0}.${(Math.random() * 250) | 0}.${(Math.random() * 250) | 0}`;
+  await ctx.route('http://localhost:8788/api/**', r =>
+    r.continue({ headers: { ...r.request().headers(), 'cf-connecting-ip': ip } }),
+  );
 }
 
 async function passkeys(ctx: BrowserContext, p: Page, prf = false) {
   await ownAddress(ctx);
   const cdp = await ctx.newCDPSession(p);
   await cdp.send('WebAuthn.enable');
-  await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, hasPrf: prf } });
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2',
+      transport: 'internal',
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+      hasPrf: prf,
+    },
+  });
   return cdp;
 }
 
-test('a writer invited shares a book through the service; a reader reads it and sends notes; they reach the writer', async ({ browser }) => {
+test('a writer invited shares a book through the service; a reader reads it and sends notes; they reach the writer', async ({
+  browser,
+}) => {
   test.setTimeout(150_000);
   const wctx = await browser.newContext();
   const w = await wctx.newPage();
   // the app's Content Security Policy (assets/_headers) stops nothing the app does
   const blocked: string[] = [];
-  const watch = (p: Page) => p.on('console', m => { if (/Content Security Policy|Refused to/i.test(m.text())) blocked.push(m.text()); });
+  const watch = (p: Page) =>
+    p.on('console', m => {
+      if (/Content Security Policy|Refused to/i.test(m.text())) blocked.push(m.text());
+    });
   watch(w);
   await passkeys(wctx, w);
   // the invitation: its link, a name, a passkey; the code gone from the address
@@ -81,7 +117,10 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await w.getByRole('button', { name: /Make my passkey/ }).click();
   await expect(w.locator('.toast')).toContainText('Welcome, Dana Writer', { timeout: 30000 });
   // the same invitation, again: used
-  const used = await w.request.post('/api/auth/register/begin', { headers: { 'x-typeset': '1' }, data: { invite: inviteLink.split('#invite=')[1], turnstile: 'XXXX.DUMMY.TOKEN.XXXX' } });
+  const used = await w.request.post('/api/auth/register/begin', {
+    headers: { 'x-typeset': '1' },
+    data: { invite: inviteLink.split('#invite=')[1], turnstile: 'XXXX.DUMMY.TOKEN.XXXX' },
+  });
   expect(used.status()).toBe(403);
 
   // a book of theirs, shared
@@ -115,7 +154,9 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await expect(welcome).toContainText('go back to Dana Writer when you send them');
   await r.keyboard.press('Enter');
   await expect(welcome).toHaveCount(0);
-  await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 20000 });
+  await expect(r.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, {
+    timeout: 20000,
+  });
   expect(await r.evaluate(() => location.hash)).toBe('');
   // a few words held and dragged over, highlighted; then sent from the notebook
   const at = await place(r);
@@ -132,7 +173,9 @@ test('a writer invited shares a book through the service; a reader reads it and 
   // after that, new notes go by themselves as the reader leaves the book (with the
   // service's pass: no check), and unchanged ones are not sent again
   const puts: string[] = [];
-  r.on('request', q => { if (q.method() === 'PUT') puts.push(q.url()); });
+  r.on('request', q => {
+    if (q.method() === 'PUT') puts.push(q.url());
+  });
   await r.keyboard.press('Escape');
   await expect(r.locator('.contents')).toHaveCount(0);
   // (the panel's going over)
@@ -149,7 +192,15 @@ test('a writer invited shares a book through the service; a reader reads it and 
   expect(puts.length).toBe(1);
 
   // the reader's token is the link's: without it, nothing is taken
-  const forged = await r.request.put(`/api/books/${id}/notes/${'0'.repeat(32)}`, { headers: { 'x-typeset': '1', authorization: `Post ${'A'.repeat(43)}`, 'x-turnstile': 'XXXX.DUMMY.TOKEN.XXXX', 'content-type': 'application/octet-stream' }, data: Buffer.from('TSN1' + 'x'.repeat(64)) });
+  const forged = await r.request.put(`/api/books/${id}/notes/${'0'.repeat(32)}`, {
+    headers: {
+      'x-typeset': '1',
+      authorization: `Post ${'A'.repeat(43)}`,
+      'x-turnstile': 'XXXX.DUMMY.TOKEN.XXXX',
+      'content-type': 'application/octet-stream',
+    },
+    data: Buffer.from('TSN1' + 'x'.repeat(64)),
+  });
   expect(forged.status()).toBe(403);
   // the writer's routes are the writer's
   expect((await r.request.get('/api/inbox')).status()).toBe(401);
@@ -165,12 +216,21 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await expect(book).toContainText('notes from 1 reader');
 
   // only sealed books are kept, and not too large ones
-  const plain = await w.request.post('/api/shares', { headers: { 'x-typeset': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' }, data: readFileSync('../bench/fixtures/tables.epub') });
+  const plain = await w.request.post('/api/shares', {
+    headers: { 'x-typeset': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' },
+    data: readFileSync('../bench/fixtures/tables.epub'),
+  });
   expect(plain.status()).toBe(400);
-  const huge = await w.request.post('/api/shares', { headers: { 'x-typeset': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' }, data: Buffer.concat([Buffer.from('TSB1'), Buffer.alloc(17 * 1048576)]) });
+  const huge = await w.request.post('/api/shares', {
+    headers: { 'x-typeset': '1', 'x-post': 'a'.repeat(64), 'content-type': 'application/octet-stream' },
+    data: Buffer.concat([Buffer.from('TSB1'), Buffer.alloc(17 * 1048576)]),
+  });
   expect(huge.status()).toBe(413);
   // nor from another site
-  const csrf = await w.request.post('/api/shares', { headers: { 'x-typeset': '1', origin: 'https://evil.example', 'x-post': 'a'.repeat(64) }, data: Buffer.from('TSB1xx') });
+  const csrf = await w.request.post('/api/shares', {
+    headers: { 'x-typeset': '1', origin: 'https://evil.example', 'x-post': 'a'.repeat(64) },
+    data: Buffer.from('TSB1xx'),
+  });
   expect(csrf.status()).toBe(403);
 
   // signing out, and in again with the passkey
@@ -194,13 +254,17 @@ test('a writer invited shares a book through the service; a reader reads it and 
   await wctx.close();
 });
 
-test('a writer’s shares follow their passkey to another device (its PRF secret seals their vault)', async ({ browser }) => {
+test('a writer’s shares follow their passkey to another device (its PRF secret seals their vault)', async ({
+  browser,
+}) => {
   test.setTimeout(120_000);
   const ctx = await browser.newContext();
   const w = await ctx.newPage();
   await passkeys(ctx, w, true);
   const sent: string[] = [];
-  w.on('request', q => { sent.push(`${q.method()} ${new URL(q.url()).pathname} ${q.postData() ?? ''}`); });
+  w.on('request', q => {
+    sent.push(`${q.method()} ${new URL(q.url()).pathname} ${q.postData() ?? ''}`);
+  });
   await w.goto(invite('Vera').replace(/^https?:\/\/[^/]+/, ''));
   await w.getByLabel('Your name, as your readers will know you').fill('Vera Writer');
   await w.getByRole('button', { name: /Make my passkey/ }).click();
@@ -217,7 +281,13 @@ test('a writer’s shares follow their passkey to another device (its PRF secret
   await expect.poll(() => sent.filter(r => r.startsWith('PUT /api/vault')).length).toBe(1);
   // another device: the same (synced) passkey, nothing else
   await ctx.clearCookies();
-  await w.evaluate(async () => { localStorage.clear(); await new Promise(r => { const q = indexedDB.deleteDatabase('typeset'); q.onsuccess = q.onerror = q.onblocked = r; }); });
+  await w.evaluate(async () => {
+    localStorage.clear();
+    await new Promise(r => {
+      const q = indexedDB.deleteDatabase('typeset');
+      q.onsuccess = q.onerror = q.onblocked = r;
+    });
+  });
   await w.goto('/read');
   await expect(w.locator('.book[data-id]')).toHaveCount(1);
   await w.locator('.book[data-id]').first().click({ button: 'right' });
@@ -250,7 +320,9 @@ test('a writer’s shares follow their passkey to another device (its PRF secret
   await ctx.close();
 });
 
-test('the fonts and hyphenation patterns are kept a day, then checked again in the background, not asked for on every visit', async ({ request }) => {
+test('the fonts and hyphenation patterns are kept a day, then checked again in the background, not asked for on every visit', async ({
+  request,
+}) => {
   for (const path of ['/fonts/Literata.ttf', '/hyph/en.bin']) {
     const r = await request.get(path);
     expect(r.status(), path).toBe(200);
@@ -258,35 +330,60 @@ test('the fonts and hyphenation patterns are kept a day, then checked again in t
   }
 });
 
-test('a book embedded in another site\'s page: read in place, nothing else of the app, only /embed may be framed', async ({ browser, request }) => {
+test("a book embedded in another site's page: read in place, nothing else of the app, only /embed may be framed", async ({
+  browser,
+  request,
+}) => {
   // (a page this test serves counts as public, and Chrome asks before a public page
   // reaches localhost: the permission a person would give)
   const ctx = await browser.newContext({ permissions: ['local-network-access'] });
   const book = new URL('../../bench/fixtures/tables.epub', import.meta.url).pathname;
   // (a site that refuses other sites' reads cannot be staged here: Playwright's answers
   // pass the browser's CORS check; a request that fails stands in for it)
-  await ctx.route('https://books.example/**', r => r.request().url().endsWith('/closed.epub')
-    ? r.abort()
-    : r.fulfill({ path: book, headers: { 'Access-Control-Allow-Origin': '*', ETag: '"v1"' } }));
-  const frame = (src: string) => `<!doctype html><title>A blog</title><h1>A blog</h1><iframe title="Sample" style="width:900px;height:640px;border:0" src="http://localhost:8788/embed#src=${src}"></iframe>`;
-  await ctx.route('http://127.0.0.1:8799/**', r => r.fulfill({ contentType: 'text/html', body: frame(r.request().url().includes('closed') ? 'https://books.example/closed.epub' : 'https://books.example/tables.epub') }));
+  await ctx.route('https://books.example/**', r =>
+    r.request().url().endsWith('/closed.epub')
+      ? r.abort()
+      : r.fulfill({ path: book, headers: { 'Access-Control-Allow-Origin': '*', ETag: '"v1"' } }),
+  );
+  const frame = (src: string) =>
+    `<!doctype html><title>A blog</title><h1>A blog</h1><iframe title="Sample" style="width:900px;height:640px;border:0" src="http://localhost:8788/embed#src=${src}"></iframe>`;
+  await ctx.route('http://127.0.0.1:8799/**', r =>
+    r.fulfill({
+      contentType: 'text/html',
+      body: frame(
+        r.request().url().includes('closed')
+          ? 'https://books.example/closed.epub'
+          : 'https://books.example/tables.epub',
+      ),
+    }),
+  );
   const p = await ctx.newPage();
   await p.goto('http://127.0.0.1:8799/post'); // (another origin: a public one may not frame localhost)
   const f = p.frameLocator('iframe');
-  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, { timeout: 30000 });
+  await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/, {
+    timeout: 30000,
+  });
   // no library, nothing to go back to (the page is the way back), and no brand of ours
   await expect(f.getByRole('button', { name: /Back/ })).toHaveCount(0);
   await expect(f.locator('a[href*="volumen.page"]')).toHaveCount(0);
   // reading moves nothing in the host page's history
   const before = await p.evaluate(() => history.length);
-  await f.locator('.stage, [role=region]').first().click({ position: { x: 450, y: 300 } }).catch(() => {});
-  await p.keyboard.press('m'); await expect(f.locator('.contents')).toBeVisible(); await p.keyboard.press('Escape');
+  await f
+    .locator('.stage, [role=region]')
+    .first()
+    .click({ position: { x: 450, y: 300 } })
+    .catch(() => {});
+  await p.keyboard.press('m');
+  await expect(f.locator('.contents')).toBeVisible();
+  await p.keyboard.press('Escape');
   await p.keyboard.press('q');
   await expect(f.getByRole('slider', { name: 'Place in the book' })).toHaveAttribute('aria-valuetext', /^Page \d+/);
   expect(await p.evaluate(() => history.length)).toBe(before);
   // a book that cannot be read from here: said plainly
   await p.goto('http://127.0.0.1:8799/closed');
-  await expect(p.frameLocator('iframe').locator('.embed-wait')).toContainText('allow other sites to read it', { timeout: 20000 });
+  await expect(p.frameLocator('iframe').locator('.embed-wait')).toContainText('allow other sites to read it', {
+    timeout: 20000,
+  });
   // only /embed may be framed
   const embed = await request.get('/embed');
   expect(embed.headers()['x-frame-options']).toBeUndefined();
@@ -297,10 +394,15 @@ test('a book embedded in another site\'s page: read in place, nothing else of th
   await ctx.close();
 });
 
-test('a new draft to the same link: the writer sends it, the reader is offered it and keeps their notes', async ({ browser }) => {
+test('a new draft to the same link: the writer sends it, the reader is offered it and keeps their notes', async ({
+  browser,
+}) => {
   test.setTimeout(150_000);
   const v1 = readFileSync(new URL('../../bench/fixtures/manuscript.md', import.meta.url), 'utf8');
-  const v2 = v1.replace('She wrote that down in the back of her schoolbook, under the sums.', 'She kept the line in her head instead, where no one would mark it.');
+  const v2 = v1.replace(
+    'She wrote that down in the back of her schoolbook, under the sums.',
+    'She kept the line in her head instead, where no one would mark it.',
+  );
   const wctx = await browser.newContext();
   const w = await wctx.newPage();
   await passkeys(wctx, w);
@@ -308,7 +410,11 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   await w.getByLabel('Your name, as your readers will know you').fill('Wren');
   await w.getByRole('button', { name: /Make my passkey/ }).click();
   await expect(w.locator('.toast')).toContainText('Welcome, Wren', { timeout: 30000 });
-  await w.setInputFiles('input[type=file]', { name: 'manuscript.md', mimeType: 'text/markdown', buffer: Buffer.from(v1) });
+  await w.setInputFiles('input[type=file]', {
+    name: 'manuscript.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from(v1),
+  });
   await expect(w.locator('.toast')).toContainText('Added');
   await w.locator('.book[data-id]', { hasText: 'The Lantern Keeper' }).click({ button: 'right' });
   await w.getByRole('button', { name: 'Share as a link…' }).click();
@@ -332,8 +438,15 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   const quote = await r.locator('mark.hl').first().textContent();
 
   // the writer revises: the new file takes the share; the link still carries the first
-  await w.setInputFiles('input[type=file]', { name: 'manuscript v2.md', mimeType: 'text/markdown', buffer: Buffer.from(v2) });
-  await w.getByRole('dialog', { name: 'A new draft' }).getByRole('button', { name: 'Carry over, and remove the earlier draft' }).click();
+  await w.setInputFiles('input[type=file]', {
+    name: 'manuscript v2.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from(v2),
+  });
+  await w
+    .getByRole('dialog', { name: 'A new draft' })
+    .getByRole('button', { name: 'Carry over, and remove the earlier draft' })
+    .click();
   await expect(w.locator('.toast')).toContainText('the share link');
   await w.locator('.book[data-id]', { hasText: 'The Lantern Keeper' }).click({ button: 'right' });
   await w.getByRole('button', { name: 'Share as a link…' }).click();
@@ -355,5 +468,6 @@ test('a new draft to the same link: the writer sends it, the reader is offered i
   await r.locator('.book[data-id]', { hasText: 'The Lantern Keeper' }).click();
   await expect(r.locator('mark.hl').first()).toHaveText(quote!);
   await expect(r.getByRole('dialog')).toHaveCount(0);
-  await rctx.close(); await wctx.close();
+  await rctx.close();
+  await wctx.close();
 });

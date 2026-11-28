@@ -83,12 +83,24 @@ fn tail_agree(a: &str, b: &str) -> f32 {
     let n = a.chars().rev().zip(b.chars().rev()).take_while(|(x, y)| x == y).count();
     let len = a.chars().count().min(b.chars().count());
     // (a short context agrees for less: a few characters are weak evidence)
-    if a.is_empty() && b.is_empty() { 0.5 } else if len == 0 { 0.0 } else { n as f32 / len.max(12) as f32 }
+    if a.is_empty() && b.is_empty() {
+        0.5
+    } else if len == 0 {
+        0.0
+    } else {
+        n as f32 / len.max(12) as f32
+    }
 }
 fn head_agree(a: &str, b: &str) -> f32 {
     let n = a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count();
     let len = a.chars().count().min(b.chars().count());
-    if a.is_empty() && b.is_empty() { 0.5 } else if len == 0 { 0.0 } else { n as f32 / len.max(12) as f32 }
+    if a.is_empty() && b.is_empty() {
+        0.5
+    } else if len == 0 {
+        0.0
+    } else {
+        n as f32 / len.max(12) as f32
+    }
 }
 
 /// Context folded as the block text is, keeping a space at its start (folding alone
@@ -174,7 +186,10 @@ impl<'a> Anchorer<'a> {
         //    draft keys are by place, so another paragraph may now have this one's key
         if let Some(t) = key.and_then(|k| self.block_text(k)) {
             let u: Vec<u16> = t.encode_utf16().collect();
-            if (a.e as usize) <= u.len() && a.s < a.e && String::from_utf16_lossy(&u[a.s as usize..a.e as usize]) == a.quote {
+            if (a.e as usize) <= u.len()
+                && a.s < a.e
+                && String::from_utf16_lossy(&u[a.s as usize..a.e as usize]) == a.quote
+            {
                 let before = String::from_utf16_lossy(&u[..a.s as usize]);
                 let after = String::from_utf16_lossy(&u[a.e as usize..]);
                 // (by characters only: nothing near it may have changed for this shortcut;
@@ -200,7 +215,8 @@ impl<'a> Anchorer<'a> {
         //  words are known by position, so nothing is split or allocated per candidate)
         let pick = |t: &str, before: bool| -> Vec<String> {
             let ws: Vec<&str> = t.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
-            let it: Vec<&str> = if before { ws.iter().rev().take(5).copied().collect() } else { ws.iter().take(5).copied().collect() };
+            let it: Vec<&str> =
+                if before { ws.iter().rev().take(5).copied().collect() } else { ws.iter().take(5).copied().collect() };
             it.into_iter().map(str::to_string).collect()
         };
         let (pre_w, suf_w) = (pick(&pre, true), pick(&suf, false));
@@ -229,12 +245,21 @@ impl<'a> Anchorer<'a> {
         };
         // a context shorter than the context kept reached its paragraph's edge: the same
         // words, edge to edge, in another paragraph are whole agreement ("Oh!" said Syme.)
-        let (pre_edge, suf_edge) = (!pre.is_empty() && a.prefix.chars().count() < EDGE, !suf.is_empty() && a.suffix.chars().count() < EDGE);
+        let (pre_edge, suf_edge) =
+            (!pre.is_empty() && a.prefix.chars().count() < EDGE, !suf.is_empty() && a.suffix.chars().count() < EDGE);
         let ctx = |f: &Folded, i: usize, j: usize| {
             let clip_b = &f.text[f.text.floor_char_boundary(i.saturating_sub(pre.len() + 8))..i];
             let clip_a = &f.text[j..f.text.ceil_char_boundary((j + suf.len() + 8).min(f.text.len()))];
-            let b = if pre_edge && f.text[..i] == *pre { 1.0 } else { tail_agree(clip_b, &pre).max(agree_words(f, &pre_w, i, true)) };
-            let e = if suf_edge && f.text[j..] == *suf { 1.0 } else { head_agree(clip_a, &suf).max(agree_words(f, &suf_w, j, false)) };
+            let b = if pre_edge && f.text[..i] == *pre {
+                1.0
+            } else {
+                tail_agree(clip_b, &pre).max(agree_words(f, &pre_w, i, true))
+            };
+            let e = if suf_edge && f.text[j..] == *suf {
+                1.0
+            } else {
+                head_agree(clip_a, &suf).max(agree_words(f, &suf_w, j, false))
+            };
             b + e
         };
         // where it is: its old block, near its old place (0–2): this only breaks ties
@@ -275,7 +300,15 @@ impl<'a> Anchorer<'a> {
             // found once and long enough to be itself, or its surroundings agree (its old
             // key is no evidence here: in a later draft it may name another paragraph)
             let tiny = q.chars().count() < 4;
-            if (count == 1 && long) || c >= if long { 0.6 } else if tiny { 1.5 } else { 1.2 } {
+            if (count == 1 && long)
+                || c >= if long {
+                    0.6
+                } else if tiny {
+                    1.5
+                } else {
+                    1.2
+                }
+            {
                 return Placed { key: hex(f.key), s: f.map[i], e: f.map[j], how: How::Moved };
             }
         }
@@ -312,7 +345,8 @@ impl<'a> Anchorer<'a> {
             let f = &blocks[b as usize];
             let ws = &ix.words[b as usize];
             // each word as the quote's word it is, if any
-            let ids: Vec<Option<usize>> = ws.iter().map(|&(s, e)| distinct.iter().position(|d| *d == &f.text[s..e])).collect();
+            let ids: Vec<Option<usize>> =
+                ws.iter().map(|&(s, e)| distinct.iter().position(|d| *d == &f.text[s..e])).collect();
             // slide a window of the quote's length (and a little either side), counting as
             // it goes; of windows equally like it, the one whose surroundings agree most
             let mut top: Option<(f32, f32, usize, usize)> = None;
@@ -366,22 +400,26 @@ impl<'a> Anchorer<'a> {
         // order a hash map hands them over)
         cands.sort_by(|x, y| y.0.total_cmp(&x.0).then(x.1.n.cmp(&y.1.n)));
         if let Some(&(top, ..)) = cands.first()
-            && top >= 0.6 {
-                // the stretches close to the best by words are told apart by their
-                // surroundings (and place): the one taken must agree well, and clearly
-                // better than the rest unless it is the only one close
-                let mut close: Vec<(f32, f32, &Folded, usize, usize)> =
-                    cands.iter().filter(|c| c.0 >= top - 0.15).map(|&(sim, f, i, j)| (ctx(f, i, j), sim, f, i, j)).collect();
-                close.sort_by(|x, y| (y.0 * 2.0 + place(y.2)).total_cmp(&(x.0 * 2.0 + place(x.2))));
-                let (c, _, f, i, j) = close[0];
-                let next = close.get(1).map(|x| x.0).unwrap_or(0.0);
-                // (a reworded passage keeps most of the words around it; one whose
-                // surroundings are all different is somewhere else that happens to share
-                // its words)
-                if c >= if n <= 3 { 1.2 } else { 0.8 } && (close.len() == 1 || c - next >= 0.4) {
-                    return Placed { key: hex(f.key), s: f.map[i], e: f.map[j], how: How::Changed };
-                }
+            && top >= 0.6
+        {
+            // the stretches close to the best by words are told apart by their
+            // surroundings (and place): the one taken must agree well, and clearly
+            // better than the rest unless it is the only one close
+            let mut close: Vec<(f32, f32, &Folded, usize, usize)> = cands
+                .iter()
+                .filter(|c| c.0 >= top - 0.15)
+                .map(|&(sim, f, i, j)| (ctx(f, i, j), sim, f, i, j))
+                .collect();
+            close.sort_by(|x, y| (y.0 * 2.0 + place(y.2)).total_cmp(&(x.0 * 2.0 + place(x.2))));
+            let (c, _, f, i, j) = close[0];
+            let next = close.get(1).map(|x| x.0).unwrap_or(0.0);
+            // (a reworded passage keeps most of the words around it; one whose
+            // surroundings are all different is somewhere else that happens to share
+            // its words)
+            if c >= if n <= 3 { 1.2 } else { 0.8 } && (close.len() == 1 || c - next >= 0.4) {
+                return Placed { key: hex(f.key), s: f.map[i], e: f.map[j], how: How::Changed };
             }
+        }
         Placed { key: a.key.clone(), s: a.s, e: a.e, how: How::Lost }
     }
 }
@@ -406,14 +444,46 @@ mod tests {
     use super::*;
 
     fn book(texts: &[&str]) -> Book {
-        let blocks = texts.iter().enumerate().map(|(i, t)| typeset_model::Block::new(i as u64 + 1, typeset_model::Kind::P, t.to_string(), vec![])).collect();
-        Book { id: "b".into(), meta: Default::default(), sections: vec![typeset_model::Section { kind: typeset_model::SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks, head: None }], notes: vec![], images: vec![], leading: None, cover: None }
+        let blocks = texts
+            .iter()
+            .enumerate()
+            .map(|(i, t)| typeset_model::Block::new(i as u64 + 1, typeset_model::Kind::P, t.to_string(), vec![]))
+            .collect();
+        Book {
+            id: "b".into(),
+            meta: Default::default(),
+            sections: vec![typeset_model::Section {
+                kind: typeset_model::SectionKind::Chapter,
+                part: String::new(),
+                label: String::new(),
+                num: "1".into(),
+                title: String::new(),
+                blocks,
+                head: None,
+            }],
+            notes: vec![],
+            images: vec![],
+            leading: None,
+            cover: None,
+        }
     }
 
     #[test]
     fn a_reworded_short_passage_is_followed() {
-        let b = book(&["He put it up on the shelf and left it there.", "“Oh, yes, sir,” said the other eagerly, “the Thursday costume very quite warm, sir. It fastens to the chin.”", "Nothing else."]);
-        let a = Anchor { key: format!("{:016x}", 9u64), s: 0, e: 13, quote: "It fastens up".into(), prefix: "day costume is quite warm, sir. ".into(), suffix: " to the chin.”".into(), pos: Some(0.5) };
+        let b = book(&[
+            "He put it up on the shelf and left it there.",
+            "“Oh, yes, sir,” said the other eagerly, “the Thursday costume very quite warm, sir. It fastens to the chin.”",
+            "Nothing else.",
+        ]);
+        let a = Anchor {
+            key: format!("{:016x}", 9u64),
+            s: 0,
+            e: 13,
+            quote: "It fastens up".into(),
+            prefix: "day costume is quite warm, sir. ".into(),
+            suffix: " to the chin.”".into(),
+            pos: Some(0.5),
+        };
         let p = Anchorer::new(&b).place(&a);
         assert_eq!((p.how, p.key.as_str()), (How::Changed, "0000000000000002"));
     }

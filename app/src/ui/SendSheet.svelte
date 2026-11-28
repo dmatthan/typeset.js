@@ -14,47 +14,84 @@
   // whether how far they read goes too: yes unless they say not
   // svelte-ignore state_referenced_locally
   let far = $state(kv.get('progress.' + reader.book!.id, true));
-  const file = $derived.by(() => { name; far; return reader.myNotes(); });
-  function setFar() { kv.set('progress.' + reader.book!.id, far); }
+  const file = $derived.by(() => {
+    name;
+    far;
+    return reader.myNotes();
+  });
+  function setFar() {
+    kv.set('progress.' + reader.book!.id, far);
+  }
   const count = (k: string) => file.notes.filter(n => n.kind === k).length;
-  const parts = $derived([
-    [count('highlight'), 'highlight', 'highlights'],
-    [file.notes.filter(n => n.kind === 'highlight' && n.note).length, 'with a note', 'with notes'],
-    [count('mark'), 'marked paragraph', 'marked paragraphs'],
-  ].filter(p => +p[0] > 0).map(([n, one, many]) => `${n} ${n === 1 ? one : many}`).concat(file.progress ? [file.progress.done ? 'that you finished it' : `how far you have read (${Math.round(file.progress.furthest * 100)}%)`] : []));
+  const parts = $derived(
+    [
+      [count('highlight'), 'highlight', 'highlights'],
+      [file.notes.filter(n => n.kind === 'highlight' && n.note).length, 'with a note', 'with notes'],
+      [count('mark'), 'marked paragraph', 'marked paragraphs'],
+    ]
+      .filter(p => +p[0] > 0)
+      .map(([n, one, many]) => `${n} ${n === 1 ? one : many}`)
+      .concat(
+        file.progress
+          ? [
+              file.progress.done
+                ? 'that you finished it'
+                : `how far you have read (${Math.round(file.progress.furthest * 100)}%)`,
+            ]
+          : [],
+      ),
+  );
   /** Something to send: notes, or how far they read. */
   const some = $derived(file.notes.length > 0 || !!file.progress);
 
   const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-  function close() { ui.sheet = null; }
+  function close() {
+    ui.sheet = null;
+  }
 
   // a book that came by link through the service: the notes go back the same way
   // svelte-ignore state_referenced_locally
   const joined = joinedOf(reader.book!.id);
-  let online = $state(false), busy = $state(false), why = $state('');
+  let online = $state(false),
+    busy = $state(false),
+    why = $state('');
   let check: HTMLElement | undefined = $state();
   if (joined) service().then(c => (online = !!c?.turnstile));
   // after the first send, new notes go by themselves (as the reader leaves the book)
   let auto = $state(joined?.auto !== false);
-  function setAuto() { const j = joinedOf(reader.book!.id); if (j) kv.set('joined.' + reader.book!.id, { ...j, auto }); }
+  function setAuto() {
+    const j = joinedOf(reader.book!.id);
+    if (j) kv.set('joined.' + reader.book!.id, { ...j, auto });
+  }
   async function sendBack() {
     if (!name.trim() || busy) return;
     setName(name);
-    busy = true; why = '';
+    busy = true;
+    why = '';
     try {
       const c = await service();
-      if (!c?.turnstile) { why = 'The service cannot be reached: save the file instead.'; return; }
+      if (!c?.turnstile) {
+        why = 'The service cannot be reached: save the file instead.';
+        return;
+      }
       // (a pass from an earlier send needs no check)
       const token = joinedOf(reader.book!.id)?.pass ? undefined : await personToken(check!, c.turnstile, 'notes');
       await sendNotes(reader.book!.id, reader.myNotes(), token);
       setAuto();
       toast('Sent.');
       close();
-    } catch (e) { why = (e as Error).message; }
-    finally { busy = false; }
+    } catch (e) {
+      why = (e as Error).message;
+    } finally {
+      busy = false;
+    }
   }
-  const sentBefore = joined?.sent ? new Date(joined.sent).toLocaleDateString(undefined, { day: 'numeric', month: 'long' }) : '';
-  const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [new File(['{}'], 'x.vnotes', { type: 'application/json' })] });
+  const sentBefore = joined?.sent
+    ? new Date(joined.sent).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+    : '';
+  const canShare =
+    typeof navigator.canShare === 'function' &&
+    navigator.canShare({ files: [new File(['{}'], 'x.vnotes', { type: 'application/json' })] });
   /** Where the system can share a file (a phone's share sheet: mail, messages), the notes
    *  go straight there; otherwise the file is saved, to attach. */
   async function send() {
@@ -67,7 +104,11 @@
     const file = new File([text], fileName, { type: 'application/json' });
     if (navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: `Notes on ${reader.book!.title}`, text: `My notes on ${reader.book!.title}: open the file in Volumen to see them in place.` });
+        await navigator.share({
+          files: [file],
+          title: `Notes on ${reader.book!.title}`,
+          text: `My notes on ${reader.book!.title}: open the file in Volumen to see them in place.`,
+        });
         toast('Sent.', 2600);
         close();
         return;
@@ -88,35 +129,63 @@
     <p class="eyebrow">Send my notes</p>
     <h2>{reader.book?.title}</h2>
     {#if online}
-      <p class="where">{parts.length ? cap(parts.join(', ')) + '.' : 'Nothing to send yet.'} They go to the writer, sealed: only they can read them. Sending again replaces what you sent{sentBefore ? ` (last on ${sentBefore})` : ''}.</p>
+      <p class="where">
+        {parts.length ? cap(parts.join(', ')) + '.' : 'Nothing to send yet.'} They go to the writer, sealed: only they can
+        read them. Sending again replaces what you sent{sentBefore ? ` (last on ${sentBefore})` : ''}.
+      </p>
     {:else}
-      <p class="where">{parts.length ? cap(parts.join(', ')) + '.' : 'Nothing to send yet.'} They go as one small file, which the writer opens in their library; their book shows your notes in place.</p>
+      <p class="where">
+        {parts.length ? cap(parts.join(', ')) + '.' : 'Nothing to send yet.'} They go as one small file, which the writer
+        opens in their library; their book shows your notes in place.
+      </p>
     {/if}
   </div>
   <label class="svc-name">
     <span>Your name, as the writer will see it</span>
-    <input type="text" bind:value={name} placeholder="Your name" data-autofocus onkeydown={e => { if (e.key === 'Enter') { e.preventDefault(); online ? sendBack() : send(); } }} />
+    <input
+      type="text"
+      bind:value={name}
+      placeholder="Your name"
+      data-autofocus
+      onkeydown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          online ? sendBack() : send();
+        }
+      }}
+    />
   </label>
   <label class="tog">
-    <span><span class="t-t">Send how far I have read</span><span class="t-m">Where you are and the furthest you have read, with your notes.</span></span>
+    <span
+      ><span class="t-t">Send how far I have read</span><span class="t-m"
+        >Where you are and the furthest you have read, with your notes.</span
+      ></span
+    >
     <input type="checkbox" bind:checked={far} onchange={setFar} />
   </label>
   {#if online}
     <label class="tog">
-      <span><span class="t-t">Send new notes by themselves</span><span class="t-m">When you leave the book, if you added any or read on.</span></span>
+      <span
+        ><span class="t-t">Send new notes by themselves</span><span class="t-m"
+          >When you leave the book, if you added any or read on.</span
+        ></span
+      >
       <input type="checkbox" bind:checked={auto} onchange={setAuto} />
     </label>
     <div class="svc-check" bind:this={check}></div>
     {#if why}<p class="svc-why" role="alert">{why}</p>{/if}
     <div class="acts two">
       <button class="btn" onclick={send} disabled={!name.trim() || !some}>Save as a file</button>
-      <button class="btn primary" disabled={busy || !name.trim() || !some} onclick={sendBack}>{busy ? 'Sending…' : 'Send to the writer'}</button>
+      <button class="btn primary" disabled={busy || !name.trim() || !some} onclick={sendBack}
+        >{busy ? 'Sending…' : 'Send to the writer'}</button
+      >
     </div>
   {:else}
     <div class="acts two">
       <button class="btn" onclick={close}>Not now</button>
-      <button class="btn primary" disabled={!name.trim() || !some} onclick={send}>{canShare ? 'Send…' : 'Save the file'}</button>
+      <button class="btn primary" disabled={!name.trim() || !some} onclick={send}
+        >{canShare ? 'Send…' : 'Save the file'}</button
+      >
     </div>
   {/if}
 </Sheet>
-

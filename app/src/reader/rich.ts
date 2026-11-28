@@ -40,7 +40,8 @@ export async function measureRich(xhtmls: string[]): Promise<{ w: number; h: num
 
 /** The picture, as a blob URL. */
 export function richURL(xhtml: string, w: number, h: number): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
-    + `<foreignObject x="0" y="0" width="${w}" height="${h}"><div xmlns="http://www.w3.org/1999/xhtml" style="${FACE} width:${w}px;display:flow-root">${xhtml}</div></foreignObject></svg>`;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+    `<foreignObject x="0" y="0" width="${w}" height="${h}"><div xmlns="http://www.w3.org/1999/xhtml" style="${FACE} width:${w}px;display:flow-root">${xhtml}</div></foreignObject></svg>`;
   return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
 }

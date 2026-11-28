@@ -10,26 +10,48 @@ import type { Annotations } from './annotations';
 import { isMine, restoreInto, restoreOwn, restored } from './restore';
 
 /** The book open in the reader, whose notes are live. */
-export interface OpenBook { book: BookData; ann: Annotations; marks: Set<string>; fb: Feedback }
+export interface OpenBook {
+  book: BookData;
+  ann: Annotations;
+  marks: Set<string>;
+  fb: Feedback;
+}
 
 /** Takes notes files in. `names` name the files, for the message about any that were not
  *  notes. `changed`: something was put back or added. */
-export async function takeNotes(core: Core, texts: string[], library: { id: string; title: string }[], open?: OpenBook, names: string[] = []): Promise<{ said: string; changed: boolean }> {
+export async function takeNotes(
+  core: Core,
+  texts: string[],
+  library: { id: string; title: string }[],
+  open?: OpenBook,
+  names: string[] = [],
+): Promise<{ said: string; changed: boolean }> {
   // every file read first: a folder from a dozen readers is one import, said once
-  const files: NotesFile[] = [], bad: string[] = [];
+  const files: NotesFile[] = [],
+    bad: string[] = [];
   let why = '';
   const meta = open ? { id: open.book.id, title: open.book.title, author: open.book.author } : undefined;
-  texts.forEach((t, i) => { const r = parseNotes(t, meta); if (typeof r === 'string') { bad.push(names[i] ?? r); why = r; } else files.push(...r); });
+  texts.forEach((t, i) => {
+    const r = parseNotes(t, meta);
+    if (typeof r === 'string') {
+      bad.push(names[i] ?? r);
+      why = r;
+    } else files.push(...r);
+  });
   if (!files.length) return { said: texts.length === 1 ? why : 'None of these files are notes.', changed: false };
 
   const said: string[] = [];
   const theirs = new Map<string, { title: string; readers: Map<string, string>; notes: number }>();
   const missing = new Map<string, number>();
-  let found = 0, changed = false;
+  let found = 0,
+    changed = false;
   for (const f of files) {
     // (notes for the open book's title are for it, whichever draft they were made on)
     const t = open && targetOf(f, [open.book]) ? open.book : targetOf(f, library);
-    if (!t) { missing.set(f.book.title, (missing.get(f.book.title) ?? 0) + 1); continue; }
+    if (!t) {
+      missing.set(f.book.title, (missing.get(f.book.title) ?? 0) + 1);
+      continue;
+    }
     found++;
     const live = open && t.id === open.book.id ? open : null;
     if (isMine(f)) {
@@ -37,7 +59,9 @@ export async function takeNotes(core: Core, texts: string[], library: { id: stri
         const r = live ? await restoreInto(f, live.book, core, live.ann, live.marks) : await restoreOwn(f, t.id, core);
         said.push(restored(t.title, r));
         changed = true;
-      } catch (e) { said.push(`Your notes on “${t.title}” could not be put back: ${(e as Error).message}`); }
+      } catch (e) {
+        said.push(`Your notes on “${t.title}” could not be put back: ${(e as Error).message}`);
+      }
       continue;
     }
     if (!(live ? live.fb.add(f) : receive(f, t.id))) continue;
@@ -53,12 +77,22 @@ export async function takeNotes(core: Core, texts: string[], library: { id: stri
     if (open && id === open.book.id) {
       await open.fb.place(core);
       const rs = open.fb.list().filter(x => b.readers.has(x.id));
-      const placed = rs.reduce((k, x) => k + x.count, 0), lost = rs.reduce((k, x) => k + x.lost, 0);
+      const placed = rs.reduce((k, x) => k + x.count, 0),
+        lost = rs.reduce((k, x) => k + x.lost, 0);
       said.push(`Notes from ${who}: ${placed} placed${lost ? `, ${lost} not found in this version` : ''}.`);
-    } else said.push(`Notes from ${who} on “${b.title}”: ${count(b.notes, 'note', 'notes')}. Open the book to see them beside the text.`);
+    } else
+      said.push(
+        `Notes from ${who} on “${b.title}”: ${count(b.notes, 'note', 'notes')}. Open the book to see them beside the text.`,
+      );
   }
   if (found && !said.length) said.push('These notes are here already.');
-  for (const [title, k] of missing) said.push(`${count(k, 'file is', 'files are')} for “${title}”, which is not in your library: add the book, then the notes again.`);
-  if (bad.length) said.push(`${count(bad.length, 'file was', 'files were')} not notes${bad.length <= 3 ? ` (${bad.join(', ')})` : ''}.`);
+  for (const [title, k] of missing)
+    said.push(
+      `${count(k, 'file is', 'files are')} for “${title}”, which is not in your library: add the book, then the notes again.`,
+    );
+  if (bad.length)
+    said.push(
+      `${count(bad.length, 'file was', 'files were')} not notes${bad.length <= 3 ? ` (${bad.join(', ')})` : ''}.`,
+    );
   return { said: said.join(' '), changed };
 }

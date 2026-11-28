@@ -23,10 +23,17 @@ const FITNESS_DEMERITS: f64 = 100.0;
 #[derive(Clone, Copy, Debug)]
 enum K {
     Box,
-    Glue { y: f32, z: f32 },
+    Glue {
+        y: f32,
+        z: f32,
+    },
     /// A possible break. `post` is width the next line gains if the break is taken (the
     /// start of a hyphenated word, drawn on its own).
-    Pen { p: f32, flag: bool, post: f32 },
+    Pen {
+        p: f32,
+        flag: bool,
+        post: f32,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -109,7 +116,14 @@ impl Spans<'_> {
     }
 }
 
-fn items(m: &mut Measurer, text: &str, spans: &Spans, sh: &Shape, hyph: Option<&Patterns>, lang: Option<&Patterns>) -> Vec<Item> {
+fn items(
+    m: &mut Measurer,
+    text: &str,
+    spans: &Spans,
+    sh: &Shape,
+    hyph: Option<&Patterns>,
+    lang: Option<&Patterns>,
+) -> Vec<Item> {
     let mut out: Vec<Item> = Vec::with_capacity(text.len() / 3);
     let space = m.space;
     // a justified line's spaces only stretch, never shrink (as Apple Books sets one: TeX's
@@ -130,7 +144,9 @@ fn items(m: &mut Measurer, text: &str, spans: &Spans, sh: &Shape, hyph: Option<&
             if let (Some((gi, lc, sl, ss)), Some(rc)) = (pending.take(), text[cs..].chars().next()) {
                 out[gi].w += m.space_kern(lc, sl, ss, rc, spans.style_at(cs));
                 // and before it, the same (see below)
-                if m.system_set(rc, spans.style_at(cs) & typeset_model::style::ITALIC != 0) && !m.system_set(lc, sl & typeset_model::style::ITALIC != 0) {
+                if m.system_set(rc, spans.style_at(cs) & typeset_model::style::ITALIC != 0)
+                    && !m.system_set(lc, sl & typeset_model::style::ITALIC != 0)
+                {
                     out[gi].w += m.size * 0.05;
                 }
             }
@@ -188,7 +204,13 @@ fn opportunities(text: &str) -> Vec<(usize, BreakOpportunity)> {
                 let next = cs.get(i + 1).map(|x| x.1);
                 let after_slash = c == '/' && next.is_some_and(|n| n != '/');
                 let before_dot = c == '.' && i > 0 && next.is_some();
-                let pos = if after_slash { at + j + 1 } else if before_dot { at + j } else { continue };
+                let pos = if after_slash {
+                    at + j + 1
+                } else if before_dot {
+                    at + j
+                } else {
+                    continue;
+                };
                 if !out.iter().any(|&(k, _)| k == pos) {
                     out.push((pos, BreakOpportunity::Allowed));
                 }
@@ -211,9 +233,13 @@ pub(crate) fn syllable_cuts(word: &str, lang: &Patterns) -> Vec<usize> {
     }
     // punctuation stays attached to the ends
     let core_s = word.find(|c: char| c.is_alphabetic()).unwrap_or(word.len());
-    let core_e = word.rfind(|c: char| c.is_alphabetic()).map(|i| i + word[i..].chars().next().unwrap().len_utf8()).unwrap_or(0);
+    let core_e =
+        word.rfind(|c: char| c.is_alphabetic()).map(|i| i + word[i..].chars().next().unwrap().len_utf8()).unwrap_or(0);
     let core = if core_e > core_s { &word[core_s..core_e] } else { "" };
-    if core.chars().count() < 6 || !core.chars().all(char::is_alphabetic) || core.chars().skip(1).any(char::is_uppercase) {
+    if core.chars().count() < 6
+        || !core.chars().all(char::is_alphabetic)
+        || core.chars().skip(1).any(char::is_uppercase)
+    {
         return Vec::new();
     }
     let syll: Vec<&str> = lang.syllables(core, 2, 3);
@@ -233,7 +259,17 @@ pub(crate) fn syllable_cuts(word: &str, lang: &Patterns) -> Vec<usize> {
 /// they are enough, and otherwise also between any two of its characters without a
 /// hyphen, never preferred, so no line is ever wider than its measure.
 #[allow(clippy::too_many_arguments)]
-fn push_word(out: &mut Vec<Item>, m: &mut Measurer, text: &str, spans: &Spans, cs: usize, ce: usize, hyph: Option<&Patterns>, lang: Option<&Patterns>, limit: f32) {
+fn push_word(
+    out: &mut Vec<Item>,
+    m: &mut Measurer,
+    text: &str,
+    spans: &Spans,
+    cs: usize,
+    ce: usize,
+    hyph: Option<&Patterns>,
+    lang: Option<&Patterns>,
+    limit: f32,
+) {
     let full = spans.width(m, text, cs, ce);
     let word = &text[cs..ce];
     let over = full > limit;
@@ -256,7 +292,11 @@ fn push_word(out: &mut Vec<Item>, m: &mut Measurer, text: &str, spans: &Spans, c
         ok
     };
     let cuts: Vec<(usize, bool)> = if over && !syllables_do {
-        word.char_indices().skip(1).filter(|&(_, c)| !combining(c)).map(|(i, _)| (cs + i, syl.contains(&(cs + i)))).collect()
+        word.char_indices()
+            .skip(1)
+            .filter(|&(_, c)| !combining(c))
+            .map(|(i, _)| (cs + i, syl.contains(&(cs + i))))
+            .collect()
     } else {
         syl.iter().map(|&c| (c, true)).collect()
     };
@@ -344,9 +384,10 @@ fn line_start(its: &[Item], at: usize) -> usize {
     let mut i = if at == usize::MAX { 0 } else { at + 1 };
     while i < its.len() && !its[i].is_box() {
         if let K::Pen { p, .. } = its[i].k
-            && p <= -INF {
-                break;
-            }
+            && p <= -INF
+        {
+            break;
+        }
         i += 1;
     }
     i
@@ -355,7 +396,8 @@ fn line_start(its: &[Item], at: usize) -> usize {
 fn knuth_plass(its: &[Item], sh: &Shape, tolerance: f64) -> Option<Vec<usize>> {
     let sm = sums(its);
     let width = |line: u32| if line == 0 { sh.first } else { sh.rest };
-    let mut nodes: Vec<Node> = vec![Node { at: usize::MAX, line: 0, fit: 1, total: 0.0, prev: u32::MAX, hyph: false, post: 0.0 }];
+    let mut nodes: Vec<Node> =
+        vec![Node { at: usize::MAX, line: 0, fit: 1, total: 0.0, prev: u32::MAX, hyph: false, post: 0.0 }];
     let mut active: Vec<u32> = vec![0];
     let mut starts: Vec<usize> = vec![line_start(its, usize::MAX)];
     for b in 0..its.len() {
@@ -408,7 +450,15 @@ fn knuth_plass(its: &[Item], sh: &Shape, tolerance: f64) -> Option<Vec<usize>> {
             if forced && node.hyph {
                 d += FINAL_HYPHEN_DEMERITS;
             }
-            let fit = if r < -0.5 { 0 } else if r <= 0.5 { 1 } else if r <= 1.0 { 2 } else { 3 };
+            let fit = if r < -0.5 {
+                0
+            } else if r <= 0.5 {
+                1
+            } else if r <= 1.0 {
+                2
+            } else {
+                3
+            };
             if (fit as i32 - node.fit as i32).abs() > 1 {
                 d += FITNESS_DEMERITS;
             }
@@ -486,7 +536,13 @@ fn first_fit(its: &[Item], sh: &Shape) -> Vec<usize> {
 }
 
 /// Breaks one paragraph of `text` into lines.
-pub fn break_lines(m: &mut Measurer, text: &str, spans: &[(usize, usize, u8)], sh: &Shape, lang: Option<&Patterns>) -> Vec<Line> {
+pub fn break_lines(
+    m: &mut Measurer,
+    text: &str,
+    spans: &[(usize, usize, u8)],
+    sh: &Shape,
+    lang: Option<&Patterns>,
+) -> Vec<Line> {
     let sp = Spans { spans };
     if text.trim().is_empty() {
         return Vec::new();
@@ -511,7 +567,13 @@ pub fn break_lines(m: &mut Measurer, text: &str, spans: &[(usize, usize, u8)], s
     let mut prev = usize::MAX;
     for (li, &b) in brks.iter().enumerate() {
         let st = line_start(&its, prev);
-        let mut natural = if prev == usize::MAX { 0.0 } else if let K::Pen { post, .. } = its[prev].k { post } else { 0.0 };
+        let mut natural = if prev == usize::MAX {
+            0.0
+        } else if let K::Pen { post, .. } = its[prev].k {
+            post
+        } else {
+            0.0
+        };
         let mut spaces = 0u16;
         let (mut s, mut e) = (u32::MAX, 0u32);
         // trailing glue before a break is not part of the line
@@ -560,7 +622,11 @@ mod tests {
 
     fn faces() -> Typeface {
         let d = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/fonts/");
-        Typeface::single(vec![std::fs::read(format!("{d}Literata.ttf")).unwrap(), std::fs::read(format!("{d}Literata-Italic.ttf")).unwrap()]).unwrap()
+        Typeface::single(vec![
+            std::fs::read(format!("{d}Literata.ttf")).unwrap(),
+            std::fs::read(format!("{d}Literata-Italic.ttf")).unwrap(),
+        ])
+        .unwrap()
     }
 
     #[test]
@@ -604,9 +670,18 @@ mod tests {
         }
         let ends: Vec<&str> = lines.iter().map(|l| text[l.s as usize..l.e as usize].trim_end()).collect();
         // broken inside the address, at a slash or before a dot, and not between its slashes
-        assert!(ends.iter().any(|e| e.ends_with('/') && !e.ends_with("//")) || ends.iter().skip(1).any(|e| e.starts_with('.')), "{ends:?}");
+        assert!(
+            ends.iter().any(|e| e.ends_with('/') && !e.ends_with("//"))
+                || ends.iter().skip(1).any(|e| e.starts_with('.')),
+            "{ends:?}"
+        );
         // and nowhere else inside a word: every line ends at a space, a slash, a hyphen or before a dot
-        assert!(ends.iter().zip(ends.iter().skip(1)).all(|(a, b)| a.ends_with(['/', '-', ',', ' ']) || b.starts_with('.') || text[..].contains(&format!("{a} {b}"))), "{ends:?}");
+        assert!(
+            ends.iter().zip(ends.iter().skip(1)).all(|(a, b)| a.ends_with(['/', '-', ',', ' '])
+                || b.starts_with('.')
+                || text[..].contains(&format!("{a} {b}"))),
+            "{ends:?}"
+        );
         assert!(!ends.iter().any(|e| e.ends_with("https:/")), "{ends:?}");
         // and filled: no line of the address shorter than half the measure but the last
         assert!(lines[..lines.len() - 1].iter().all(|l| l.natural > 130.0), "{ends:?}");
@@ -622,7 +697,11 @@ mod tests {
         let sh = Shape { first: 60.0, rest: 60.0, justify: false, hyphenate: false };
         let lines = break_lines(&mut m, t, &[(0, t.len(), 0)], &sh, Some(&crate::hyph::english()));
         assert!(lines.len() >= 2);
-        assert!(lines[..lines.len() - 1].iter().all(|l| l.hyph), "{:?}", lines.iter().map(|l| &t[l.s as usize..l.e as usize]).collect::<Vec<_>>());
+        assert!(
+            lines[..lines.len() - 1].iter().all(|l| l.hyph),
+            "{:?}",
+            lines.iter().map(|l| &t[l.s as usize..l.e as usize]).collect::<Vec<_>>()
+        );
         assert!(lines.iter().all(|l| l.natural + if l.hyph { m.hyphen } else { 0.0 } <= 60.0));
     }
 

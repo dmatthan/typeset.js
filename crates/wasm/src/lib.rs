@@ -156,7 +156,8 @@ impl Engine {
 
     /// Places notes on a book: `anchors` and the result are JSON (see `typeset_engine::anchor`).
     pub fn place(&self, id: &str, anchors: &str) -> Result<String, JsError> {
-        let a: Vec<typeset_engine::anchor::Anchor> = serde_json::from_str(anchors).map_err(|e| JsError::new(&e.to_string()))?;
+        let a: Vec<typeset_engine::anchor::Anchor> =
+            serde_json::from_str(anchors).map_err(|e| JsError::new(&e.to_string()))?;
         let p = self.0.place(id, &a).ok_or_else(|| JsError::new("missing book"))?;
         serde_json::to_string(&p).map_err(|e| JsError::new(&e.to_string()))
     }

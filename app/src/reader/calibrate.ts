@@ -15,12 +15,27 @@ const PROBES = [
 ];
 /** `round`: glyph advances on whole px (Chromium on Linux); `appUnits`: on 1/60 px
  *  (Firefox); neither: exact (WebKit, Chromium with subpixel positioning). */
-export interface Calibration { round: boolean; appUnits: boolean; spaceKern: 0 | 1 | 2; linkRuns: boolean; err: number }
+export interface Calibration {
+  round: boolean;
+  appUnits: boolean;
+  spaceKern: 0 | 1 | 2;
+  linkRuns: boolean;
+  err: number;
+}
 const cache = new Map<string, Calibration>();
 
 /** `host` must carry the reader's type (its CSS variables), as the lines do. */
 export async function calibrate(core: Core, host: HTMLElement, p: LayoutParams): Promise<Calibration> {
-  const key = JSON.stringify({ ...p, measure: 0, rows: 0, headRows: 0, round: false, appUnits: false, spaceKern: 0, linkRuns: false });
+  const key = JSON.stringify({
+    ...p,
+    measure: 0,
+    rows: 0,
+    headRows: 0,
+    round: false,
+    appUnits: false,
+    spaceKern: 0,
+    linkRuns: false,
+  });
   const hit = cache.get(key);
   if (hit) return hit;
   // models of the webview's text: glyph advances rounded or not, and kerning around word
@@ -36,7 +51,9 @@ export async function calibrate(core: Core, host: HTMLElement, p: LayoutParams):
   PROBES.forEach((t, i) => {
     probe.textContent = t;
     const b = probe.getBoundingClientRect().width;
-    ws.forEach((w, m) => { for (let q = 0; q < 3; q++) e[3 * m + q] += Math.abs(b - w[3 * i + q]); });
+    ws.forEach((w, m) => {
+      for (let q = 0; q < 3; q++) e[3 * m + q] += Math.abs(b - w[3 * i + q]);
+    });
   });
   // does kerning survive an element's edge? the same kerned pairs, whole and cut by spans
   const KERNED = 'AVAWATo”, “TyLTP.';
@@ -49,7 +66,13 @@ export async function calibrate(core: Core, host: HTMLElement, p: LayoutParams):
   // ties keep the simpler model (no space kerning, then exact)
   let best = 0;
   for (let j = 1; j < e.length; j++) if (e[j] < e[best] - 1e-3) best = j;
-  const res: Calibration = { round: best % 3 === 1, appUnits: best % 3 === 2, spaceKern: modes[Math.floor(best / 3)], linkRuns, err: e[best] / PROBES.length };
+  const res: Calibration = {
+    round: best % 3 === 1,
+    appUnits: best % 3 === 2,
+    spaceKern: modes[Math.floor(best / 3)],
+    linkRuns,
+    err: e[best] / PROBES.length,
+  };
   cache.set(key, res);
   return res;
 }

@@ -11,7 +11,10 @@ export class BookImages {
   /** The pictures made for rich blocks, given back with their book. */
   private blobs = new Set<string>();
 
-  constructor(private core: Core, private book: () => BookData | null) {}
+  constructor(
+    private core: Core,
+    private book: () => BookData | null,
+  ) {}
 
   /** Another book: what was made for the last one is given back. */
   reset() {
@@ -38,7 +41,8 @@ export class BookImages {
     const measured = await measureRich(await Promise.all(todo.map(([, i]) => this.richOf(book, i))));
     const sizes = todo.map(([im, i], n): [number, number, number] => {
       const { w, h } = measured[n];
-      im[0] = w; im[1] = h;
+      im[0] = w;
+      im[1] = h;
       return [i, w, h];
     });
     await this.core.setImageSizes(book.id, sizes);
@@ -52,10 +56,18 @@ export class BookImages {
     const hit = this.urls.get(i);
     if (hit !== undefined) return hit;
     const im = book.images[i];
-    const u: string | Promise<string> = im?.[3] === RICH
-      ? this.richOf(book, i).then(t => { const url = richURL(t, im[0] || 600, im[1] || 400); this.blobs.add(url); return url; })
-      : this.core.imageURL(book.id, i);
-    if (typeof u === 'string') { this.urls.set(i, u); return u; }
+    const u: string | Promise<string> =
+      im?.[3] === RICH
+        ? this.richOf(book, i).then(t => {
+            const url = richURL(t, im[0] || 600, im[1] || 400);
+            this.blobs.add(url);
+            return url;
+          })
+        : this.core.imageURL(book.id, i);
+    if (typeof u === 'string') {
+      this.urls.set(i, u);
+      return u;
+    }
     this.urls.set(i, '');
     u.then(url => {
       if (this.book()?.id !== book.id) return;

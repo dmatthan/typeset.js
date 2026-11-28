@@ -32,7 +32,13 @@ fn inline(b: &Block, notes: &mut Vec<u32>) -> String {
         }
         let st = b.runs.iter().find(|r| (r.start as usize) <= s && (r.end as usize) >= e).map_or(0, |r| r.style);
         let mut piece = esc(&t[s..e]).replace(['\n', '\u{2028}'], "<br/>");
-        for (bit, open, close) in [(style::SMALLCAPS, "<span class=\"sc\">", "</span>"), (style::BOLD, "<b>", "</b>"), (style::ITALIC, "<i>", "</i>"), (style::SUP, "<sup>", "</sup>"), (style::SUB, "<sub>", "</sub>")] {
+        for (bit, open, close) in [
+            (style::SMALLCAPS, "<span class=\"sc\">", "</span>"),
+            (style::BOLD, "<b>", "</b>"),
+            (style::ITALIC, "<i>", "</i>"),
+            (style::SUP, "<sup>", "</sup>"),
+            (style::SUB, "<sub>", "</sub>"),
+        ] {
             if st & bit != 0 {
                 piece = format!("{open}{piece}{close}");
             }
@@ -66,7 +72,12 @@ fn table(b: &Block, notes: &mut Vec<u32>) -> String {
         for c in row.split('\t') {
             let span = shape.spans.get(cell).copied().unwrap_or(1);
             let tag = if (ri as u32) < shape.header_rows { "th" } else { "td" };
-            let sub = Block { text: c.to_string(), runs: shift(b, at, at + c.len()), links: Vec::new(), ..Block::new(0, Kind::P, String::new(), Vec::new()) };
+            let sub = Block {
+                text: c.to_string(),
+                runs: shift(b, at, at + c.len()),
+                links: Vec::new(),
+                ..Block::new(0, Kind::P, String::new(), Vec::new())
+            };
             let span_attr = if span > 1 { format!(" colspan=\"{span}\"") } else { String::new() };
             out.push_str(&format!("<{tag}{span_attr}>{}</{tag}>", inline(&sub, notes)));
             at += c.len() + 1;
@@ -84,7 +95,11 @@ fn shift(b: &Block, s: usize, e: usize) -> Vec<typeset_model::Run> {
     b.runs
         .iter()
         .filter(|r| (r.end as usize) > s && (r.start as usize) < e)
-        .map(|r| typeset_model::Run { start: (r.start as usize).max(s) as u32 - s as u32, end: (r.end as usize).min(e) as u32 - s as u32, style: r.style })
+        .map(|r| typeset_model::Run {
+            start: (r.start as usize).max(s) as u32 - s as u32,
+            end: (r.end as usize).min(e) as u32 - s as u32,
+            style: r.style,
+        })
         .collect()
 }
 
@@ -138,8 +153,17 @@ pub fn epub(book: &Book) -> Result<Vec<u8>, String> {
             (true, false) => esc(&sec.title),
             _ => String::new(),
         };
-        let toc = [sec.label.as_str(), sec.title.as_str()].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join(": ");
-        let toc = if toc.is_empty() { format!("{} {}", if sec.kind == SectionKind::Chapter { "Chapter" } else { "Part" }, si + 1) } else { toc };
+        let toc = [sec.label.as_str(), sec.title.as_str()]
+            .iter()
+            .filter(|s| !s.is_empty())
+            .copied()
+            .collect::<Vec<_>>()
+            .join(": ");
+        let toc = if toc.is_empty() {
+            format!("{} {}", if sec.kind == SectionKind::Chapter { "Chapter" } else { "Part" }, si + 1)
+        } else {
+            toc
+        };
         let mut body = String::new();
         if !heading.is_empty() && sec.kind == SectionKind::Chapter {
             body.push_str(&format!("<h1>{heading}</h1>\n"));
@@ -187,8 +211,16 @@ pub fn epub(book: &Book) -> Result<Vec<u8>, String> {
         // the notes this chapter refers to, at its end
         for n in &notes {
             if let Some(note) = book.notes.get(*n as usize) {
-                let nb = Block { text: note.text.clone(), runs: note.runs.clone(), ..Block::new(0, Kind::P, String::new(), Vec::new()) };
-                body.push_str(&format!("<aside epub:type=\"footnote\" id=\"n{n}\"><p>{}. {}</p></aside>\n", esc(&note.label), inline(&nb, &mut Vec::new())));
+                let nb = Block {
+                    text: note.text.clone(),
+                    runs: note.runs.clone(),
+                    ..Block::new(0, Kind::P, String::new(), Vec::new())
+                };
+                body.push_str(&format!(
+                    "<aside epub:type=\"footnote\" id=\"n{n}\"><p>{}. {}</p></aside>\n",
+                    esc(&note.label),
+                    inline(&nb, &mut Vec::new())
+                ));
             }
         }
         let epub_type = if sec.kind == SectionKind::Chapter { "chapter" } else { "frontmatter" };
@@ -211,7 +243,11 @@ pub fn epub(book: &Book) -> Result<Vec<u8>, String> {
     let nav_doc = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" xml:lang=\"{lang}\" lang=\"{lang}\">\n<head><title>{title}</title></head>\n<body><nav epub:type=\"toc\" id=\"toc\"><h1>Contents</h1><ol>\n{nav}</ol></nav></body>\n</html>\n"
     );
-    let author = if book.meta.author.is_empty() { String::new() } else { format!("<dc:creator>{}</dc:creator>\n", esc(&book.meta.author)) };
+    let author = if book.meta.author.is_empty() {
+        String::new()
+    } else {
+        format!("<dc:creator>{}</dc:creator>\n", esc(&book.meta.author))
+    };
     let opf = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package xmlns=\"http://www.idpf.org/2007/opf\" version=\"3.0\" unique-identifier=\"id\" xml:lang=\"{lang}\">\n<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n<dc:identifier id=\"id\">urn:typeset:{}</dc:identifier>\n<dc:title>{title}</dc:title>\n{author}<dc:language>{lang}</dc:language>\n<meta property=\"dcterms:modified\">2026-01-01T00:00:00Z</meta>\n</metadata>\n<manifest>\n<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>\n<item id=\"css\" href=\"style.css\" media-type=\"text/css\"/>\n{manifest}</manifest>\n<spine>\n{spine}</spine>\n</package>\n",
         esc(&book.id)

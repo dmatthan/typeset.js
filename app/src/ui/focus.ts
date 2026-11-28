@@ -9,6 +9,11 @@ const STOPS = 'button:not([disabled]), input:not([type=radio]), input[type=radio
 export function wrapTab(e: KeyboardEvent, within: HTMLElement) {
   const f = [...within.querySelectorAll<HTMLElement>(STOPS)];
   if (!f.length) return;
-  if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
-  else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  if (e.shiftKey && document.activeElement === f[0]) {
+    e.preventDefault();
+    f[f.length - 1].focus();
+  } else if (!e.shiftKey && document.activeElement === f[f.length - 1]) {
+    e.preventDefault();
+    f[0].focus();
+  }
 }

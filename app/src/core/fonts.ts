@@ -3,7 +3,11 @@
  *  keep them in step. Each file is a core (Latin, punctuation) with an extension beside it,
  *  `<file>.ext.ttf`, the rest of the font: the engine knows it as the family `<name>~ext`
  *  (scripts/subset-fonts.py writes both, and fonts.css). */
-export interface BundledFile { file: string; italic: boolean; weight: [number, number] }
+export interface BundledFile {
+  file: string;
+  italic: boolean;
+  weight: [number, number];
+}
 
 const vf = (name: string): BundledFile[] => [
   { file: `${name}.ttf`, italic: false, weight: [100, 1000] },
@@ -11,12 +15,17 @@ const vf = (name: string): BundledFile[] => [
 ];
 const charis: BundledFile[] = (['Regular', 'Medium', 'SemiBold', 'Bold'] as const).flatMap((n, i) => [
   { file: `Charis-${n}.ttf`, italic: false, weight: [400 + 100 * i, 400 + 100 * i] as [number, number] },
-  { file: `Charis-${n === 'Regular' ? 'Italic' : n + 'Italic'}.ttf`, italic: true, weight: [400 + 100 * i, 400 + 100 * i] as [number, number] },
+  {
+    file: `Charis-${n === 'Regular' ? 'Italic' : n + 'Italic'}.ttf`,
+    italic: true,
+    weight: [400 + 100 * i, 400 + 100 * i] as [number, number],
+  },
 ]);
 
 /** A family's files; `Name~ext` is the extension files of `Name`. */
 export function bundledFiles(name: string): BundledFile[] | undefined {
-  if (name.endsWith('~ext')) return BUNDLED[name.slice(0, -4)]?.map(f => ({ ...f, file: f.file.replace(/\.ttf$/, '.ext.ttf') }));
+  if (name.endsWith('~ext'))
+    return BUNDLED[name.slice(0, -4)]?.map(f => ({ ...f, file: f.file.replace(/\.ttf$/, '.ext.ttf') }));
   return BUNDLED[name];
 }
 

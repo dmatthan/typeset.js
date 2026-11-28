@@ -28,7 +28,8 @@ export class ReadingProgress {
   }
 
   save(bookId: string) {
-    clearTimeout(this.seenT); clearTimeout(this.dwellT);
+    clearTimeout(this.seenT);
+    clearTimeout(this.dwellT);
     kv.set('far.' + bookId, this.furthest);
     kv.set('seen.' + bookId, [...this.seen]);
   }
@@ -44,11 +45,17 @@ export class ReadingProgress {
   /** Where the reader is, and the furthest they have read (to the hundredth: a page or
    *  two read changes nothing to send). */
   now(): Progress {
-    const { strip, book, cur } = this.r, at = this.viewEnd();
+    const { strip, book, cur } = this.r,
+      at = this.viewEnd();
     const r = (x: number) => Math.round(x * 100) / 100;
     const it = strip!.itemAt(cur);
     const far = Math.max(this.furthest, at);
-    return { at: r(at), furthest: r(far), where: it?.type === 'sect' ? chapName(book!, it.sec) : this.r.headFor(cur), done: far >= 0.995 || it?.type === 'colophon' };
+    return {
+      at: r(at),
+      furthest: r(far),
+      where: it?.type === 'sect' ? chapName(book!, it.sec) : this.r.headFor(cur),
+      done: far >= 0.995 || it?.type === 'colophon',
+    };
   }
 
   /** The paragraphs on column k, read. */
@@ -60,9 +67,15 @@ export class ReadingProgress {
     const sec = book.sections[L.sec];
     for (let j = L.from; j < L.to; j++) {
       const key = sec.blocks[L.sl.u[j * FIELDS + F.block]].key;
-      if (!this.seen.has(key)) { this.seen.add(key); changed = true; }
+      if (!this.seen.has(key)) {
+        this.seen.add(key);
+        changed = true;
+      }
     }
-    if (changed) { clearTimeout(this.seenT); this.seenT = window.setTimeout(() => this.r.book && kv.set('seen.' + this.r.book.id, [...this.seen]), 800); }
+    if (changed) {
+      clearTimeout(this.seenT);
+      this.seenT = window.setTimeout(() => this.r.book && kv.set('seen.' + this.r.book.id, [...this.seen]), 800);
+    }
   }
 
   /** The share of the book read by the end of the page in view. */
@@ -75,7 +88,9 @@ export class ReadingProgress {
    *  of them (0 to 1). By the text, not by columns, which are estimates until the whole
    *  book is laid out: the same in any layout, size or device. */
   private share(k: number): number {
-    const strip = this.r.strip!, book = this.r.book!, a = strip.anchorAt(k);
+    const strip = this.r.strip!,
+      book = this.r.book!,
+      a = strip.anchorAt(k);
     if (!a) return 0;
     if ('key' in a) return shareOf(book, strip.keyIndex, a.key) ?? 0;
     return a.leaf === 'colophon' ? 1 : a.leaf === 'title' ? 0 : shareAt(book, a.sec, 0);

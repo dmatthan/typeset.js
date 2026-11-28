@@ -2,9 +2,9 @@
 //! setting it was last laid out at (one: a WASM engine's memory never shrinks).
 //! The Tauri shell calls it natively; the web build calls it through WASM.
 
+pub mod anchor;
 pub mod find;
 pub mod search;
-pub mod anchor;
 
 use rustc_hash::{FxHashMap, FxHasher};
 use std::hash::{Hash, Hasher};
@@ -66,7 +66,25 @@ fn bold() -> f32 {
 
 impl Request {
     pub fn plain(size: f32, measure: f32, rows: u32) -> Request {
-        Request { size, measure, rows, head_rows: 7, lh: size * 1.5, justify: true, hyphenate: true, round: false, app_units: false, font: vec![], wght: body(), bold: bold(), ls: 0.0, ws: 0.0, axes: vec![], space_kern: 0, link_runs: false }
+        Request {
+            size,
+            measure,
+            rows,
+            head_rows: 7,
+            lh: size * 1.5,
+            justify: true,
+            hyphenate: true,
+            round: false,
+            app_units: false,
+            font: vec![],
+            wght: body(),
+            bold: bold(),
+            ls: 0.0,
+            ws: 0.0,
+            axes: vec![],
+            space_kern: 0,
+            link_runs: false,
+        }
     }
 
     fn typo(&self) -> Typo {
@@ -75,11 +93,30 @@ impl Request {
             let b = t.as_bytes();
             *slot = (u32::from_be_bytes([b[0], b[1], b[2], b[3]]), *v);
         }
-        Typo { size: self.size, wght: self.wght, bold: self.bold, ls: self.ls, ws: self.ws, axes, round: self.round, app_units: self.app_units, space_kern: self.space_kern }
+        Typo {
+            size: self.size,
+            wght: self.wght,
+            bold: self.bold,
+            ls: self.ls,
+            ws: self.ws,
+            axes,
+            round: self.round,
+            app_units: self.app_units,
+            space_kern: self.space_kern,
+        }
     }
 
     fn params(&self) -> Params {
-        Params { typo: self.typo(), measure: self.measure, rows: self.rows, head_rows: self.head_rows, lh: if self.lh > 0.0 { self.lh } else { self.size * 1.5 }, link_runs: self.link_runs, justify: self.justify, hyphenate: self.hyphenate }
+        Params {
+            typo: self.typo(),
+            measure: self.measure,
+            rows: self.rows,
+            head_rows: self.head_rows,
+            lh: if self.lh > 0.0 { self.lh } else { self.size * 1.5 },
+            link_runs: self.link_runs,
+            justify: self.justify,
+            hyphenate: self.hyphenate,
+        }
     }
 
     fn key(&self) -> u64 {
@@ -151,12 +188,23 @@ impl Default for Engine {
 impl Engine {
     /// An engine with no fonts: add them with [`Engine::add_font`].
     pub fn new() -> Engine {
-        Engine { families: FxHashMap::default(), presses: FxHashMap::default(), books: FxHashMap::default(), cache: FxHashMap::default(), finders: FxHashMap::default(), patterns: FxHashMap::default() }
+        Engine {
+            families: FxHashMap::default(),
+            presses: FxHashMap::default(),
+            books: FxHashMap::default(),
+            cache: FxHashMap::default(),
+            finders: FxHashMap::default(),
+            patterns: FxHashMap::default(),
+        }
     }
 
     /// Adds a language's hyphenation patterns (`assets/hyph/<code>.bin`).
     pub fn add_patterns(&mut self, code: &str, bytes: Vec<u8>) -> Result<(), String> {
-        let code = typeset_press::hyph::LANGS.iter().copied().find(|l| *l == code).ok_or_else(|| format!("no patterns for {code}"))?;
+        let code = typeset_press::hyph::LANGS
+            .iter()
+            .copied()
+            .find(|l| *l == code)
+            .ok_or_else(|| format!("no patterns for {code}"))?;
         let pat = Patterns::new(bytes).ok_or("unreadable hyphenation patterns")?;
         self.patterns.insert(code, pat);
         // layouts made without them are stale
@@ -207,7 +255,12 @@ impl Engine {
 
     pub fn family_info(&self, family: &str) -> Option<FamilyInfo> {
         let f = self.families.get(family)?;
-        Some(FamilyInfo { files: f.files.len(), smcp: f.smcp(), italic: f.files.iter().any(|x| x.italic), weights: f.files.iter().map(|x| (x.wmin, x.wmax)).collect() })
+        Some(FamilyInfo {
+            files: f.files.len(),
+            smcp: f.smcp(),
+            italic: f.files.iter().any(|x| x.italic),
+            weights: f.files.iter().map(|x| (x.wmin, x.wmax)).collect(),
+        })
     }
 
     /// The press for a request's typeface: its known families in order.
@@ -231,7 +284,9 @@ impl Engine {
             let fams = chain.iter().filter_map(|f| self.families.get(f).cloned()).collect();
             let tf = Typeface::new(fams).ok_or("no fonts are loaded")?;
             let mono_ext = format!("{MONO_FAMILY}~ext");
-            let mono = self.families.get(MONO_FAMILY).filter(|f| !f.files.is_empty()).and_then(|f| Typeface::new([Some(f.clone()), self.families.get(&mono_ext).cloned()].into_iter().flatten().collect()));
+            let mono = self.families.get(MONO_FAMILY).filter(|f| !f.files.is_empty()).and_then(|f| {
+                Typeface::new([Some(f.clone()), self.families.get(&mono_ext).cloned()].into_iter().flatten().collect())
+            });
             self.presses.insert(chain.clone(), Press::new(tf).with_mono(mono));
         }
         Ok(self.presses.get_mut(&chain).unwrap())
@@ -328,12 +383,19 @@ impl Engine {
     /// face). JSON `{ "fallback": "…", "pre": bool }`.
     pub fn font_needs(&self, id: &str, family: &str) -> Option<String> {
         let b = self.books.get(id)?;
-        let fams: Vec<&Arc<Family>> = [self.families.get(family), self.families.get(&format!("{family}~ext"))].into_iter().flatten().collect();
+        let fams: Vec<&Arc<Family>> =
+            [self.families.get(family), self.families.get(&format!("{family}~ext"))].into_iter().flatten().collect();
         let mut seen = rustc_hash::FxHashSet::default();
         let mut fallback = String::new();
         b.each_text(|t| {
             for c in t.chars() {
-                if seen.len() < 2000 && !c.is_control() && !c.is_whitespace() && !matches!(c, '\u{ad}' | '\u{200b}'..='\u{200f}' | '\u{2060}' | '\u{feff}') && seen.insert(c) && !fams.iter().any(|f| f.covers(c)) {
+                if seen.len() < 2000
+                    && !c.is_control()
+                    && !c.is_whitespace()
+                    && !matches!(c, '\u{ad}' | '\u{200b}'..='\u{200f}' | '\u{2060}' | '\u{feff}')
+                    && seen.insert(c)
+                    && !fams.iter().any(|f| f.covers(c))
+                {
                     fallback.push(c);
                 }
             }
@@ -385,7 +447,8 @@ impl Engine {
             if entry.0 != key {
                 *entry = (key, FxHashMap::default());
             }
-            let want: Vec<u32> = if sections.is_empty() { (0..book.sections.len() as u32).collect() } else { sections.to_vec() };
+            let want: Vec<u32> =
+                if sections.is_empty() { (0..book.sections.len() as u32).collect() } else { sections.to_vec() };
             want.into_iter().filter(|s| (*s as usize) < book.sections.len() && !entry.1.contains_key(s)).collect()
         };
         if !missing.is_empty() {
@@ -400,7 +463,8 @@ impl Engine {
         }
         let book = &self.books[id];
         let entry = &self.cache[id];
-        let want: Vec<u32> = if sections.is_empty() { (0..book.sections.len() as u32).collect() } else { sections.to_vec() };
+        let want: Vec<u32> =
+            if sections.is_empty() { (0..book.sections.len() as u32).collect() } else { sections.to_vec() };
         let refs: Vec<(u32, &SectionLayout)> = want.iter().filter_map(|s| entry.1.get(s).map(|l| (*s, l))).collect();
         Ok(typeset_press::encode(&refs))
     }
@@ -421,8 +485,16 @@ fn lay(press: &mut Press, book: &Book, secs: &[u32], p: &Params, hyph: Option<&P
     let tf = press.typeface().clone();
     let mono = press.mono_typeface().cloned();
     let mut order: Vec<u32> = secs.to_vec();
-    order.sort_by_key(|&s| std::cmp::Reverse(book.sections[s as usize].blocks.iter().map(|b| b.text.len()).sum::<usize>()));
-    order.par_iter().map_init(|| Press::new(tf.clone()).with_mono(mono.clone()), |pr, &s| (s, pr.section(book, s as usize, p, hyph))).collect()
+    order.sort_by_key(|&s| {
+        std::cmp::Reverse(book.sections[s as usize].blocks.iter().map(|b| b.text.len()).sum::<usize>())
+    });
+    order
+        .par_iter()
+        .map_init(
+            || Press::new(tf.clone()).with_mono(mono.clone()),
+            |pr, &s| (s, pr.section(book, s as usize, p, hyph)),
+        )
+        .collect()
 }
 
 /// The core files' ranges (`core-ranges.txt`, which scripts/subset-fonts.py splits the faces by).
@@ -448,7 +520,11 @@ fn beyond_core(b: &Book) -> String {
     let mut out = String::new();
     b.each_text(|t| {
         for c in t.chars() {
-            if seen.len() < 4000 && !c.is_control() && !r.iter().any(|&(a, z)| (a..=z).contains(&(c as u32))) && seen.insert(c) {
+            if seen.len() < 4000
+                && !c.is_control()
+                && !r.iter().any(|&(a, z)| (a..=z).contains(&(c as u32)))
+                && seen.insert(c)
+            {
                 out.push(c);
             }
         }
@@ -476,7 +552,14 @@ pub fn annotate_docx(docx: &[u8], comments_json: &str) -> Result<(Vec<u8>, Strin
     let cs: Vec<WordComment> = serde_json::from_str(comments_json).map_err(|e| e.to_string())?;
     let cs: Vec<typeset_ingest::annotate::Comment> = cs
         .into_iter()
-        .map(|c| typeset_ingest::annotate::Comment { quote: c.quote, prefix: c.prefix, suffix: c.suffix, author: c.author, text: c.text, date: c.date })
+        .map(|c| typeset_ingest::annotate::Comment {
+            quote: c.quote,
+            prefix: c.prefix,
+            suffix: c.suffix,
+            author: c.author,
+            text: c.text,
+            date: c.date,
+        })
         .collect();
     let a = typeset_ingest::annotate::annotate(docx, &cs).map_err(|e| e.to_string())?;
     let report = format!("{{\"placed\":{},\"unplaced\":{:?}}}", a.placed, a.unplaced);

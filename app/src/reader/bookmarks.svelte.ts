@@ -10,7 +10,15 @@ import { CTX } from './annotations';
 import type { Strip } from './strip';
 import type { Reader } from './reader.svelte';
 
-export interface Bookmark { id: string; key: string; off: number; quote: string; prefix: string; suffix: string; at: number }
+export interface Bookmark {
+  id: string;
+  key: string;
+  off: number;
+  quote: string;
+  prefix: string;
+  suffix: string;
+  at: number;
+}
 
 /** How much of the page's opening a bookmark keeps (characters). */
 const WORDS = 80;
@@ -33,7 +41,15 @@ export function bookmarkAt(book: BookData, strip: Strip, k: number): Bookmark | 
   const h = strip.keyIndex.get(at.key)!;
   const t = book.sections[h[0]].blocks[h[1]].t;
   const e = Math.min(t.length, at.off + WORDS);
-  return { id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), key: at.key, off: at.off, quote: t.slice(at.off, e), prefix: t.slice(Math.max(0, at.off - CTX), at.off), suffix: t.slice(e, e + CTX), at: Date.now() };
+  return {
+    id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    key: at.key,
+    off: at.off,
+    quote: t.slice(at.off, e),
+    prefix: t.slice(Math.max(0, at.off - CTX), at.off),
+    suffix: t.slice(e, e + CTX),
+    at: Date.now(),
+  };
 }
 
 /** The page's opening as a list shows it: to its last whole word, and said to go on. */
@@ -41,10 +57,20 @@ export const openingOf = (b: Bookmark) => (b.quote.length < WORDS ? b.quote : b.
 
 /** The bookmarks on columns `from` to `to`. */
 export const bookmarksIn = (list: Bookmark[], strip: Strip, from: number, to: number) =>
-  list.filter(b => { const k = strip.resolve({ key: b.key, off: b.off }); return k >= from && k <= to; });
+  list.filter(b => {
+    const k = strip.resolve({ key: b.key, off: b.off });
+    return k >= from && k <= to;
+  });
 
 /** A bookmark as an anchor to place on the book's text again (`Core.place`). */
-export const anchorOfBookmark = (b: Bookmark): NoteAnchor => ({ key: b.key, s: b.off, e: b.off + b.quote.length, quote: b.quote, prefix: b.prefix, suffix: b.suffix });
+export const anchorOfBookmark = (b: Bookmark): NoteAnchor => ({
+  key: b.key,
+  s: b.off,
+  e: b.off + b.quote.length,
+  quote: b.quote,
+  prefix: b.prefix,
+  suffix: b.suffix,
+});
 
 /** The open book's bookmarks, and the page in view's (`reader.bookmarks`). */
 export class Bookmarks {
@@ -53,8 +79,12 @@ export class Bookmarks {
 
   constructor(private r: Reader) {}
 
-  load(bookId: string) { this.list = loadBookmarks(bookId); }
-  clear() { this.list = []; }
+  load(bookId: string) {
+    this.list = loadBookmarks(bookId);
+  }
+  clear() {
+    this.list = [];
+  }
 
   /** The bookmarks on the columns in view. */
   inView(): Bookmark[] {
@@ -74,7 +104,10 @@ export class Bookmarks {
     if (!book || !strip) return;
     const here = this.inView();
     if (here.length) this.list = this.list.filter(b => !here.includes(b));
-    else { const b = bookmarkAt(book, strip, cur); if (b) this.list = [...this.list, b]; }
+    else {
+      const b = bookmarkAt(book, strip, cur);
+      if (b) this.list = [...this.list, b];
+    }
     saveBookmarks(book.id, this.list);
   }
 
@@ -83,4 +116,3 @@ export class Bookmarks {
     if (this.r.book) saveBookmarks(this.r.book.id, this.list);
   }
 }
-

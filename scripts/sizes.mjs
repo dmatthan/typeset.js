@@ -30,4 +30,7 @@ for (const f of files(dir)) {
 const kb = n => (n / 1024).toFixed(1).padStart(7) + ' KB';
 for (const [br, raw, f] of rows.sort((a, z) => z[0] - a[0])) console.log(`${kb(br)} brotli ${kb(raw)} raw  ${f}`);
 console.log(`${kb(total)} in all, the budget ${kb(budget)}`);
-if (total > budget) { console.error('over the budget: find what grew before raising it'); process.exit(1); }
+if (total > budget) {
+  console.error('over the budget: find what grew before raising it');
+  process.exit(1);
+}

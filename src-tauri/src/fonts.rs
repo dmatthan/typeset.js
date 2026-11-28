@@ -121,4 +121,3 @@ pub async fn font_file(name: String, index: usize, app: State<'_, App>) -> Res<R
     let f = files.get(&name).and_then(|v| v.get(index)).ok_or("no such font file")?;
     Ok(Response::new(f.bytes.as_ref().clone()))
 }
-

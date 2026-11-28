@@ -11,7 +11,12 @@ use typeset_model::{Block, Kind, Meta, Section, SectionKind, TextBuilder, fnv64,
 pub(crate) fn decode(bytes: &[u8]) -> Option<String> {
     let s = if let Some(b) = bytes.strip_prefix(b"\xff\xfe").or_else(|| bytes.strip_prefix(b"\xfe\xff")) {
         let le = bytes[0] == 0xff;
-        let u: Vec<u16> = b.as_chunks::<2>().0.iter().map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) }).collect();
+        let u: Vec<u16> = b
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| if le { u16::from_le_bytes([c[0], c[1]]) } else { u16::from_be_bytes([c[0], c[1]]) })
+            .collect();
         String::from_utf16_lossy(&u)
     } else {
         let b = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(bytes);
@@ -27,13 +32,15 @@ pub(crate) fn decode(bytes: &[u8]) -> Option<String> {
 
 fn cp1252(c: u8) -> char {
     const HIGH: [char; 32] = [
-        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8d}', 'Ž', '\u{8f}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9d}', 'ž', 'Ÿ',
+        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8d}', 'Ž', '\u{8f}', '\u{90}', '‘',
+        '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9d}', 'ž', 'Ÿ',
     ];
     if (0x80..0xa0).contains(&c) { HIGH[c as usize - 0x80] } else { c as char }
 }
 
 pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
-    let raw = decode(bytes).ok_or(Error::Unreadable("it is not a book or a text Volumen can read (EPUB, Word, Markdown or plain text)"))?;
+    let raw = decode(bytes)
+        .ok_or(Error::Unreadable("it is not a book or a text Volumen can read (EPUB, Word, Markdown or plain text)"))?;
     let raw = raw.replace("\r\n", "\n").replace('\r', "\n");
     let mut meta = Meta { lang: "en".into(), ..Meta::default() };
     for l in raw.lines().take(80) {
@@ -83,7 +90,9 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             let h = heads::parse(p);
             !h.label.is_empty()
                 || (!h.num.is_empty() && h.title.is_empty())
-                || (p.chars().any(|c| c.is_uppercase()) && !p.chars().any(|c| c.is_lowercase()) && p.chars().filter(|c| c.is_uppercase()).count() >= 3)
+                || (p.chars().any(|c| c.is_uppercase())
+                    && !p.chars().any(|c| c.is_lowercase())
+                    && p.chars().filter(|c| c.is_uppercase()).count() >= 3)
         }
     };
     let file = fnv64(name.as_bytes());
@@ -103,10 +112,13 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             let mut h = heads::parse(p);
             if h.title.is_empty()
                 && let Some(nx) = paras.get(i + 1)
-                    && nx.len() < 80 && !nx.ends_with(['.', '!', '?', '”', '"']) && !is_head(nx) {
-                        h.title = heads::tidy(&smart_quotes(nx));
-                        i += 1;
-                    }
+                && nx.len() < 80
+                && !nx.ends_with(['.', '!', '?', '”', '"'])
+                && !is_head(nx)
+            {
+                h.title = heads::tidy(&smart_quotes(nx));
+                i += 1;
+            }
             let n = sections.len() + 1;
             sections.push(Section {
                 kind: SectionKind::Chapter,
@@ -121,7 +133,15 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
             continue;
         }
         if sections.is_empty() {
-            sections.push(Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: "Opening".into(), blocks: Vec::new(), head: None });
+            sections.push(Section {
+                kind: SectionKind::Chapter,
+                part: String::new(),
+                label: String::new(),
+                num: "1".into(),
+                title: "Opening".into(),
+                blocks: Vec::new(),
+                head: None,
+            });
         }
         let kind = if p.trim().chars().all(|c| c == '*' || c.is_whitespace()) { Kind::Break } else { Kind::P };
         let b = if kind == Kind::Break { Block::new(0, Kind::Break, String::new(), vec![]) } else { block(Kind::P, p) };
@@ -147,7 +167,9 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<crate::Book, Error> {
 
 fn find_marker(t: &str, m: &str) -> Option<usize> {
     let alt = m.replace("*** ", "***");
-    t.find(m).or_else(|| t.find(&alt)).filter(|&i| t[i..].lines().next().is_some_and(|l| l.contains("PROJECT GUTENBERG")))
+    t.find(m)
+        .or_else(|| t.find(&alt))
+        .filter(|&i| t[i..].lines().next().is_some_and(|l| l.contains("PROJECT GUTENBERG")))
 }
 
 /// _underscored_ text is italic.
@@ -170,7 +192,9 @@ pub fn smart_quotes(s: &str) -> String {
         let open = prev.is_whitespace() || matches!(prev, '(' | '[' | '{' | '—' | '“' | '‘');
         match c {
             '"' => out.push(if open { '“' } else { '”' }),
-            '\'' => out.push(if open && !prev.is_alphanumeric() && prev != '“' || prev == '“' { '‘' } else { '’' }),
+            '\'' => {
+                out.push(if open && !prev.is_alphanumeric() && prev != '“' || prev == '“' { '‘' } else { '’' })
+            }
             _ => out.push(c),
         }
     }
@@ -194,6 +218,9 @@ mod tests {
         assert_eq!(b.sections.len(), 2);
         assert_eq!(b.sections[0].title, "The First");
         assert_eq!(b.sections[0].label, "Chapter I");
-        assert_eq!(b.sections[0].blocks[0].runs.iter().map(|r| r.style).collect::<Vec<_>>(), vec![style::SMALLCAPS, style::ITALIC]);
+        assert_eq!(
+            b.sections[0].blocks[0].runs.iter().map(|r| r.style).collect::<Vec<_>>(),
+            vec![style::SMALLCAPS, style::ITALIC]
+        );
     }
 }

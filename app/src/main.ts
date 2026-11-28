@@ -22,7 +22,8 @@ try {
   core = await makeCore();
   // the app, or one book in another site's page: each its own shell, loaded alone (the
   // package's reader is only ever the second, and its build leaves the app out)
-  const { default: Shell } = embedded || import.meta.env.TYPESET_PACKAGE ? await import('./ui/Embed.svelte') : await import('./ui/App.svelte');
+  const { default: Shell } =
+    embedded || import.meta.env.TYPESET_PACKAGE ? await import('./ui/Embed.svelte') : await import('./ui/App.svelte');
   mount(Shell, { target: document.getElementById('app')!, props: { core } });
 } catch (e) {
   // never a blank page: what went wrong, and what to try

@@ -18,14 +18,36 @@ const files = [];
 (function walk(d) {
   for (const f of readdirSync(d)) {
     const p = join(d, f);
-    if (statSync(p).isDirectory()) { if (f !== 'pkg') walk(p); }
-    else if (/\.(ts|svelte)$/.test(f) && !f.endsWith('.d.ts')) files.push(p);
+    if (statSync(p).isDirectory()) {
+      if (f !== 'pkg') walk(p);
+    } else if (/\.(ts|svelte)$/.test(f) && !f.endsWith('.d.ts')) files.push(p);
   }
 })(join(root, 'app/src'));
 
-const BRANCH = new Set([ts.SyntaxKind.IfStatement, ts.SyntaxKind.CaseClause, ts.SyntaxKind.ForStatement, ts.SyntaxKind.ForInStatement, ts.SyntaxKind.ForOfStatement, ts.SyntaxKind.WhileStatement, ts.SyntaxKind.DoStatement, ts.SyntaxKind.CatchClause, ts.SyntaxKind.ConditionalExpression]);
-const LOGIC = new Set([ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken]);
-const isFn = n => ts.isFunctionDeclaration(n) || ts.isMethodDeclaration(n) || ts.isArrowFunction(n) || ts.isFunctionExpression(n) || ts.isConstructorDeclaration(n) || ts.isGetAccessor(n) || ts.isSetAccessor(n);
+const BRANCH = new Set([
+  ts.SyntaxKind.IfStatement,
+  ts.SyntaxKind.CaseClause,
+  ts.SyntaxKind.ForStatement,
+  ts.SyntaxKind.ForInStatement,
+  ts.SyntaxKind.ForOfStatement,
+  ts.SyntaxKind.WhileStatement,
+  ts.SyntaxKind.DoStatement,
+  ts.SyntaxKind.CatchClause,
+  ts.SyntaxKind.ConditionalExpression,
+]);
+const LOGIC = new Set([
+  ts.SyntaxKind.AmpersandAmpersandToken,
+  ts.SyntaxKind.BarBarToken,
+  ts.SyntaxKind.QuestionQuestionToken,
+]);
+const isFn = n =>
+  ts.isFunctionDeclaration(n) ||
+  ts.isMethodDeclaration(n) ||
+  ts.isArrowFunction(n) ||
+  ts.isFunctionExpression(n) ||
+  ts.isConstructorDeclaration(n) ||
+  ts.isGetAccessor(n) ||
+  ts.isSetAccessor(n);
 
 const found = [];
 for (const file of files) {
@@ -34,10 +56,21 @@ for (const file of files) {
   if (file.endsWith('.svelte')) {
     const m = [...text.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
     if (!m.length) continue;
-    text = m.map(x => text.slice(0, x.index).replace(/[^\n]/g, ' ') + x[0].replace(/<\/?script[^>]*>/g, s => ' '.repeat(s.length))).join('\n');
+    text = m
+      .map(
+        x =>
+          text.slice(0, x.index).replace(/[^\n]/g, ' ') + x[0].replace(/<\/?script[^>]*>/g, s => ' '.repeat(s.length)),
+      )
+      .join('\n');
   }
   const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-  const name = n => (n.name && n.name.getText(src)) || (ts.isVariableDeclaration(n.parent) ? n.parent.name.getText(src) : ts.isPropertyAssignment(n.parent) ? n.parent.name.getText(src) : '(arrow)');
+  const name = n =>
+    (n.name && n.name.getText(src)) ||
+    (ts.isVariableDeclaration(n.parent)
+      ? n.parent.name.getText(src)
+      : ts.isPropertyAssignment(n.parent)
+        ? n.parent.name.getText(src)
+        : '(arrow)');
   // a function's own branches: not those of functions inside it, which are counted apart
   const count = fn => {
     let c = 1;
@@ -51,7 +84,12 @@ for (const file of files) {
     return c;
   };
   const visit = n => {
-    if (isFn(n)) found.push({ c: count(n), at: `${relative(root, file)}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}`, name: name(n) });
+    if (isFn(n))
+      found.push({
+        c: count(n),
+        at: `${relative(root, file)}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}`,
+        name: name(n),
+      });
     ts.forEachChild(n, visit);
   };
   visit(src);

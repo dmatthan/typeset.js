@@ -14,9 +14,23 @@ import { chapName, chapTitle } from './render';
 
 /** A notebook entry with the column it is in now. */
 export type NoteItem = NoteEntry & { k: number };
-export interface Chapter { sec: number; title: string; page: number; read: boolean; current: boolean; feedback: number }
+export interface Chapter {
+  sec: number;
+  title: string;
+  page: number;
+  read: boolean;
+  current: boolean;
+  feedback: number;
+}
 /** A bookmark as the contents list it: the page it marks now, its chapter, its words. */
-export interface BookmarkItem { id: string; k: number; page: number; where: string; quote: string; at: number }
+export interface BookmarkItem {
+  id: string;
+  k: number;
+  page: number;
+  where: string;
+  quote: string;
+  at: number;
+}
 
 /** What the contents show, for the components. */
 export const cs = $state({
@@ -53,9 +67,15 @@ export class Contents {
   /** The bookmarks in the book's order, each where it is now (reading `reader.bookmarks.list`:
    *  a component deriving from this follows them). */
   bookmarks(): BookmarkItem[] {
-    const r = this.r, strip = r.strip;
+    const r = this.r,
+      strip = r.strip;
     if (!strip) return [];
-    return r.bookmarks.list.map(b => { const k = strip.resolve({ key: b.key, off: b.off }); return { id: b.id, k, page: k + 1, where: r.headFor(k), quote: openingOf(b), at: b.at }; }).sort((a, z) => a.k - z.k);
+    return r.bookmarks.list
+      .map(b => {
+        const k = strip.resolve({ key: b.key, off: b.off });
+        return { id: b.id, k, page: k + 1, where: r.headFor(k), quote: openingOf(b), at: b.at };
+      })
+      .sort((a, z) => a.k - z.k);
   }
 
   setTab(t: typeof cs.tab) {
@@ -66,9 +86,11 @@ export class Contents {
   /** The start of the next chapter, or of this one or the one before (`d` -1: as a book's
    *  back button does, to this chapter's start first). */
   chapter(d: 1 | -1) {
-    const r = this.r, strip = r.strip;
+    const r = this.r,
+      strip = r.strip;
     if (!strip) return;
-    const here = strip.itemAt(r.cur)?.sec ?? 0, n = strip.secStart.length;
+    const here = strip.itemAt(r.cur)?.sec ?? 0,
+      n = strip.secStart.length;
     const sec = d > 0 ? Math.min(n - 1, here + 1) : r.cur > strip.secStart[here] ? here : Math.max(0, here - 1);
     r.travelTo(strip.secStart[sec]);
   }
@@ -76,7 +98,10 @@ export class Contents {
   /** Keys while the contents show: Esc or M puts them away (their own controls take the
    *  rest, Tab among them). */
   key(e: KeyboardEvent): boolean {
-    if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') { this.close(); return true; }
+    if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') {
+      this.close();
+      return true;
+    }
     return false;
   }
 
@@ -88,20 +113,35 @@ export class Contents {
 
   /** The chapters: each by the page it starts on, the one the reader is in, those read. */
   build() {
-    const r = this.r, strip = r.strip!, book = r.book!;
+    const r = this.r,
+      strip = r.strip!,
+      book = r.book!;
     const here = strip.itemAt(r.cur)?.sec;
     // where readers' notes are (a writer's book with feedback): a count by the chapter
     const fbIn = r.fb?.size ? r.fb.perSection() : null;
     cs.chapters = book.sections.map((s, sec) => {
-      let n = 0, seen = 0;
-      for (const b of s.blocks) { if (b.k === BlockKind.Break) continue; n++; if (r.progress.seen.has(b.key)) seen++; }
-      return { sec, title: chapTitle(book, sec), page: strip.secStart[sec] + 1, read: n > 0 && seen / n > 0.95, current: here === sec, feedback: fbIn?.get(sec) ?? 0 };
+      let n = 0,
+        seen = 0;
+      for (const b of s.blocks) {
+        if (b.k === BlockKind.Break) continue;
+        n++;
+        if (r.progress.seen.has(b.key)) seen++;
+      }
+      return {
+        sec,
+        title: chapTitle(book, sec),
+        page: strip.secStart[sec] + 1,
+        read: n > 0 && seen / n > 0.95,
+        current: here === sec,
+        feedback: fbIn?.get(sec) ?? 0,
+      };
     });
   }
 
   /** Everything the reader has added to this book, in reading order. */
   buildNotebook() {
-    const r = this.r, strip = r.strip;
+    const r = this.r,
+      strip = r.strip;
     if (!strip) return;
     cs.notes = r.marking.notebook().map(e => ({ ...e, k: strip.resolve(e.at) }));
   }
@@ -121,7 +161,8 @@ export class Contents {
 
   /** A marked paragraph to paste anywhere, with where it is from. */
   cite(key: string) {
-    const r = this.r, book = r.book!;
+    const r = this.r,
+      book = r.book!;
     const hit = r.strip!.keyIndex.get(key);
     if (!hit) return '';
     const blk = book.sections[hit[0]].blocks[hit[1]];

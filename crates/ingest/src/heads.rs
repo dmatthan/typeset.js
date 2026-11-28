@@ -1,6 +1,7 @@
 //! Chapter headings: "CHAPTER IV. THE TALE OF A DETECTIVE" → label, number, title.
 
-const WORDS: &[&str] = &["chapter", "book", "part", "canto", "letter", "section", "volume", "act", "scene", "stave", "lecture"];
+const WORDS: &[&str] =
+    &["chapter", "book", "part", "canto", "letter", "section", "volume", "act", "scene", "stave", "lecture"];
 
 pub struct Head {
     pub label: String,
@@ -17,8 +18,8 @@ fn is_number(w: &str) -> bool {
 }
 
 const WORD_NUMS: &[&str] = &[
-    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "first", "second",
-    "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "last",
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "first",
+    "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "last",
 ];
 
 /// Splits a heading into label ("Chapter IV"), number ("IV") and title.
@@ -98,7 +99,10 @@ mod tests {
     #[test]
     fn chapter_with_title() {
         let h = parse("CHAPTER I. THE TWO POETS OF SAFFRON PARK");
-        assert_eq!((h.label.as_str(), h.num.as_str(), h.title.as_str()), ("Chapter I", "I", "The Two Poets of Saffron Park"));
+        assert_eq!(
+            (h.label.as_str(), h.num.as_str(), h.title.as_str()),
+            ("Chapter I", "I", "The Two Poets of Saffron Park")
+        );
     }
 
     #[test]

@@ -13,20 +13,30 @@
   let busy = $state(false);
   // svelte-ignore state_referenced_locally
   const version = ui.newDraft ?? 0;
-  function later() { ui.sheet = null; ui.newDraft = null; }
+  function later() {
+    ui.sheet = null;
+    ui.newDraft = null;
+  }
   async function take() {
     busy = true;
     try {
       const old = (await reader.core.library()).find(e => e.id === reader.book?.id);
       if (!old) return;
       const { entry, carried } = await takeNewDraft(reader.core, old, version);
-      ui.sheet = null; ui.newDraft = null;
+      ui.sheet = null;
+      ui.newDraft = null;
       reader.close();
       await removeBook(reader.core, old.id);
       ui.libVersion++;
       await reader.open(entry.id);
-      toast(`The new draft. ${carried.mine ? `${count(carried.mine, 'note of yours', 'notes of yours')} carried over${carried.mineLost ? `; ${carried.mineLost} on words no longer there, kept in your notebook` : ''}.` : ''}`, 6000);
-    } catch (e) { toast(`The new draft could not be opened: ${(e as Error).message}`, 6000); busy = false; }
+      toast(
+        `The new draft. ${carried.mine ? `${count(carried.mine, 'note of yours', 'notes of yours')} carried over${carried.mineLost ? `; ${carried.mineLost} on words no longer there, kept in your notebook` : ''}.` : ''}`,
+        6000,
+      );
+    } catch (e) {
+      toast(`The new draft could not be opened: ${(e as Error).message}`, 6000);
+      busy = false;
+    }
   }
 </script>
 
@@ -38,6 +48,8 @@
   </div>
   <div class="acts two">
     <button class="btn" disabled={busy} onclick={later}>Later</button>
-    <button class="btn primary" disabled={busy} data-autofocus onclick={take}>{busy ? 'Opening…' : 'Read the new draft'}</button>
+    <button class="btn primary" disabled={busy} data-autofocus onclick={take}
+      >{busy ? 'Opening…' : 'Read the new draft'}</button
+    >
   </div>
 </Sheet>

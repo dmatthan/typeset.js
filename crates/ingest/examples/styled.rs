@@ -10,7 +10,9 @@ fn main() {
         let st: u32 = blk.runs.iter().filter(|r| r.style & bit != 0).map(|r| r.end - r.start).sum();
         if st as usize * 2 > blk.text.len() && blk.text.len() > 40 {
             n += 1;
-            if n <= 8 { println!("{:?} {}", blk.kind, blk.text.chars().take(110).collect::<String>()); }
+            if n <= 8 {
+                println!("{:?} {}", blk.kind, blk.text.chars().take(110).collect::<String>());
+            }
         }
     }
     println!("{n} paragraphs mostly in style {bit}");

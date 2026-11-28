@@ -188,7 +188,9 @@ mod tests {
         assert_eq!(h("Probability"), "Prob-a-bil-ity");
         assert_eq!(h("hello"), "hello");
         assert_eq!(h("recognize"), "rec-og-nize");
-        let de = Patterns::new(std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/hyph/de.bin")).unwrap()).unwrap();
+        let de =
+            Patterns::new(std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/hyph/de.bin")).unwrap())
+                .unwrap();
         assert_eq!(de.syllables("Eingabeaufforderung", 2, 2).join("-"), "Ein-ga-be-auf-for-de-rung");
         assert_eq!(lang_code("en-GB"), Some("en"));
         assert_eq!(lang_code("nb"), Some("no"));

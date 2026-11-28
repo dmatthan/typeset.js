@@ -10,7 +10,9 @@
   let { core, book, onclose }: { core: Core; book: LibEntry; onclose: () => void } = $props();
   // svelte-ignore state_referenced_locally
   const n = Math.max(1, book.chapters);
-  let from = $state(1), to = $state(n), busy = $state(false);
+  let from = $state(1),
+    to = $state(n),
+    busy = $state(false);
   const whole = $derived(from <= 1 && to >= n);
   const ok = $derived(Number.isInteger(from) && Number.isInteger(to) && from >= 1 && to >= from && from <= n);
   async function save() {
@@ -18,13 +20,24 @@
     busy = true;
     try {
       const src = await core.source(book.id);
-      if (!src) { toast('The book’s file is missing. Add it again to save it.', 5200); return; }
+      if (!src) {
+        toast('The book’s file is missing. Add it again to save it.', 5200);
+        return;
+      }
       const bytes = await core.epubOf(src.bytes, src.name, from, Math.min(to, n));
       const base = book.title.replace(/[\\/:*?"<>|]+/g, ' ').trim();
-      const name = whole ? `${base}.epub` : `${base} — ${from === to ? `chapter ${from}` : `chapters ${from} to ${Math.min(to, n)}`}.epub`;
-      if (await shell.saveBytes(name, bytes)) { toast(whole ? 'Saved as an EPUB.' : 'Saved the sample: only these chapters are in it.', 4200); onclose(); }
-    } catch (e) { toast(`It could not be saved as an EPUB: ${(e as Error).message}`, 6000); }
-    finally { busy = false; }
+      const name = whole
+        ? `${base}.epub`
+        : `${base} — ${from === to ? `chapter ${from}` : `chapters ${from} to ${Math.min(to, n)}`}.epub`;
+      if (await shell.saveBytes(name, bytes)) {
+        toast(whole ? 'Saved as an EPUB.' : 'Saved the sample: only these chapters are in it.', 4200);
+        onclose();
+      }
+    } catch (e) {
+      toast(`It could not be saved as an EPUB: ${(e as Error).message}`, 6000);
+    } finally {
+      busy = false;
+    }
   }
 </script>
 
@@ -41,13 +54,39 @@
   </div>
   <div class="acts two">
     <button class="btn" onclick={onclose}>Not now</button>
-    <button class="btn primary" disabled={busy || !ok} onclick={save}>{busy ? 'Saving…' : whole ? 'Save the book' : 'Save the sample'}</button>
+    <button class="btn primary" disabled={busy || !ok} onclick={save}
+      >{busy ? 'Saving…' : whole ? 'Save the book' : 'Save the sample'}</button
+    >
   </div>
 </Sheet>
 
 <style>
-  .range { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; font: 600 var(--t-m)/1 var(--f-ui); color: var(--ink-2); }
-  .range label { display: inline-flex; align-items: center; gap: 8px; }
-  .range input { width: 4.5em; height: 42px; box-sizing: border-box; border: 1.5px solid var(--rule); border-radius: var(--r-m); background: var(--surface); color: var(--ink); font: 500 var(--t-m)/1 var(--f-ui); padding: 0 10px; }
-  .of { color: var(--ink-3); font-weight: 500; }
+  .range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    font: 600 var(--t-m) / 1 var(--f-ui);
+    color: var(--ink-2);
+  }
+  .range label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .range input {
+    width: 4.5em;
+    height: 42px;
+    box-sizing: border-box;
+    border: 1.5px solid var(--rule);
+    border-radius: var(--r-m);
+    background: var(--surface);
+    color: var(--ink);
+    font: 500 var(--t-m) / 1 var(--f-ui);
+    padding: 0 10px;
+  }
+  .of {
+    color: var(--ink-3);
+    font-weight: 500;
+  }
 </style>

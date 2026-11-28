@@ -3,7 +3,12 @@
  *  older way still works: select the text in a hidden field and copy it, within the tap. */
 export async function copyText(text: string): Promise<boolean> {
   if (window.isSecureContext && navigator.clipboard?.writeText) {
-    try { await navigator.clipboard.writeText(text); return true; } catch { /* the older way */ }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      /* the older way */
+    }
   }
   return copySelected(text);
 }
@@ -21,10 +26,15 @@ function copySelected(text: string): boolean {
   const range = document.createRange();
   range.selectNodeContents(ta);
   const sel = getSelection();
-  sel?.removeAllRanges(); sel?.addRange(range);
+  sel?.removeAllRanges();
+  sel?.addRange(range);
   ta.setSelectionRange(0, text.length);
   let ok = false;
-  try { ok = document.execCommand('copy'); } catch { /* not allowed */ }
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    /* not allowed */
+  }
   sel?.removeAllRanges();
   ta.remove();
   prev?.focus?.({ preventScroll: true });

@@ -2,7 +2,9 @@
  *  readers' notes, a folder of books), a few levels deep, hidden files left out. The
  *  drop's entries are taken at once: the browser empties them after the event. */
 export function droppedFiles(dt: DataTransfer): Promise<File[]> {
-  const entries = [...dt.items].map(i => (i.kind === 'file' ? i.webkitGetAsEntry?.() : null)).filter((e): e is FileSystemEntry => !!e);
+  const entries = [...dt.items]
+    .map(i => (i.kind === 'file' ? i.webkitGetAsEntry?.() : null))
+    .filter((e): e is FileSystemEntry => !!e);
   const plain = [...dt.files];
   if (!entries.some(e => e.isDirectory)) return Promise.resolve(plain);
   return (async () => {

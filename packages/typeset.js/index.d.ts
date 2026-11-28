@@ -2,7 +2,14 @@
 // and methods are the package's README).
 
 /** A bundled theme's name, or a theme as Volumen exports one. */
-export type Theme = 'book' | 'slate' | 'linen' | 'clear' | 'warm' | 'open' | { format: 'typeset-theme/1'; [k: string]: unknown };
+export type Theme =
+  | 'book'
+  | 'slate'
+  | 'linen'
+  | 'clear'
+  | 'warm'
+  | 'open'
+  | { format: 'typeset-theme/1'; [k: string]: unknown };
 
 /** What a book is opened with: <typeset-book>'s attributes, in camelCase or as written. */
 export interface BookOptions {
@@ -41,8 +48,16 @@ export interface TypesetBook extends HTMLElement {
   /** Once ready: to a chapter (counted from 1) or a place (0 to 1). */
   goTo(where: { chapter: number } | { at: number }): void;
   setTheme(theme: Theme): void;
-  addEventListener<K extends keyof TypesetBookEvents>(type: K, listener: (this: TypesetBook, e: TypesetBookEvents[K]) => void, options?: boolean | AddEventListenerOptions): void;
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+  addEventListener<K extends keyof TypesetBookEvents>(
+    type: K,
+    listener: (this: TypesetBook, e: TypesetBookEvents[K]) => void,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
 }
 
 /** <typeset-open>: what it holds (or the book's cover) opens the book over the window. */

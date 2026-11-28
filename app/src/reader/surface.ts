@@ -15,10 +15,16 @@ const SETTLE_MS = 250;
  *  else just after a frame is drawn (Safari), the most time before the next. Returns how
  *  to call it off. */
 function whenIdle(f: () => void): () => void {
-  if (window.requestIdleCallback) { const h = window.requestIdleCallback(f, { timeout: 400 }); return () => window.cancelIdleCallback(h); }
+  if (window.requestIdleCallback) {
+    const h = window.requestIdleCallback(f, { timeout: 400 });
+    return () => window.cancelIdleCallback(h);
+  }
   let t = 0;
   const raf = requestAnimationFrame(() => (t = window.setTimeout(f, 0)));
-  return () => { cancelAnimationFrame(raf); clearTimeout(t); };
+  return () => {
+    cancelAnimationFrame(raf);
+    clearTimeout(t);
+  };
 }
 import type { Metrics } from './geometry';
 import type { Strip } from './strip';
@@ -43,7 +49,10 @@ export class Surface {
   private settle = 0;
   private unidle = () => {};
 
-  constructor(public track: HTMLElement, private src: () => RenderSource) {}
+  constructor(
+    public track: HTMLElement,
+    private src: () => RenderSource,
+  ) {}
 
   private x(pos: number) {
     const { M } = this.src();
@@ -77,9 +86,11 @@ export class Surface {
     const T = times[times.length - 1];
     const frames = times.map(t => ({ offset: t / T, transform: this.at(at(t)) }));
     this.track.style.transform = frames[frames.length - 1].transform;
-    const a = this.anim = this.track.animate(frames, { duration: T * 1000, easing: 'linear' });
+    const a = (this.anim = this.track.animate(frames, { duration: T * 1000, easing: 'linear' }));
     a.startTime = t0;
-    a.onfinish = () => { if (this.anim === a) this.anim = null; };
+    a.onfinish = () => {
+      if (this.anim === a) this.anim = null;
+    };
   }
 
   private stop() {
@@ -91,7 +102,10 @@ export class Surface {
   /** The columns that can be seen with the sheet between `a` and `b`. */
   private seen(a: number, b = a): [number, number] {
     const { M, strip } = this.src();
-    return [Math.max(0, Math.floor(Math.min(a, b) - (M.x0 + M.G) / M.P)), Math.min(strip.N - 1, Math.ceil(Math.max(a, b) + (M.W - M.x0) / M.P))];
+    return [
+      Math.max(0, Math.floor(Math.min(a, b) - (M.x0 + M.G) / M.P)),
+      Math.min(strip.N - 1, Math.ceil(Math.max(a, b) + (M.W - M.x0) / M.P)),
+    ];
   }
 
   /** Columns that can be seen at `pos` must exist now, and those the motion reaches before
@@ -108,20 +122,38 @@ export class Surface {
     const [tLo, tHi] = Number.isFinite(to) ? this.seen(to) : [lo, hi];
     const aLo = Math.min(tLo, v < -0.05 ? Math.max(0, lo - ahead) : Math.max(0, lo - 2));
     const aHi = Math.max(tHi, v > 0.05 ? Math.min(strip.N - 1, hi + ahead) : Math.min(strip.N - 1, hi + 2));
-    for (const [k, el] of this.cols) if (k < aLo - 2 || k > aHi + 2) { el.remove(); this.cols.delete(k); }
+    for (const [k, el] of this.cols)
+      if (k < aLo - 2 || k > aHi + 2) {
+        el.remove();
+        this.cols.delete(k);
+      }
     for (let k = lo; k <= hi; k++) if (!this.cols.has(k)) this.make(k);
-    if (!v && Math.abs(pos - Math.round(pos)) < 1e-4) { this.prebuild(lo, hi); return; }
+    if (!v && Math.abs(pos - Math.round(pos)) < 1e-4) {
+      this.prebuild(lo, hi);
+      return;
+    }
     if (Number.isFinite(to)) {
       const d = to > pos ? 1 : -1;
-      for (let k = d > 0 ? hi + 1 : lo - 1; k >= tLo && k <= tHi; k += d) if (!this.cols.has(k)) { this.make(k); return; }
+      for (let k = d > 0 ? hi + 1 : lo - 1; k >= tLo && k <= tHi; k += d)
+        if (!this.cols.has(k)) {
+          this.make(k);
+          return;
+        }
       return;
     }
     // one column ahead per frame, nearest first
     for (let d = 0; d < ahead + 2; d++) {
       const k = v >= 0 ? hi + 1 + d : lo - 1 - d;
-      if (k >= aLo && k <= aHi && !this.cols.has(k)) { this.make(k); return; }
+      if (k >= aLo && k <= aHi && !this.cols.has(k)) {
+        this.make(k);
+        return;
+      }
     }
-    for (const k of [lo - 1, hi + 1, lo - 2, hi + 2]) if (k >= aLo && k <= aHi && !this.cols.has(k)) { this.make(k); return; }
+    for (const k of [lo - 1, hi + 1, lo - 2, hi + 2])
+      if (k >= aLo && k <= aHi && !this.cols.has(k)) {
+        this.make(k);
+        return;
+      }
   }
 
   /** At rest, once settled, the columns the next turn either way will show are built in
@@ -150,7 +182,8 @@ export class Surface {
 
   ensure(lo: number, hi: number) {
     const { strip } = this.src();
-    lo = Math.max(0, lo); hi = Math.min(strip.N - 1, hi);
+    lo = Math.max(0, lo);
+    hi = Math.min(strip.N - 1, hi);
     for (let k = lo; k <= hi; k++) if (!this.cols.has(k)) this.make(k);
   }
 
@@ -164,8 +197,13 @@ export class Surface {
     el.style.left = `${(k - this.base) * src.M.P}px`;
     el.innerHTML = src.column(k);
     // in reading order among the others, so a selection across columns runs as the text does
-    let next: HTMLElement | null = null, nk = Infinity;
-    for (const [j, c] of this.cols) if (j > k && j < nk) { nk = j; next = c; }
+    let next: HTMLElement | null = null,
+      nk = Infinity;
+    for (const [j, c] of this.cols)
+      if (j > k && j < nk) {
+        nk = j;
+        next = c;
+      }
     this.cols.set(k, el);
     this.track.insertBefore(el, next);
     fitColumn(el, src.M.fs);
@@ -198,9 +236,16 @@ export class Surface {
 
   refresh(k: number) {
     const el = this.cols.get(k);
-    if (el) { el.innerHTML = this.src().column(k); fitColumn(el, this.src().M.fs); }
+    if (el) {
+      el.innerHTML = this.src().column(k);
+      fitColumn(el, this.src().M.fs);
+    }
   }
 
-  columnEl(k: number) { return this.cols.get(k); }
-  rendered() { return this.cols.entries(); }
+  columnEl(k: number) {
+    return this.cols.get(k);
+  }
+  rendered() {
+    return this.cols.entries();
+  }
 }

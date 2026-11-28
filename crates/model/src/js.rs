@@ -133,7 +133,15 @@ pub fn to_js(book: &Book) -> JsBook<'_> {
                 num: &s.num,
                 title: &s.title,
                 blocks: s.blocks.iter().map(js_block).collect(),
-                h: s.head.as_ref().map(|h| JsHead { lines: h.lines.iter().map(|l| JsHeadLine { b: js_block(&l.block), z: l.size, a: l.align }).collect(), above: h.above, below: h.below }),
+                h: s.head.as_ref().map(|h| JsHead {
+                    lines: h
+                        .lines
+                        .iter()
+                        .map(|l| JsHeadLine { b: js_block(&l.block), z: l.size, a: l.align })
+                        .collect(),
+                    above: h.above,
+                    below: h.below,
+                }),
             })
             .collect(),
         notes: book

@@ -11,11 +11,14 @@ export class Cursor {
 
   constructor(private r: Reader) {}
 
-  get active() { return this.at !== null; }
+  get active() {
+    return this.at !== null;
+  }
 
   /** Paragraphs with lines in the focus window, in reading order. */
   private blocks(): { k: number; b: number }[] {
-    const r = this.r, out: { k: number; b: number }[] = [];
+    const r = this.r,
+      out: { k: number; b: number }[] = [];
     for (const k of r.focusCols()) {
       const L = r.strip?.linesAt(k);
       if (!L) continue;
@@ -38,26 +41,36 @@ export class Cursor {
   }
 
   start() {
-    if (!this.blocks().length) { toast('Nothing to mark here.'); return; }
+    if (!this.blocks().length) {
+      toast('Nothing to mark here.');
+      return;
+    }
     this.at = 0;
     this.move(0);
   }
 
   end() {
     this.at = null;
-    for (const [, el] of this.r.surface.rendered()) for (const ln of el.querySelectorAll('.pick')) ln.classList.remove('pick');
+    for (const [, el] of this.r.surface.rendered())
+      for (const ln of el.querySelectorAll('.pick')) ln.classList.remove('pick');
   }
 
   /** `d` paragraphs on (or back); 0 shows it again where it is, after the page moved. */
   move(d: number) {
-    const r = this.r, blocks = this.blocks();
-    if (this.at === null || !blocks.length) { this.end(); return; }
+    const r = this.r,
+      blocks = this.blocks();
+    if (this.at === null || !blocks.length) {
+      this.end();
+      return;
+    }
     this.at = Math.max(0, Math.min(blocks.length - 1, this.at + d));
     const { k, b } = blocks[this.at];
-    const sec = r.strip!.itemAt(k)!.sec, focus = r.focusCols();
+    const sec = r.strip!.itemAt(k)!.sec,
+      focus = r.focusCols();
     for (const [c, el] of r.surface.rendered()) {
       for (const ln of el.querySelectorAll('.pick')) ln.classList.remove('pick');
-      if (r.strip!.itemAt(c)?.sec === sec && focus.includes(c)) for (const ln of el.querySelectorAll(`.ln[data-b="${b}"], .img[data-b="${b}"]`)) ln.classList.add('pick');
+      if (r.strip!.itemAt(c)?.sec === sec && focus.includes(c))
+        for (const ln of el.querySelectorAll(`.ln[data-b="${b}"], .img[data-b="${b}"]`)) ln.classList.add('pick');
     }
   }
 
@@ -67,9 +80,15 @@ export class Cursor {
     if (!this.active) return;
     const picked = [...document.querySelectorAll<HTMLElement>('.col .pick')];
     const fig = picked.find(el => el.classList.contains('img'));
-    if (fig) { this.r.references.openImage(+fig.dataset.i!, fig); return; }
+    if (fig) {
+      this.r.references.openImage(+fig.dataset.i!, fig);
+      return;
+    }
     const nr = picked.map(el => el.querySelector<HTMLElement>('a.nr')).find(Boolean);
-    if (nr) { this.r.references.openNote(+nr.dataset.n!, nr); return; }
+    if (nr) {
+      this.r.references.openNote(+nr.dataset.n!, nr);
+      return;
+    }
     const ur = picked.map(el => el.querySelector<HTMLElement>('a.ur')).find(Boolean);
     if (ur) this.r.references.openLink(ur.dataset.u!);
     else toast('No note, image or link here.');
@@ -77,12 +96,17 @@ export class Cursor {
 
   /** Highlights the chosen paragraph (and opens its note with `note`). */
   highlight(note: boolean) {
-    const r = this.r, c = this.chosen();
+    const r = this.r,
+      c = this.chosen();
     if (!c) return;
-    const blk = r.book!.sections[c.sec].blocks[c.b], len = blk.t.length;
+    const blk = r.book!.sections[c.sec].blocks[c.b],
+      len = blk.t.length;
     const existing = r.ann!.of(blk.key)?.find(a => a.s === 0 && a.e >= len - 1);
     const id = existing?.id ?? r.marking.highlight({ a: [c.sec, c.b, 0], z: [c.sec, c.b, len] });
-    if (id && note) { ui.noteFor = id; ui.sheet = 'note'; }
+    if (id && note) {
+      ui.noteFor = id;
+      ui.sheet = 'note';
+    }
     this.move(0);
   }
 }

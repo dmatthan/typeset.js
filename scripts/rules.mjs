@@ -5,8 +5,9 @@
 //     only. A type alone may cross (it costs nothing at run time).
 //   - The importer's version is the same number in Rust and TypeScript.
 //   - The release version is the same in every manifest that carries it (version.mjs).
-//   - No source file grows past 800 lines (a Rust file's tests not counted): a file that
-//     long is doing more than one job, and is split by job before it gets there.
+//   - No source file grows past 800 lines (a Rust file's tests and a Svelte file's <style>
+//     not counted: a stylesheet is one declaration a line): a file that long is doing more
+//     than one job, and is split by job before it gets there.
 //
 // Prints each breach and exits 1 if there is any.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -28,15 +29,21 @@ function* files(dir, ext) {
 
 // layers
 const src = join(root, 'app/src');
-const imports = text => [...text.matchAll(/^\s*import\s+(type\s+)?[^'";]*?from\s+'([^']+)'|import\('([^']+)'\)/gm)]
-  .map(m => ({ type: !!m[1], path: m[2] ?? m[3] }));
+const imports = text =>
+  [...text.matchAll(/^\s*import\s+(type\s+)?[^'";]*?from\s+'([^']+)'|import\('([^']+)'\)/gm)].map(m => ({
+    type: !!m[1],
+    path: m[2] ?? m[3],
+  }));
 for (const f of files(src, ['.ts', '.svelte'])) {
-  const at = relative(src, f), text = readFileSync(f, 'utf8');
+  const at = relative(src, f),
+    text = readFileSync(f, 'utf8');
   for (const { type, path } of imports(text)) {
     if (type || !path.startsWith('.')) continue;
     const to = relative(src, join(f, '..', path));
-    if (at.startsWith('core/') && /^(reader|ui)\/|^state\.svelte/.test(to)) bad.push(`${at}: core/ imports ${to} (core is the platform: nothing above it)`);
-    if (at.startsWith('reader/') && to.startsWith('ui/')) bad.push(`${at}: reader/ imports ${to} (the reader does not know the interface)`);
+    if (at.startsWith('core/') && /^(reader|ui)\/|^state\.svelte/.test(to))
+      bad.push(`${at}: core/ imports ${to} (core is the platform: nothing above it)`);
+    if (at.startsWith('reader/') && to.startsWith('ui/'))
+      bad.push(`${at}: reader/ imports ${to} (the reader does not know the interface)`);
     if (at === 'state.svelte.ts') bad.push(`${at}: imports ${to} (the shared state imports types only)`);
   }
 }
@@ -49,7 +56,8 @@ const sources = [
   ...files(join(root, 'service/src'), ['.ts']),
 ];
 for (const f of sources) {
-  const lines = readFileSync(f, 'utf8').split('\n');
+  const text = readFileSync(f, 'utf8');
+  const lines = (f.endsWith('.svelte') ? text.replace(/<style[\s\S]*?<\/style>/g, '') : text).split('\n');
   const end = f.endsWith('.rs') ? lines.findIndex(l => l.startsWith('#[cfg(test)]')) : -1;
   const n = end < 0 ? lines.length : end;
   if (n > MAX_LINES) bad.push(`${relative(root, f)}: ${n} lines (at most ${MAX_LINES}: split it by job)`);
@@ -59,11 +67,17 @@ for (const f of sources) {
 const version = (f, re) => re.exec(readFileSync(join(root, f), 'utf8'))?.[1];
 const rust = version('crates/ingest/src/lib.rs', /pub const VERSION: u32 = (\d+);/);
 const ts = version('app/src/core/types.ts', /export const IMPORTER_VERSION = (\d+);/);
-if (!rust || rust !== ts) bad.push(`importer version: ${rust} in crates/ingest/src/lib.rs, ${ts} in app/src/core/types.ts (the same, always)`);
+if (!rust || rust !== ts)
+  bad.push(`importer version: ${rust} in crates/ingest/src/lib.rs, ${ts} in app/src/core/types.ts (the same, always)`);
 
 // one release version in every manifest (scripts/version.mjs)
 const releases = versions();
-if (new Set(Object.values(releases)).size !== 1) bad.push(`release version: ${Object.entries(releases).map(([f, v]) => `${v} in ${f}`).join(', ')} (the same, always)`);
+if (new Set(Object.values(releases)).size !== 1)
+  bad.push(
+    `release version: ${Object.entries(releases)
+      .map(([f, v]) => `${v} in ${f}`)
+      .join(', ')} (the same, always)`,
+  );
 
 for (const b of bad) console.error(b);
 process.exit(bad.length ? 1 : 0);

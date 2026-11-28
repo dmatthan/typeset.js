@@ -88,7 +88,11 @@ pub fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        let hex = (b[i] == b'%').then(|| b.get(i + 1..i + 3)).flatten().and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
+        let hex = (b[i] == b'%')
+            .then(|| b.get(i + 1..i + 3))
+            .flatten()
+            .and_then(|h| std::str::from_utf8(h).ok())
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
         if let Some(v) = hex {
             out.push(v);
             i += 3;
@@ -423,7 +427,13 @@ pub fn words(s: &str) -> usize {
 /// 1: Han and kana; 2: the scripts of South-East Asia written without spaces; 0: others.
 fn unspaced(c: char) -> u8 {
     match c as u32 {
-        0x3040..=0x30FF | 0x31F0..=0x31FF | 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF | 0xFF66..=0xFF9F | 0x20000..=0x3134F => 1,
+        0x3040..=0x30FF
+        | 0x31F0..=0x31FF
+        | 0x3400..=0x4DBF
+        | 0x4E00..=0x9FFF
+        | 0xF900..=0xFAFF
+        | 0xFF66..=0xFF9F
+        | 0x20000..=0x3134F => 1,
         0x0E00..=0x0EFF | 0x1000..=0x109F | 0x1780..=0x17FF => 2,
         _ => 0,
     }
@@ -512,9 +522,10 @@ impl TextBuilder {
         while self.text.ends_with(' ') {
             self.text.pop();
             if let Some(r) = self.runs.last_mut()
-                && r.end as usize > self.text.len() {
-                    r.end = self.text.len() as u32;
-                }
+                && r.end as usize > self.text.len()
+            {
+                r.end = self.text.len() as u32;
+            }
         }
         if !self.text.is_empty() && !self.text.ends_with('\n') {
             self.text.push('\n');
@@ -550,9 +561,10 @@ impl TextBuilder {
         let start = self.text.len() as u32;
         // a link starts at its first text, not at the space set before it
         if let Some((st @ None, _)) = self.open_link.as_mut()
-            && s != " " {
-                *st = Some(start);
-            }
+            && s != " "
+        {
+            *st = Some(start);
+        }
         self.text.push_str(s);
         let end = self.text.len() as u32;
         if style == 0 {
@@ -646,7 +658,10 @@ pub fn apply_lead_in(block: &mut Block) {
     }
     let start = i;
     let rest = &t[start..];
-    let word_end = |s: &str| s.find(|c: char| c.is_whitespace() || matches!(c, ',' | '.' | ';' | ':' | '!' | '?' | '—' | '”' | '’')).unwrap_or(s.len());
+    let word_end = |s: &str| {
+        s.find(|c: char| c.is_whitespace() || matches!(c, ',' | '.' | ';' | ':' | '!' | '?' | '—' | '”' | '’'))
+            .unwrap_or(s.len())
+    };
     let mut end = start;
     let mut caps_end = start;
     let mut p = 0;
@@ -779,7 +794,14 @@ mod tests {
     fn style_added_over_a_range() {
         let mut b = Block::new(0, Kind::P, "abcdefgh".into(), vec![Run { start: 2, end: 5, style: style::ITALIC }]);
         add_style(&mut b, 4, 7, style::SUP);
-        assert_eq!(b.runs, vec![Run { start: 2, end: 4, style: 1 }, Run { start: 4, end: 5, style: 9 }, Run { start: 5, end: 7, style: 8 }]);
+        assert_eq!(
+            b.runs,
+            vec![
+                Run { start: 2, end: 4, style: 1 },
+                Run { start: 4, end: 5, style: 9 },
+                Run { start: 5, end: 7, style: 8 }
+            ]
+        );
     }
 
     #[test]
@@ -797,9 +819,30 @@ mod repair_tests {
     #[test]
     fn runs_and_links_off_the_characters_are_put_back_on_them() {
         // "a\u{a0}b": the no-break space is bytes 1..3
-        let mut b = Block::new(1, Kind::P, "a\u{a0}b".into(), vec![Run { start: 2, end: 4, style: 1 }, Run { start: 9, end: 12, style: 2 }]);
+        let mut b = Block::new(
+            1,
+            Kind::P,
+            "a\u{a0}b".into(),
+            vec![Run { start: 2, end: 4, style: 1 }, Run { start: 9, end: 12, style: 2 }],
+        );
         b.links = vec![Link { start: 0, end: 2, to: Target::Note(0) }];
-        let mut book = Book { id: "x".into(), meta: Meta::default(), sections: vec![Section { kind: SectionKind::Chapter, part: String::new(), label: String::new(), num: "1".into(), title: String::new(), blocks: vec![b], head: None }], notes: vec![], images: vec![], leading: None, cover: None };
+        let mut book = Book {
+            id: "x".into(),
+            meta: Meta::default(),
+            sections: vec![Section {
+                kind: SectionKind::Chapter,
+                part: String::new(),
+                label: String::new(),
+                num: "1".into(),
+                title: String::new(),
+                blocks: vec![b],
+                head: None,
+            }],
+            notes: vec![],
+            images: vec![],
+            leading: None,
+            cover: None,
+        };
         assert_eq!(book.repair(), 3);
         let b = &book.sections[0].blocks[0];
         assert_eq!(b.runs, vec![Run { start: 1, end: 4, style: 1 }]);

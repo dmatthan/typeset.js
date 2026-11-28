@@ -12,7 +12,13 @@ const IDLE_MS = 5 * 60_000;
 
 /** The engine in a Web Worker (WASM), started when it is first needed; the library, its
  *  covers and images are read from IndexedDB here and need no engine. */
-export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<LibEntry>; faultForTest(): Promise<void>; memory(): Promise<{ wasm: number }>; idle(ms?: number): void; running(): boolean } {
+export function webCore(): Core & {
+  importSample(bytes: Uint8Array): Promise<LibEntry>;
+  faultForTest(): Promise<void>;
+  memory(): Promise<{ wasm: number }>;
+  idle(ms?: number): void;
+  running(): boolean;
+} {
   let n = 0;
   type Call = { op: string; args: unknown[]; once: boolean; res: (v: any) => void; rej: (e: Error) => void };
   const pending = new Map<number, Call>();
@@ -20,13 +26,19 @@ export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<Lib
   /** With no book open, the engine ends at a set time: calls meanwhile (a library search,
    *  the offline cache's question every 30 s) neither cancel nor delay it; opening a
    *  book does. */
-  let idleT = 0, idleAt = 0;
+  let idleT = 0,
+    idleAt = 0;
   const endIdle = () => {
     clearTimeout(idleT);
     if (!idleAt || !w) return;
     const left = idleAt - Date.now();
-    if (left > 0 || pending.size) { idleT = window.setTimeout(endIdle, Math.max(left, 1000)); return; }
-    w.terminate(); w = null; idleAt = 0;
+    if (left > 0 || pending.size) {
+      idleT = window.setTimeout(endIdle, Math.max(left, 1000));
+      return;
+    }
+    w.terminate();
+    w = null;
+    idleAt = 0;
   };
   /** A fault in the engine leaves its instance unusable: the worker is replaced, and the
    *  calls it had not answered go to the new one (except those whose bytes were handed
@@ -43,7 +55,10 @@ export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<Lib
         me.terminate();
         const next = spawn();
         for (const [id, c] of pending) {
-          if (c.once) { pending.delete(id); c.rej(new Error(e.data.error)); } else next.postMessage({ n: id, op: c.op, args: c.args });
+          if (c.once) {
+            pending.delete(id);
+            c.rej(new Error(e.data.error));
+          } else next.postMessage({ n: id, op: c.op, args: c.args });
         }
       }
     };
@@ -55,34 +70,62 @@ export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<Lib
       const err = new Error(`The reader’s engine stopped (${ev.message || 'it could not start'}).`);
       me.terminate();
       if (w === me) w = null;
-      for (const [id, c] of pending) { pending.delete(id); c.rej(err); }
+      for (const [id, c] of pending) {
+        pending.delete(id);
+        c.rej(err);
+      }
     };
     return me;
   }
   const call = <T>(op: string, args: unknown[], transfer: Transferable[] = []) => {
-    if (op === 'open') { idleAt = 0; clearTimeout(idleT); }
-    return new Promise<T>((res, rej) => { const id = ++n; pending.set(id, { op, args, once: transfer.length > 0, res, rej }); (w ?? spawn()).postMessage({ n: id, op, args }, transfer); });
+    if (op === 'open') {
+      idleAt = 0;
+      clearTimeout(idleT);
+    }
+    return new Promise<T>((res, rej) => {
+      const id = ++n;
+      pending.set(id, { op, args, once: transfer.length > 0, res, rej });
+      (w ?? spawn()).postMessage({ n: id, op, args }, transfer);
+    });
   };
 
   /** Imports run one at a time, each in a worker of its own, ended once the book is
    *  stored: reading a large file grows a WebAssembly memory, which never shrinks, and
    *  the reading engine's stays small; a fault while importing ends only that worker. */
   let importing: Promise<unknown> = Promise.resolve();
-  const importIn = (bytes: Uint8Array, name: string, sample: boolean, again?: LibEntry, chapters?: [number, number]) => {
-    const run = importing.then(() => new Promise<LibEntry>((res, rej) => {
-      const iw = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-      const end = () => iw.terminate();
-      iw.onmessage = e => { end(); e.data.ok ? res(e.data.value) : rej(new Error(e.data.error)); };
-      iw.onerror = ev => { ev.preventDefault(); end(); rej(new Error(`The reader’s engine stopped (${ev.message || 'it could not start'}).`)); };
-      iw.postMessage({ n: 0, op: 'importFile', args: [bytes, name, sample, chapters] }, [bytes.buffer]);
-    })).then(async read => {
-      // (a book read again keeps its date and its place among the samples)
-      const entry = again ? { ...read, added: again.added, sample: again.sample } : read;
-      await db.changeList(lib => [...lib.filter(e => e.id !== entry.id), entry]);
-      // (a book imported again is read again: the engine's copy is the old one)
-      if (w) await call('forget', [entry.id]);
-      return entry;
-    });
+  const importIn = (
+    bytes: Uint8Array,
+    name: string,
+    sample: boolean,
+    again?: LibEntry,
+    chapters?: [number, number],
+  ) => {
+    const run = importing
+      .then(
+        () =>
+          new Promise<LibEntry>((res, rej) => {
+            const iw = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+            const end = () => iw.terminate();
+            iw.onmessage = e => {
+              end();
+              e.data.ok ? res(e.data.value) : rej(new Error(e.data.error));
+            };
+            iw.onerror = ev => {
+              ev.preventDefault();
+              end();
+              rej(new Error(`The reader’s engine stopped (${ev.message || 'it could not start'}).`));
+            };
+            iw.postMessage({ n: 0, op: 'importFile', args: [bytes, name, sample, chapters] }, [bytes.buffer]);
+          }),
+      )
+      .then(async read => {
+        // (a book read again keeps its date and its place among the samples)
+        const entry = again ? { ...read, added: again.added, sample: again.sample } : read;
+        await db.changeList(lib => [...lib.filter(e => e.id !== entry.id), entry]);
+        // (a book imported again is read again: the engine's copy is the old one)
+        if (w) await call('forget', [entry.id]);
+        return entry;
+      });
     importing = run.catch(() => {});
     return run;
   };
@@ -105,7 +148,10 @@ export function webCore(): Core & { importSample(bytes: Uint8Array): Promise<Lib
     },
     open: async id => JSON.parse(await call<string>('open', [id])) as BookData,
     layout: (id, sections, p: LayoutParams) => call<ArrayBuffer>('layout', [id, sections, p]),
-    remove: async id => { await db.removeBook(id); if (w) await call('forget', [id]); },
+    remove: async id => {
+      await db.removeBook(id);
+      if (w) await call('forget', [id]);
+    },
     find: (id, query, limit) => call<Uint32Array>('find', [id, query, limit]),
     searchLibrary: query => call<BookHits[]>('searchLibrary', [query]),
     fetched: async () => (w ? call<string[]>('fetched', []) : []),

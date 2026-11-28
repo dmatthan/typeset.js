@@ -37,16 +37,21 @@ impl FontFile {
         let weight = os2.as_ref().map(|o| o.us_weight_class() as f32).unwrap_or(400.0);
         let (mut wmin, mut wmax) = (weight, weight);
         if let Ok(fvar) = t.fvar()
-            && let Ok(axes) = fvar.axes() {
-                for a in axes {
-                    if a.axis_tag() == Tag::new(b"wght") {
-                        wmin = a.min_value().to_f32();
-                        wmax = a.max_value().to_f32();
-                    }
+            && let Ok(axes) = fvar.axes()
+        {
+            for a in axes {
+                if a.axis_tag() == Tag::new(b"wght") {
+                    wmin = a.min_value().to_f32();
+                    wmax = a.max_value().to_f32();
                 }
             }
+        }
         let int_ppem = t.head().ok().is_some_and(|h| h.flags().bits() & 8 != 0);
-        let smcp = t.gsub().ok().and_then(|g| g.feature_list().ok()).is_some_and(|fl| fl.feature_records().iter().any(|r| r.feature_tag() == Tag::new(b"smcp")));
+        let smcp = t
+            .gsub()
+            .ok()
+            .and_then(|g| g.feature_list().ok())
+            .is_some_and(|fl| fl.feature_records().iter().any(|r| r.feature_tag() == Tag::new(b"smcp")));
         Some(FontFile { font, italic, wmin, wmax, smcp, int_ppem })
     }
 
@@ -84,14 +89,19 @@ impl Family {
     /// The file CSS font matching would use (font-synthesis off): italic files for italic
     /// text when there are any, then the nearest weight by the CSS rules.
     pub fn pick(&self, italic: bool, w: f32) -> Option<&FontFile> {
-        let pool: Vec<&FontFile> = if self.files.iter().any(|f| f.italic == italic) { self.files.iter().filter(|f| f.italic == italic).collect() } else { self.files.iter().collect() };
+        let pool: Vec<&FontFile> = if self.files.iter().any(|f| f.italic == italic) {
+            self.files.iter().filter(|f| f.italic == italic).collect()
+        } else {
+            self.files.iter().collect()
+        };
         if let Some(f) = pool.iter().find(|f| f.wmin <= w && w <= f.wmax) {
             return Some(f);
         }
         let above = || pool.iter().filter(|f| f.wmin > w).min_by(|a, b| a.wmin.total_cmp(&b.wmin)).copied();
         let below = || pool.iter().filter(|f| f.wmax < w).max_by(|a, b| a.wmax.total_cmp(&b.wmax)).copied();
         if (400.0..=500.0).contains(&w) {
-            let near = pool.iter().filter(|f| f.wmin > w && f.wmin <= 500.0).min_by(|a, b| a.wmin.total_cmp(&b.wmin)).copied();
+            let near =
+                pool.iter().filter(|f| f.wmin > w && f.wmin <= 500.0).min_by(|a, b| a.wmin.total_cmp(&b.wmin)).copied();
             near.or_else(below).or_else(above)
         } else if w < 400.0 {
             below().or_else(above)
@@ -157,7 +167,17 @@ pub struct Typo {
 
 impl Typo {
     pub fn plain(size: f32, round: bool) -> Typo {
-        Typo { size, wght: BODY_WGHT, bold: BOLD_WGHT, ls: 0.0, ws: 0.0, axes: [(0, 0.0); 4], round, app_units: false, space_kern: 0 }
+        Typo {
+            size,
+            wght: BODY_WGHT,
+            bold: BOLD_WGHT,
+            ls: 0.0,
+            ws: 0.0,
+            axes: [(0, 0.0); 4],
+            round,
+            app_units: false,
+            space_kern: 0,
+        }
     }
 }
 
@@ -324,8 +344,10 @@ impl Measurer {
                 w += SC_WGHT;
             }
             let family = &tf.families[fam as usize];
-            let file = family.pick(bits & I_ITALIC != 0, w).or_else(|| family.files.first()).expect("a family with no files");
-            let mut vars: Vec<(Tag, f32)> = vec![(Tag::new(b"opsz"), opsz(px)), (Tag::new(b"wght"), w.clamp(file.wmin, file.wmax))];
+            let file =
+                family.pick(bits & I_ITALIC != 0, w).or_else(|| family.files.first()).expect("a family with no files");
+            let mut vars: Vec<(Tag, f32)> =
+                vec![(Tag::new(b"opsz"), opsz(px)), (Tag::new(b"wght"), w.clamp(file.wmin, file.wmax))];
             for &(t, v) in &typo.axes {
                 if t != 0 {
                     vars.push((Tag::from_u32(t), v));
@@ -338,8 +360,20 @@ impl Measurer {
                 px = px.round().max(1.0);
             }
             let spaced = typo.ls != 0.0;
-            let plan = ShapePlan::new(&font, Direction::LeftToRight, Some(Script::LATIN), lang.as_ref(), &features(false, spaced));
-            let plan_sc = ShapePlan::new(&font, Direction::LeftToRight, Some(Script::LATIN), lang.as_ref(), &features(true, spaced));
+            let plan = ShapePlan::new(
+                &font,
+                Direction::LeftToRight,
+                Some(Script::LATIN),
+                lang.as_ref(),
+                &features(false, spaced),
+            );
+            let plan_sc = ShapePlan::new(
+                &font,
+                Direction::LeftToRight,
+                Some(Script::LATIN),
+                lang.as_ref(),
+                &features(true, spaced),
+            );
             let scale = px / font.units_per_em() as f32;
             Inst { font, plan, plan_sc, scale }
         })
@@ -443,7 +477,13 @@ impl Measurer {
             if bits & I_SYNTH_SC != 0 {
                 px *= SC_SCALE;
             }
-            let em = if self.round { px.round() } else if self.typo.app_units { (px * 60.0).round() / 60.0 } else { px };
+            let em = if self.round {
+                px.round()
+            } else if self.typo.app_units {
+                (px * 60.0).round() / 60.0
+            } else {
+                px
+            };
             let n = text.chars().count();
             return (em * n as f32, n);
         }
@@ -483,7 +523,8 @@ impl Measurer {
                     w
                 } else if app_units {
                     // each glyph's advance (kerning included) in whole 1/60 px, as Firefox
-                    buf.glyph_positions().iter().map(|p| (p.x_advance as f32 * inst.scale * 60.0).round()).sum::<f32>() / 60.0
+                    buf.glyph_positions().iter().map(|p| (p.x_advance as f32 * inst.scale * 60.0).round()).sum::<f32>()
+                        / 60.0
                 } else {
                     buf.glyph_positions().iter().map(|p| p.x_advance as f32).sum::<f32>() * inst.scale
                 };
@@ -541,7 +582,13 @@ mod tests {
 
     #[test]
     fn static_family_matches_like_css() {
-        let f = fam(&["Charis-Regular.ttf", "Charis-Medium.ttf", "Charis-SemiBold.ttf", "Charis-Bold.ttf", "Charis-Italic.ttf"]);
+        let f = fam(&[
+            "Charis-Regular.ttf",
+            "Charis-Medium.ttf",
+            "Charis-SemiBold.ttf",
+            "Charis-Bold.ttf",
+            "Charis-Italic.ttf",
+        ]);
         let w = |it: bool, w: f32| f.pick(it, w).map(|x| (x.wmin, x.italic)).unwrap();
         assert_eq!(w(false, 400.0), (400.0, false));
         assert_eq!(w(false, 450.0), (500.0, false)); // 400–500: the nearest heavier up to 500
@@ -555,7 +602,13 @@ mod tests {
     fn fallback_sets_missing_characters_in_the_next_family() {
         // (bundled faces come as a core file and an extension, chained as the page picks
         // between them: Cyrillic is in Literata's extension)
-        let tf = Typeface::new(vec![fam(&["Newsreader.ttf"]), fam(&["Newsreader.ext.ttf"]), fam(&["Literata.ttf"]), fam(&["Literata.ext.ttf"])]).unwrap();
+        let tf = Typeface::new(vec![
+            fam(&["Newsreader.ttf"]),
+            fam(&["Newsreader.ext.ttf"]),
+            fam(&["Literata.ttf"]),
+            fam(&["Literata.ext.ttf"]),
+        ])
+        .unwrap();
         let mut m = Measurer::new(&tf, Typo::plain(20.0, false), "en");
         assert_eq!(m.family_for(false, 'a'), 0);
         assert_eq!(m.family_for(false, 'Ж'), 3);
@@ -569,7 +622,10 @@ mod tests {
         let mut k = Measurer::new(&tf, Typo { space_kern: 2, ..Typo::plain(20.0, false) }, "en");
         let mut k1 = Measurer::new(&tf, Typo { space_kern: 1, ..Typo::plain(20.0, false) }, "en");
         assert!(k.space_kern('T', 0, 0, 'A', 0) < -1.0);
-        assert!(k1.space_kern('T', 0, 0, 'A', 0) > k.space_kern('T', 0, 0, 'A', 0) && k1.space_kern('T', 0, 0, 'A', 0) < -0.4);
+        assert!(
+            k1.space_kern('T', 0, 0, 'A', 0) > k.space_kern('T', 0, 0, 'A', 0)
+                && k1.space_kern('T', 0, 0, 'A', 0) < -0.4
+        );
         assert_eq!(l.space_kern('T', 0, 0, 'A', 0), 0.0);
     }
 
@@ -612,7 +668,10 @@ impl Mono {
     /// Width of `text` at `size`; None without the face (then the theme's face measures).
     pub fn width(&mut self, size: f32, round: bool, app_units: bool, text: &str) -> Option<f32> {
         let tf = self.tf.as_ref()?;
-        let m = self.sizes.entry((size.to_bits(), round, app_units)).or_insert_with(|| Measurer::new(tf, Typo { app_units, ..Typo::plain(size, round) }, "en"));
+        let m = self
+            .sizes
+            .entry((size.to_bits(), round, app_units))
+            .or_insert_with(|| Measurer::new(tf, Typo { app_units, ..Typo::plain(size, round) }, "en"));
         Some(m.width(text, 0))
     }
 }

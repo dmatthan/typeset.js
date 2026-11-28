@@ -11,10 +11,16 @@ export class References {
   /** Shows note `i` beside its marker. */
   openNote(i: number, at: HTMLElement) {
     if (!this.r.book?.notes[i]) return;
-    const rect = at.getBoundingClientRect(), st = this.r.stage.getBoundingClientRect();
+    const rect = at.getBoundingClientRect(),
+      st = this.r.stage.getBoundingClientRect();
     const below = rect.bottom - st.top < st.height * 0.6;
     ui.chip = null;
-    ui.bookNote = { i, x: rect.left + rect.width / 2 - st.left, y: (below ? rect.bottom + 6 : rect.top - 6) - st.top, below };
+    ui.bookNote = {
+      i,
+      x: rect.left + rect.width / 2 - st.left,
+      y: (below ? rect.bottom + 6 : rect.top - 6) - st.top,
+      below,
+    };
   }
 
   /** Where a note is printed in the book, as a column to go to. */
@@ -30,9 +36,13 @@ export class References {
    *  to be followed; an address that may not be opened is refused at once. */
   openLink(url: string) {
     if (!features.links) return;
-    if (!shell.outward(url)) { toast('This link can’t be opened.'); return; }
+    if (!shell.outward(url)) {
+      toast('This link can’t be opened.');
+      return;
+    }
     ui.chip = null;
-    ui.leaving = url; ui.sheet = 'link';
+    ui.leaving = url;
+    ui.sheet = 'link';
   }
 
   /** Travels to the block a reference names. */
@@ -45,7 +55,8 @@ export class References {
   /** Shows picture `i` large, rising from where it is on the page. */
   openImage(i: number, fig: HTMLElement) {
     const rect = fig.getBoundingClientRect();
-    ui.bookNote = null; ui.chip = null;
+    ui.bookNote = null;
+    ui.chip = null;
     ui.lightbox = { i, rect: { x: rect.left, y: rect.top, w: rect.width, h: rect.height } };
   }
 }

@@ -22,6 +22,10 @@ export function reading(core: Core): { reader: Reader; contents: Contents } {
   });
   // appearance and the desktop's colours repaint, and only they: a theme, a face or an option
   // waits for its text to be set (`settingsChanged`), which the repaint must not read ahead of
-  $effect(() => { settings.appearance; themes.desktop; untrack(() => reader.appearance.themeChanged()); });
+  $effect(() => {
+    settings.appearance;
+    themes.desktop;
+    untrack(() => reader.appearance.themeChanged());
+  });
   return { reader, contents };
 }

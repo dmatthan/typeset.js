@@ -1,7 +1,16 @@
 /** The web build's engine, in a Web Worker: the WASM engine, asked by message. Books'
  *  bytes live in IndexedDB here, so the page never holds or parses a whole book. */
 /// <reference lib="webworker" />
-import init, { Engine, LibrarySearch, catchPanics, lastPanic, faultForTest, importerVersion, annotateDocx, epubOf } from './pkg/typeset_wasm.js';
+import init, {
+  Engine,
+  LibrarySearch,
+  catchPanics,
+  lastPanic,
+  faultForTest,
+  importerVersion,
+  annotateDocx,
+  epubOf,
+} from './pkg/typeset_wasm.js';
 import wasmUrl from './pkg/typeset_wasm_bg.wasm?url';
 import type { BookHits, FamilyLoad, LibEntry, Summary } from './types';
 import { bundledFiles } from './fonts';
@@ -28,7 +37,13 @@ function family(name: string): Promise<void> {
   if (!p) {
     p = (async () => {
       await ready;
-      const bufs = await Promise.all(files.map(f => { const u = at('fonts/' + f.file); fetched.add(u); return fetch(u, { cache: 'force-cache' }).then(x => x.arrayBuffer()); }));
+      const bufs = await Promise.all(
+        files.map(f => {
+          const u = at('fonts/' + f.file);
+          fetched.add(u);
+          return fetch(u, { cache: 'force-cache' }).then(x => x.arrayBuffer());
+        }),
+      );
       for (const b of bufs) eng.addFont(name, new Uint8Array(b));
     })();
     loading.set(name, p);
@@ -45,9 +60,14 @@ function patterns(id: string): Promise<void> {
   if (!p) {
     fetched.add(at(`hyph/${code}.bin`));
     p = fetch(at(`hyph/${code}.bin`), { cache: 'force-cache' })
-      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+      .then(r => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.arrayBuffer();
+      })
       .then(b => eng.addPatterns(code, new Uint8Array(b)))
-      .catch(() => { hyph.delete(code); });
+      .catch(() => {
+        hyph.delete(code);
+      });
     hyph.set(code, p);
   }
   return p;
@@ -62,7 +82,11 @@ async function families(names: string[], id?: string) {
   // layout asked of it, a few chapters at a time; one that fails is asked again)
   const key = `${id ?? ''}\n${names.join('\n')}`;
   let p = faced.get(key);
-  if (!p) { p = facesOf(names, id); faced.set(key, p); p.catch(() => faced.delete(key)); }
+  if (!p) {
+    p = facesOf(names, id);
+    faced.set(key, p);
+    p.catch(() => faced.delete(key));
+  }
   return p;
 }
 const faced = new Map<string, Promise<void>>();
@@ -101,10 +125,18 @@ const ops: Record<string, (...a: any[]) => Promise<unknown>> = {
     // (a book read again: the images of its earlier reading go)
     await tx('images', 'readwrite', s => s.delete(IDBKeyRange.bound(`${id}/`, `${id}/\uffff`)));
     for (let i = 0, n = eng.imageCount(id); i < n; i++) {
-      const bytes = eng.imageBytes(id, i), mime = eng.imageMime(id, i);
+      const bytes = eng.imageBytes(id, i),
+        mime = eng.imageMime(id, i);
       if (bytes && mime) await tx('images', 'readwrite', s => s.put({ mime, bytes }, `${id}/${i}`));
     }
-    return { id, ...(JSON.parse(eng.summary(id)!) as Summary), added: Date.now(), sample, importer: importerVersion(), source: !chapters } satisfies LibEntry;
+    return {
+      id,
+      ...(JSON.parse(eng.summary(id)!) as Summary),
+      added: Date.now(),
+      sample,
+      importer: importerVersion(),
+      source: !chapters,
+    } satisfies LibEntry;
   },
   async open(id: string) {
     await ensure(id);
@@ -173,10 +205,18 @@ const ops: Record<string, (...a: any[]) => Promise<unknown>> = {
     return [...eng.probe(JSON.stringify(p), texts)];
   },
   /** What the engine holds (bench/memory.mjs). */
-  async memory() { await ready; return { wasm: wasm.memory.buffer.byteLength }; },
+  async memory() {
+    await ready;
+    return { wasm: wasm.memory.buffer.byteLength };
+  },
   /** (tests: the engine failing) */
-  async faultForTest() { await ready; faultForTest(); },
-  async fetched() { return [...fetched]; },
+  async faultForTest() {
+    await ready;
+    faultForTest();
+  },
+  async fetched() {
+    return [...fetched];
+  },
 };
 
 self.onmessage = async (e: MessageEvent) => {
@@ -188,7 +228,12 @@ self.onmessage = async (e: MessageEvent) => {
   } catch (err) {
     const f = fault(err);
     // after a fault this instance is unusable: the page starts another (web.ts)
-    (self as unknown as Worker).postMessage({ n, ok: false, error: f ?? String((err as Error)?.message || err), fatal: !!f });
+    (self as unknown as Worker).postMessage({
+      n,
+      ok: false,
+      error: f ?? String((err as Error)?.message || err),
+      fatal: !!f,
+    });
   }
 };
 

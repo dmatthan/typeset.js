@@ -10,7 +10,11 @@ impl Extractor {
             let full = format!("{}#{}", self.path, id);
             self.see_id(full, false);
         }
-        let imgs: Vec<_> = if e.value().name().eq_ignore_ascii_case("img") { vec![e] } else { e.descendent_elements().filter(|d| d.value().name().eq_ignore_ascii_case("img")).collect() };
+        let imgs: Vec<_> = if e.value().name().eq_ignore_ascii_case("img") {
+            vec![e]
+        } else {
+            e.descendent_elements().filter(|d| d.value().name().eq_ignore_ascii_case("img")).collect()
+        };
         for img in imgs {
             if let Some(src) = image_src(&img, &self.path) {
                 self.push_image(src);
@@ -157,7 +161,12 @@ impl Extractor {
             return;
         }
         // indentation the whole block shares only moves it off the text's margin
-        let common = lines.iter().filter(|l| !l.is_empty()).map(|l| l.len() - l.trim_start_matches(' ').len()).min().unwrap_or(0);
+        let common = lines
+            .iter()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.len() - l.trim_start_matches(' ').len())
+            .min()
+            .unwrap_or(0);
         let mut b = TextBuilder::new();
         b.append(&lines.iter().map(|l| l.get(common..).unwrap_or("")).collect::<Vec<_>>().join("\n"), &[], &[]);
         self.push(Kind::Pre, b);

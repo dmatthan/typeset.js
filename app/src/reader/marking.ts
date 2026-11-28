@@ -30,13 +30,20 @@ export class Marking {
   /** The library's copy of this book's notebook, written a moment after a change. */
   digestSoon() {
     clearTimeout(this.digestT);
-    this.digestT = window.setTimeout(() => { this.digestT = 0; this.saveDigest(); }, 400);
+    this.digestT = window.setTimeout(() => {
+      this.digestT = 0;
+      this.saveDigest();
+    }, 400);
   }
-  private saveDigest() { if (this.r.book && this.r.strip) saveDigest(this.r.book, this.notebook()); }
+  private saveDigest() {
+    if (this.r.book && this.r.strip) saveDigest(this.r.book, this.notebook());
+  }
   /** The library's copy written now, if one is waiting (the book closing). */
   flushDigest() {
     if (!this.digestT) return;
-    clearTimeout(this.digestT); this.digestT = 0; this.saveDigest();
+    clearTimeout(this.digestT);
+    this.digestT = 0;
+    this.saveDigest();
   }
 
   paintMark(key: string) {
@@ -60,7 +67,8 @@ export class Marking {
 
   /** Highlights a selection (one annotation per block it covers). Returns the first. */
   highlight(sel: Sel, color = 1, note = ''): string | null {
-    const book = this.r.book!, ann = this.r.ann!;
+    const book = this.r.book!,
+      ann = this.r.ann!;
     let first: string | null = null;
     const touched = new Set<number>();
     for (const { s, b, from, to } of spans(book, sel)) {
@@ -74,7 +82,10 @@ export class Marking {
     return first;
   }
 
-  recolor(id: string, color: number) { this.r.ann!.update(id, { color }); this.refreshAnn(id); }
+  recolor(id: string, color: number) {
+    this.r.ann!.update(id, { color });
+    this.refreshAnn(id);
+  }
   /** A reaction on a highlight, or on a selection (highlighted for it); the same one
    *  again takes it off. */
   react(on: { ann?: string | null; sel?: Sel | null }, r: Reaction): string | null {
@@ -86,7 +97,8 @@ export class Marking {
     return id;
   }
   setNote(id: string, note: string) {
-    this.r.ann!.update(id, { note }); this.refreshAnn(id);
+    this.r.ann!.update(id, { note });
+    this.refreshAnn(id);
   }
   unhighlight(id: string) {
     const a = this.r.ann!.list.find(x => x.id === id);
@@ -99,5 +111,7 @@ export class Marking {
   }
 
   /** The quote of a selection, for copying. */
-  selText(sel: Sel): string { return selText(this.r.book!, sel); }
+  selText(sel: Sel): string {
+    return selText(this.r.book!, sel);
+  }
 }

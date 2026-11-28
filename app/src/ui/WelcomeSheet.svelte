@@ -9,10 +9,23 @@
   // svelte-ignore state_referenced_locally
   const by = ui.welcome?.by ?? '';
 
-  function close() { ui.sheet = null; ui.welcome = null; }
+  function close() {
+    ui.sheet = null;
+    ui.welcome = null;
+  }
 </script>
 
-<Sheet label="A book sent to you" onclose={close} onkey={e => { if (e.key === 'Enter') { close(); return true; } return false; }}>
+<Sheet
+  label="A book sent to you"
+  onclose={close}
+  onkey={e => {
+    if (e.key === 'Enter') {
+      close();
+      return true;
+    }
+    return false;
+  }}
+>
   <div>
     <p class="eyebrow">{by ? `Sent to you by ${by}` : 'Sent to you'}</p>
     <h2>{reader.book?.title}</h2>
@@ -22,5 +35,9 @@
 </Sheet>
 
 <style>
-  .how { margin: 0; font: 500 var(--t-m)/1.45 var(--f-ui); color: var(--ink-2); }
+  .how {
+    margin: 0;
+    font: 500 var(--t-m) / 1.45 var(--f-ui);
+    color: var(--ink-2);
+  }
 </style>

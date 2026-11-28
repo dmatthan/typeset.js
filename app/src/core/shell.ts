@@ -17,7 +17,12 @@ export const shell = {
   /** An address a book may link out to: the web's or mail's (as the importer keeps); null
    *  for any other. */
   outward(url: string): URL | null {
-    try { const u = new URL(url); return ['https:', 'http:', 'mailto:'].includes(u.protocol) ? u : null; } catch { return null; }
+    try {
+      const u = new URL(url);
+      return ['https:', 'http:', 'mailto:'].includes(u.protocol) ? u : null;
+    } catch {
+      return null;
+    }
   },
   /** Opens an address a book links to, outside the reader: a new tab, or the system's
    *  browser; false for one it may not (`outward`). */

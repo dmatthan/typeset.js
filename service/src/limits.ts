@@ -44,14 +44,21 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** Counts one of `what` today, refusing past the day's cap (exact: the count is kept in
  *  D1 and checked as it is raised). */
 export async function count(db: D1Database, what: string) {
-  const r = await db.prepare('INSERT INTO counts (day, what, n) VALUES (?1, ?2, 1) ON CONFLICT (day, what) DO UPDATE SET n = n + 1 RETURNING n')
-    .bind(today(), what).first<{ n: number }>();
-  if ((r?.n ?? Infinity) > (LIMITS.daily[what] ?? 0)) throw new Fail(503, 'The service has done all it does in a day: try again tomorrow.');
+  const r = await db
+    .prepare(
+      'INSERT INTO counts (day, what, n) VALUES (?1, ?2, 1) ON CONFLICT (day, what) DO UPDATE SET n = n + 1 RETURNING n',
+    )
+    .bind(today(), what)
+    .first<{ n: number }>();
+  if ((r?.n ?? Infinity) > (LIMITS.daily[what] ?? 0))
+    throw new Fail(503, 'The service has done all it does in a day: try again tomorrow.');
 }
 
 /** Bytes kept in all, books and notes. */
 export async function stored(db: D1Database): Promise<number> {
-  const r = await db.prepare('SELECT (SELECT coalesce(sum(size), 0) FROM books) + (SELECT coalesce(sum(size), 0) FROM notes) AS n').first<{ n: number }>();
+  const r = await db
+    .prepare('SELECT (SELECT coalesce(sum(size), 0) FROM books) + (SELECT coalesce(sum(size), 0) FROM notes) AS n')
+    .first<{ n: number }>();
   return r?.n ?? 0;
 }
 
@@ -85,13 +92,16 @@ export async function person(cfg: Env, req: Request, token: string | null | unde
     method: 'POST',
     body: new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token, remoteip: ip(req) }),
   });
-  const v = await r.json<{ success: boolean; hostname?: string; action?: string; metadata?: { result_with_testing_key?: boolean } }>().catch(() => null);
+  const v = await r
+    .json<{ success: boolean; hostname?: string; action?: string; metadata?: { result_with_testing_key?: boolean } }>()
+    .catch(() => null);
   if (!v?.success) throw new Fail(403, 'The check that you are a person did not pass: try again.');
   if (v.metadata?.result_with_testing_key) {
     if (env.DEV !== '1' || !local(req)) throw new Fail(503, 'The service is set up with Turnstile’s test keys.');
     return;
   }
-  if (v.hostname !== new URL(req.url).hostname || v.action !== action) throw new Fail(403, 'The check that you are a person was for another page: try again.');
+  if (v.hostname !== new URL(req.url).hostname || v.action !== action)
+    throw new Fail(403, 'The check that you are a person was for another page: try again.');
 }
 
 export const expiry = (days: number) => now() + days * DAY;

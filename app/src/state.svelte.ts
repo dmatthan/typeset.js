@@ -3,7 +3,24 @@
  *  parts all read and set it. */
 import type { Sel } from './reader/selection';
 
-export type Sheet = null | 'settings' | 'theme' | 'help' | 'remove' | 'note' | 'book' | 'shelf' | 'send' | 'share' | 'invite' | 'welcome' | 'fbexport' | 'draft' | 'newdraft' | 'epub' | 'link';
+export type Sheet =
+  | null
+  | 'settings'
+  | 'theme'
+  | 'help'
+  | 'remove'
+  | 'note'
+  | 'book'
+  | 'shelf'
+  | 'send'
+  | 'share'
+  | 'invite'
+  | 'welcome'
+  | 'fbexport'
+  | 'draft'
+  | 'newdraft'
+  | 'epub'
+  | 'link';
 
 /** Reactive state the chrome reads. */
 export const ui = $state({
@@ -76,6 +93,8 @@ export const ui = $state({
 
 let toastT = 0;
 export function toast(msg: string, ms = 2600) {
-  ui.toast = msg; ui.toastOn = true;
-  clearTimeout(toastT); toastT = window.setTimeout(() => (ui.toastOn = false), ms);
+  ui.toast = msg;
+  ui.toastOn = true;
+  clearTimeout(toastT);
+  toastT = window.setTimeout(() => (ui.toastOn = false), ms);
 }
