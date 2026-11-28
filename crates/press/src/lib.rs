@@ -7,6 +7,7 @@ pub mod brk;
 pub mod fill;
 pub mod hyph;
 pub mod shape;
+mod table;
 
 pub use fill::{PLine, Params, SectionLayout, flag};
 pub use shape::{Family, Typeface, Typo};
